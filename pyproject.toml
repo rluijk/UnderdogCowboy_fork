@@ -10,5 +10,12 @@ readme = "README.md"
 requires-python = ">=3.7"
 license = {text = "MIT"}
 
+dependencies = [
+    "google-generativeai",
+    "google-api-core",
+    "vertexai",
+    "prompt-toolkit",
+]
+
 [project.scripts]
 underdogcowboy = "underdogcowboy.main:main"
