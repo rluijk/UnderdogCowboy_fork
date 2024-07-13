@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "underdogcowboy"
+version = "0.1.1"
+description = "Underdog Cowboy (UC): Wrangle Your LLMs with a Smile"
+readme = "README.md"
+requires-python = ">=3.7"
+license = {text = "MIT"}
+
+[project.scripts]
+underdogcowboy = "underdogcowboy.main:main"

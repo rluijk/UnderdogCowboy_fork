@@ -17,3 +17,7 @@
      *.egg-info/
      .installed.cfg
      *.egg
+/underdogcowboy.egg-info
+/dist
+/underdogcowboy/__pycache__
+/underdogcowboy/core/__pycache__
