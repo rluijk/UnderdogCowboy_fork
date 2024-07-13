@@ -21,3 +21,4 @@
 /dist
 /underdogcowboy/__pycache__
 /underdogcowboy/core/__pycache__
+.DS_Store
