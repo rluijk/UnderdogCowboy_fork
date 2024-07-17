@@ -33,6 +33,10 @@ class LLMConfigManager:
                 'model_id': {'question': 'Enter the model name (id from google LLM)', 'input_type': 'text', 'default': 'gemini-1.5-pro-preview-0514' }
             }
         }
+        self.general_config = {
+            'dialog_save_path': {'question': 'Enter the path to save dialogs:', 'input_type': 'path', 'default': str(Path.home() / 'llm_dialogs')},
+            'message_export_path': {'question': 'Enter the path to export messages:', 'input_type': 'path', 'default': str(Path.home() / 'llm_exports')}
+        }
 
     def load_config(self):
         """
@@ -103,6 +107,46 @@ class LLMConfigManager:
                 value = details['default']
             credentials[prop] = value
         return credentials
+
+
+    def get_general_config(self):
+        """
+        Retrieve or prompt for general configuration settings.
+
+        If settings are not already stored, this method will prompt the user to enter them.
+
+        Returns:
+            dict: A dictionary containing the general configuration settings.
+        """
+        if 'general' not in self.config or not self.config['general'].get('configured', False):
+            print("No stored general configuration found. Please enter them now.")
+            self.config['general'] = {}
+            for prop, details in self.general_config.items():
+                value = input(f"{details['question']} (default: {details.get('default', 'N/A')}): ")
+                if not value and 'default' in details:
+                    value = details['default']
+                self.config['general'][prop] = value
+            self.config['general']['configured'] = True
+            self.save_config()
+
+        return {prop: self.config['general'].get(prop, details.get('default')) 
+                for prop, details in self.general_config.items()}
+
+    def update_general_config(self):
+        """
+        Update the general configuration settings.
+
+        This method allows the user to update the dialog save path and message export path.
+        """
+        print("Updating general configuration settings:")
+        for prop, details in self.general_config.items():
+            current_value = self.config['general'].get(prop, details.get('default', 'N/A'))
+            value = input(f"{details['question']} (current: {current_value}, press Enter to keep current): ")
+            if value:
+                self.config['general'][prop] = value
+        self.save_config()
+        print("General configuration updated successfully.")
+
 
     def select_model(self):
         """
