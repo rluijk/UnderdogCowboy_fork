@@ -1,5 +1,10 @@
 
-![Underdog Cowboy](Underdog Cowboy.jpg)
+
+<h1 align="center">
+<img src="Underdog Cowboy.jpg" width="300">
+</h1><br>
+
+
 
 # Underdog Cowboy (UC): Wrangle Your LLMs with a Smile 🤠
 
