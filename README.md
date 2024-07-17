@@ -1,3 +1,6 @@
+
+![Underdog Cowboy](Underdog Cowboy.jpg)
+
 # Underdog Cowboy (UC): Wrangle Your LLMs with a Smile 🤠
 
 UC is less of a framework and more of a "howdy, partner" approach to getting things done in the wild west of LLMs. It's about letting your agents roam free while you keep a watchful eye, ready to lend a hand when things get a little too... *unpredictable*.
