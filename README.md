@@ -51,3 +51,9 @@ Here's how this philosophy shapes UC:
 Ready to saddle up and ride the frontier of AI task management? Check out the code and see what kind of stories you can wrangle with UC!
 
 **Note:** UC is open-source under the MIT License. Feel free to rustle up your own adventures with it.
+
+---
+
+## Frozen Segments Feature
+
+This project includes a "frozen segments" feature in the Timeline and CommandProcessor classes, which is designed to allow for partial preservation and manipulation of conversation history. While this feature is integrated into the codebase, it is not yet fully implemented or actively used in the current release. We've retained it to maintain code coherence and to allow for future development and community contributions. Users should be aware that this feature may undergo changes or full implementation in future releases. If you're interested in contributing to or expanding this feature, please check our Issues page for related tasks or create a new Issue to discuss potential improvements.
