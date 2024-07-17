@@ -1,5 +1,7 @@
 
 
+<link rel="icon" type="image/png" href="favicon.png">
+
 <h1 align="center">
 <img src="Underdog Cowboy.jpg" width="300">
 </h1><br>
