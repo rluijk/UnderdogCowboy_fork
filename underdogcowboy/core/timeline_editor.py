@@ -318,6 +318,26 @@ class CommandProcessor:
 
         print("Interactive mode started.")
 
+    def process_file_input(self, file_path, conversation):
+        if os.path.exists(file_path):
+            try:
+                with open(file_path, 'r') as f:
+                    file_content = f.read()
+                if file_content.strip():
+                    message = f"File sent: {file_path}\n\nFile Content:\n{file_content}"
+                    conversation.append(self.construct_message(message, 'user'))
+                    self.timeline.add_message('user', message)
+                    return True
+                else:
+                    print("File is empty. Not sending.")
+                    return False
+            except Exception as e:
+                print(f"Error reading file: {e}")
+                return False
+        else:
+            print(f"File not found: {file_path}")
+            return False
+
     def load_config(self):
         """
         Load configuration settings from a JSON file.
@@ -622,6 +642,7 @@ class CommandProcessor:
         except ValueError:
             print("Invalid index.")
 
+
     def interactive_phase(self):
         """
         Enter an interactive chat session with the model.
@@ -630,21 +651,24 @@ class CommandProcessor:
 
         Returns:
             int: The current position in the timeline after the interactive session.
-        """        
-        conversation = [{'role': 'user', 'parts': [{'text': msg.text}]} if msg.role == 'user' else {'role': 'model',
-                                                                                                    'parts': [{
-                                                                                                        'text': msg.text}]}
-                        for msg in self.timeline.history]
+        """ 
+        conversation = [{'role': msg.role, 'parts': [{'text': msg.text}]} 
+                        for msg in self.timeline.history 
+                        if msg.text.strip()]  # Filter out empty messages
         while True:
             user_input = input(
-                "Enter your next message, 'file <file_path>' to send a file, or 'cmd' to switch to command mode: ")
+                "Enter your next message, 'file <file_path>' to send a file, or 'cmd' to switch to command mode: ").strip()
             if user_input.lower() == 'cmd':
                 return self.timeline.get_current_position()
 
+            if not user_input:
+                print("Empty input. Please enter a message.")
+                continue
+
             if user_input.startswith('file '):
-                file_path = user_input[5:]
-                conversation.append(self.construct_message(f"File sent: {file_path}", 'user', file_path))
-                self.timeline.add_message('user', f"File sent: {file_path}\n\nFile Content:\n{file_path}")
+                file_path = user_input[5:].strip()
+                if not self.process_file_input(file_path, conversation):
+                    continue
             else:
                 conversation.append(self.construct_message(user_input, 'user'))
                 self.timeline.add_message('user', user_input)
@@ -658,27 +682,29 @@ class CommandProcessor:
                 print("-" * 30 + "\n\n")
             except google.api_core.exceptions.DeadlineExceeded:
                 print("Error: The request timed out. Please try again.")
+                # Remove the last user message from conversation and timeline
+                if conversation[-1]['role'] == 'user':
+                    conversation.pop()
+                if self.timeline.history[-1].role == 'user':
+                    self.timeline.history.pop()
 
-    def construct_message(self,message, role='user', file_path=None):
-        """
-        Construct a message object for the conversation.
 
-        Args:
-            message (str): The text content of the message.
-            role (str, optional): The role of the message sender. Defaults to 'user'.
-            file_path (str, optional): Path to a file to be included in the message.
-
-        Returns:
-            dict: A structured message object for the conversation.
-        """        
+    def construct_message(self, message, role='user', file_path=None):
+        if not message.strip():
+            return None  # Return None for empty messages
         parts = [{'text': message}]
         if file_path:
             try:
                 with open(file_path, 'r') as f:
                     file_content = f.read()
-                parts.append({'text': "\n\nFile Content:\n" + file_content})
+                if file_content.strip():
+                    parts.append({'text': "\n\nFile Content:\n" + file_content})
+                else:
+                    parts.append({'text': "File is empty."})
             except FileNotFoundError:
                 parts.append({'text': f"Error: File not found at '{file_path}'"})
+            except Exception as e:
+                parts.append({'text': f"Error reading file: {e}"})
         return {'role': role, 'parts': parts}
 
 
