@@ -11,6 +11,14 @@ from vertexai.generative_models import GenerativeModel
 
 from config_manager import LLMConfigManager
 
+
+class ModelRequestException(Exception):
+    def __init__(self, message, model_type):
+        self.message = message
+        self.model_type = model_type
+        super().__init__(self.message)
+
+
 class ConfigurableModel(ABC):
     """
     An abstract base class for configurable AI models.
@@ -179,7 +187,6 @@ class ClaudeAIModel(ConfigurableModel):
             Potential HTTP exceptions from the requests library are caught and
             returned as error messages in the response string.
         """
-
         # Ensure the conversation has the correct structure
         formatted_conversation = []
         for message in conversation:
@@ -203,7 +210,7 @@ class ClaudeAIModel(ConfigurableModel):
         data = {
             "messages": formatted_conversation,
             "model": self.model_id,
-            "max_tokens": 300
+            "max_tokens": 1000
         }
         
         response = requests.post(self.api_url, headers=self.headers, json=data)

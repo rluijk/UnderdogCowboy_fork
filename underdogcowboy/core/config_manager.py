@@ -108,7 +108,6 @@ class LLMConfigManager:
             credentials[prop] = value
         return credentials
 
-
     def get_general_config(self):
         """
         Retrieve or prompt for general configuration settings.
@@ -173,3 +172,6 @@ class LLMConfigManager:
                     print("Invalid choice. Please try again.")
             except ValueError:
                 print("Please enter a valid number.")
+
+    def get_available_models(self):
+        return sorted(self.models.keys())

@@ -11,7 +11,7 @@ import google.api_core.exceptions
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 
-from model import ModelManager
+from model import ModelManager, ModelRequestException
 from config_manager import LLMConfigManager
 
 
@@ -389,8 +389,36 @@ class CommandProcessor:
             'quit': exit,
             'q': exit,
             'select-dialog': self.load_selected_dialog,
-            'sd': self.load_selected_dialog
+            'sd': self.load_selected_dialog,
+            'switch-model': self.switch_model,  
+            'swm': self.switch_model  
+  
         }
+
+    def switch_model(self):
+        config_manager = LLMConfigManager()
+        available_models = config_manager.get_available_models()
+        
+        print("Available models:")
+        for i, model_name in enumerate(available_models, 1):
+            print(f"{i}. {model_name}")
+        
+        while True:
+            try:
+                choice = int(input("Enter the number of the model you want to switch to: "))
+                if 1 <= choice <= len(available_models):
+                    new_model_name = available_models[choice - 1]
+                    break
+                else:
+                    print("Invalid choice. Please try again.")
+            except ValueError:
+                print("Please enter a valid number.")
+        
+        new_model = ModelManager.initialize_model(new_model_name)
+        self.model = new_model
+        print(f"Switched to {new_model_name} model.")
+        
+        return 
 
     def display_timeline(self):
         """
@@ -540,6 +568,7 @@ class CommandProcessor:
         print("  display-timeline, dt: Display runtime timeline.")
         print("  select-message, sm: Select a specific message by index.")
         print("  select-dialog, sd: Select a specific agent.")
+        print("  switch-model, swm: Switch LLM model.")
         print("  help, ?: Show this help message.")
         print("  quit, q: Exit the application.")
 
@@ -642,7 +671,6 @@ class CommandProcessor:
         except ValueError:
             print("Invalid index.")
 
-
     def interactive_phase(self):
         """
         Enter an interactive chat session with the model.
@@ -670,24 +698,26 @@ class CommandProcessor:
                 if not self.process_file_input(file_path, conversation):
                     continue
             else:
-                conversation.append(self.construct_message(user_input, 'user'))
-                self.timeline.add_message('user', user_input)
-
+                user_message = self.construct_message(user_input, 'user')
+                if user_message:
+                    conversation.append(user_message)
+                    self.timeline.add_message('user', user_input)
+                else:
+                    print("Error: Empty message not added to conversation.")
+                    continue
             try:
-                model_response = model.generate_content(conversation) 
+                model_response = self.model.generate_content(conversation) 
                 conversation.append(self.construct_message(model_response, 'model'))
                 self.timeline.add_message('model', model_response)
                 print("\n\n" + "-" * 30 + "\n")
                 print(f"{model_response}")
                 print("-" * 30 + "\n\n")
-            except google.api_core.exceptions.DeadlineExceeded:
-                print("Error: The request timed out. Please try again.")
-                # Remove the last user message from conversation and timeline
+            except ModelRequestException as e:
+                print(f"Error with {e.model_type} model: {e.message}")
                 if conversation[-1]['role'] == 'user':
                     conversation.pop()
                 if self.timeline.history[-1].role == 'user':
                     self.timeline.history.pop()
-
 
     def construct_message(self, message, role='user', file_path=None):
         if not message.strip():
@@ -707,8 +737,7 @@ class CommandProcessor:
                 parts.append({'text': f"Error reading file: {e}"})
         return {'role': role, 'parts': parts}
 
-
-
+  
 if __name__ == "__main__":
 
     config_manager = LLMConfigManager()
@@ -716,9 +745,9 @@ if __name__ == "__main__":
     credentials = config_manager.get_credentials(model_name)
     general_config = config_manager.get_general_config()
     
-    model = ModelManager.initialize_model(model_name)
+    initial_model = ModelManager.initialize_model(model_name)
     timeline = Timeline()  # Ensure timeline is correctly instantiated
-    processor = CommandProcessor(timeline, model)
+    processor = CommandProcessor(timeline, initial_model)
 
     processor.process_command('interactive')
 
