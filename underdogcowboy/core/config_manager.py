@@ -146,7 +146,6 @@ class LLMConfigManager:
         self.save_config()
         print("General configuration updated successfully.")
 
-
     def select_model(self):
         """
         Prompt the user to select a model from the available options.

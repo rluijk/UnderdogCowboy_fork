@@ -9,7 +9,7 @@ import keyring
 import vertexai
 from vertexai.generative_models import GenerativeModel
 
-from config_manager import LLMConfigManager
+from .config_manager import LLMConfigManager
 
 
 class ModelRequestException(Exception):

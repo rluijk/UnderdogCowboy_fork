@@ -1,7 +1,7 @@
 import os
-from timeline_editor import Timeline, CommandProcessor
-from model import ModelManager
-from config_manager import LLMConfigManager
+from .timeline_editor import Timeline, CommandProcessor
+from .model import ModelManager
+from .config_manager import LLMConfigManager
 
 
 class DialogManager:

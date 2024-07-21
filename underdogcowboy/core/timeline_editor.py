@@ -4,15 +4,11 @@ import sys
 
 from pathlib import Path
 
-import google.generativeai as genai
-import google.api_core.exceptions
-
-
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 
-from model import ModelManager, ModelRequestException
-from config_manager import LLMConfigManager
+from .model import ModelManager, ModelRequestException
+from .config_manager import LLMConfigManager
 
 
 '''
@@ -700,36 +696,6 @@ class CommandProcessor:
                 print(f"{model_response}")
                 print("-" * 30 + "\n\n")
 
-    def process_single_message(self, user_input):
-        """
-        Process a single message (or file input) and return the model's response.
-
-        Args:
-            user_input (str): The user's input message or file command.
-
-        Returns:
-            str: The model's response or an error message.
-        """
-        model_response, error_message = self._process_message(user_input)
-        return model_response if model_response else error_message
-
-    def construct_message(self, message, role='user', file_path=None):
-        if not message.strip():
-            return None  # Return None for empty messages
-        parts = [{'text': message}]
-        if file_path:
-            try:
-                with open(file_path, 'r') as f:
-                    file_content = f.read()
-                if file_content.strip():
-                    parts.append({'text': "\n\nFile Content:\n" + file_content})
-                else:
-                    parts.append({'text': "File is empty."})
-            except FileNotFoundError:
-                parts.append({'text': f"Error: File not found at '{file_path}'"})
-            except Exception as e:
-                parts.append({'text': f"Error reading file: {e}"})
-        return {'role': role, 'parts': parts}
 
     def _process_message(self, user_input):
         """
@@ -769,8 +735,40 @@ class CommandProcessor:
                 self.timeline.history.pop()
             return None, error_message
 
+
+    def process_single_message(self, user_input):
+        """
+        Process a single message (or file input) and return the model's response.
+
+        Args:
+            user_input (str): The user's input message or file command.
+
+        Returns:
+            str: The model's response or an error message.
+        """
+        model_response, error_message = self._process_message(user_input)
+        return model_response if model_response else error_message
+
+    def construct_message(self, message, role='user', file_path=None):
+        if not message.strip():
+            return None  # Return None for empty messages
+        parts = [{'text': message}]
+        if file_path:
+            try:
+                with open(file_path, 'r') as f:
+                    file_content = f.read()
+                if file_content.strip():
+                    parts.append({'text': "\n\nFile Content:\n" + file_content})
+                else:
+                    parts.append({'text': "File is empty."})
+            except FileNotFoundError:
+                parts.append({'text': f"Error: File not found at '{file_path}'"})
+            except Exception as e:
+                parts.append({'text': f"Error reading file: {e}"})
+        return {'role': role, 'parts': parts}
+
   
-if __name__ == "__main__":
+def  main():
 
     config_manager = LLMConfigManager()
     model_name = config_manager.select_model()
@@ -787,4 +785,7 @@ if __name__ == "__main__":
         command = input("Enter a command: ").lower()
         processor.process_command(command)
 
-    
+
+if __name__ == "__main__":
+    main()
+
