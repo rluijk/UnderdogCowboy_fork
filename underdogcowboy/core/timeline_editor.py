@@ -223,7 +223,7 @@ class Timeline:
         """
         Load a timeline from a file.
         
-        Args:
+        Args: 
             filename (str): The name of the file to load.
             path (str, optional): The directory path of the file.
         """
@@ -679,13 +679,11 @@ class CommandProcessor:
 
         Returns:
             int: The current position in the timeline after the interactive session.
-        """ 
-        conversation = [{'role': msg.role, 'parts': [{'text': msg.text}]} 
-                        for msg in self.timeline.history 
-                        if msg.text.strip()]  # Filter out empty messages
+        """
         while True:
             user_input = input(
                 "Enter your next message, 'file <file_path>' to send a file, or 'cmd' to switch to command mode: ").strip()
+            
             if user_input.lower() == 'cmd':
                 return self.timeline.get_current_position()
 
@@ -693,31 +691,27 @@ class CommandProcessor:
                 print("Empty input. Please enter a message.")
                 continue
 
-            if user_input.startswith('file '):
-                file_path = user_input[5:].strip()
-                if not self.process_file_input(file_path, conversation):
-                    continue
+            model_response, error_message = self._process_message(user_input)
+            
+            if error_message:
+                print(error_message)
             else:
-                user_message = self.construct_message(user_input, 'user')
-                if user_message:
-                    conversation.append(user_message)
-                    self.timeline.add_message('user', user_input)
-                else:
-                    print("Error: Empty message not added to conversation.")
-                    continue
-            try:
-                model_response = self.model.generate_content(conversation) 
-                conversation.append(self.construct_message(model_response, 'model'))
-                self.timeline.add_message('model', model_response)
                 print("\n\n" + "-" * 30 + "\n")
                 print(f"{model_response}")
                 print("-" * 30 + "\n\n")
-            except ModelRequestException as e:
-                print(f"Error with {e.model_type} model: {e.message}")
-                if conversation[-1]['role'] == 'user':
-                    conversation.pop()
-                if self.timeline.history[-1].role == 'user':
-                    self.timeline.history.pop()
+
+    def process_single_message(self, user_input):
+        """
+        Process a single message (or file input) and return the model's response.
+
+        Args:
+            user_input (str): The user's input message or file command.
+
+        Returns:
+            str: The model's response or an error message.
+        """
+        model_response, error_message = self._process_message(user_input)
+        return model_response if model_response else error_message
 
     def construct_message(self, message, role='user', file_path=None):
         if not message.strip():
@@ -736,6 +730,44 @@ class CommandProcessor:
             except Exception as e:
                 parts.append({'text': f"Error reading file: {e}"})
         return {'role': role, 'parts': parts}
+
+    def _process_message(self, user_input):
+        """
+        Core logic for processing a message (including file inputs) and getting a model response.
+        
+        Args:
+            user_input (str): The user's input message or file command.
+        
+        Returns:
+            tuple: (model_response, error_message)
+        """
+        conversation = [{'role': msg.role, 'parts': [{'text': msg.text}]} 
+                        for msg in self.timeline.history 
+                        if msg.text.strip()]
+
+        if user_input.startswith('file '):
+            file_path = user_input[5:].strip()
+            if not self.process_file_input(file_path):
+                return None, "Error processing file input."
+            user_input = f"File sent: {file_path}"
+
+        user_message = self.construct_message(user_input, 'user')
+        if not user_message:
+            return None, "Error: Empty message not processed."
+
+        conversation.append(user_message)
+        self.timeline.add_message('user', user_input)
+
+        try:
+            model_response = self.model.generate_content(conversation)
+            conversation.append(self.construct_message(model_response, 'model'))
+            self.timeline.add_message('model', model_response)
+            return model_response, None
+        except ModelRequestException as e:
+            error_message = f"Error with {e.model_type} model: {e.message}"
+            if self.timeline.history[-1].role == 'user':
+                self.timeline.history.pop()
+            return None, error_message
 
   
 if __name__ == "__main__":
