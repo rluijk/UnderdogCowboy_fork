@@ -314,16 +314,15 @@ class CommandProcessor:
 
         print("Interactive mode started.")
 
-    def process_file_input(self, file_path, conversation):
+    def process_file_input(self, file_path):
         if os.path.exists(file_path):
             try:
                 with open(file_path, 'r') as f:
                     file_content = f.read()
                 if file_content.strip():
                     message = f"File sent: {file_path}\n\nFile Content:\n{file_content}"
-                    conversation.append(self.construct_message(message, 'user'))
-                    self.timeline.add_message('user', message)
-                    return True
+                    # self.timeline.add_message('user', message)
+                    return message
                 else:
                     print("File is empty. Not sending.")
                     return False
@@ -713,9 +712,8 @@ class CommandProcessor:
 
         if user_input.startswith('file '):
             file_path = user_input[5:].strip()
-            if not self.process_file_input(file_path):
-                return None, "Error processing file input."
-            user_input = f"File sent: {file_path}"
+            file_content = self.process_file_input(file_path) 
+            user_input = file_content
 
         user_message = self.construct_message(user_input, 'user')
         if not user_message:
