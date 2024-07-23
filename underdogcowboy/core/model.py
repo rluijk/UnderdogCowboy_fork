@@ -323,10 +323,7 @@ class ModelManager:
         This class assumes that the necessary model classes (e.g., ClaudeAIModel, 
         VertexAIModel) are defined and available in the same scope.
     """
-    # @staticmethod
-    # def _is_running_in_colab():
-    #    return os.path.exists('colab_config.txt') and not os.path.exists('config.txt')
-
+    
     @staticmethod
     def initialize_model(model_name):
         

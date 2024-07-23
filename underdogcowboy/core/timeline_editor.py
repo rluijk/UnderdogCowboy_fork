@@ -314,14 +314,17 @@ class CommandProcessor:
 
         print("Interactive mode started.")
 
+        
     def process_file_input(self, file_path):
-        if os.path.exists(file_path):
+        # Convert to absolute path if it's not already
+        abs_file_path = os.path.abspath(file_path)
+        
+        if os.path.exists(abs_file_path):
             try:
-                with open(file_path, 'r') as f:
+                with open(abs_file_path, 'r') as f:
                     file_content = f.read()
                 if file_content.strip():
-                    message = f"File sent: {file_path}\n\nFile Content:\n{file_content}"
-                    # self.timeline.add_message('user', message)
+                    message = f"File sent: {abs_file_path}\n\nFile Content:\n{file_content}"
                     return message
                 else:
                     print("File is empty. Not sending.")
@@ -330,8 +333,8 @@ class CommandProcessor:
                 print(f"Error reading file: {e}")
                 return False
         else:
-            print(f"File not found: {file_path}")
-            return False
+            print(f"File not found: {abs_file_path}")
+            return False     
 
     def load_config(self):
         """
@@ -339,22 +342,22 @@ class CommandProcessor:
         
         Reads the configuration file and sets up message export and dialog save paths.
         """        
-        config_file = Path.home() / '.underdogcowboy' / 'config.json'
+        config_file = os.path.join(Path.home(), '.underdogcowboy', 'config.json')
 
-        if config_file.exists():
+        if os.path.exists(config_file):
             with open(config_file, 'r') as f:
                 config = json.load(f)
                 
             general_config = config.get('general', {})
-            self.message_export_path = general_config.get('message_export_path', '')
-            self.dialog_save_path = general_config.get('dialog_save_path', '')
+            self.message_export_path = os.path.abspath(general_config.get('message_export_path', ''))
+            self.dialog_save_path = os.path.abspath(general_config.get('dialog_save_path', ''))
 
             if not self.message_export_path or not self.dialog_save_path:
                 print("Warning: Some configuration values are missing.")
         else:
             print(f"Configuration file '{config_file}' not found.")
             self.message_export_path = ''
-            self.dialog_save_path = ''
+            self.dialog_save_path = ''            
 
     def initialize_commands(self):
         """
@@ -614,12 +617,14 @@ class CommandProcessor:
         Load a timeline from a file.
 
         Prompts the user for the filename and loads the timeline.
-        """        
+        """               
         filename = input("Enter the filename to load the timeline: ")
         if not filename.endswith('.json'):
             filename += '.json'
-        full_path = os.path.join(self.dialog_save_path, filename)
+        full_path = os.path.abspath(os.path.join(self.dialog_save_path, filename))
         self.timeline.load(full_path)
+
+
 
     def save_timeline(self):
         """
