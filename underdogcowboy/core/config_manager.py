@@ -178,3 +178,55 @@ class LLMConfigManager:
 
     def get_available_models(self):
         return sorted(self.models.keys())
+    
+    def update_model_property(self, model, property_name, new_value):
+        """
+        Update a specific property for a given model.
+
+        Args:
+            model (str): The name of the model.
+            property_name (str): The name of the property to update.
+            new_value (str): The new value for the property.
+
+        Raises:
+            ValueError: If the model or property doesn't exist.
+        """
+        if model not in self.models:
+            raise ValueError(f"Model '{model}' does not exist.")
+        
+        if property_name not in self.models[model]:
+            raise ValueError(f"Property '{property_name}' does not exist for model '{model}'.")
+        
+        if self.models[model][property_name]['input_type'] == 'password':
+            keyring.set_password("underdogcowboy", f"{model}_{property_name}", new_value)
+            self.config[model][property_name] = "KEYRING_STORED"
+        else:
+            self.config[model][property_name] = new_value
+        
+        self.save_config()
+        print(f"Updated {property_name} for {model}.")
+
+    def remove_model_config(self, model):
+        """
+        Remove the configuration for a specific model.
+
+        Args:
+            model (str): The name of the model to remove.
+
+        Raises:
+            ValueError: If the model doesn't exist in the configuration.
+        """
+        if model not in self.config:
+            raise ValueError(f"Model '{model}' does not exist in the configuration.")
+        
+        # Remove from keyring
+        for prop, details in self.models[model].items():
+            if details['input_type'] == 'password':
+                keyring.delete_password("underdogcowboy", f"{model}_{prop}")
+        
+        # Remove from config
+        del self.config[model]
+        self.save_config()
+        print(f"Removed configuration for {model}.")
+
+        
