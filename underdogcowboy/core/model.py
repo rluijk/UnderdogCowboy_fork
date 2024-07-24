@@ -9,6 +9,8 @@ import keyring
 import vertexai
 from vertexai.generative_models import GenerativeModel
 
+from groq import Groq
+
 from .config_manager import LLMConfigManager
 
 
@@ -302,6 +304,126 @@ class VertexAIModel(ConfigurableModel):
         response = self.model.generate_content(conversation)
         return response.text
 
+class GroqModel(ConfigurableModel):
+    def __init__(self):
+        """
+        Initialize the GroqModel.
+
+        This method sets up the model type and calls the initialize_model method
+        to set up the Groq model.
+        """
+        super().__init__()
+        self.model_type = "groq"
+        self.initialize_model()
+
+    def initialize_model(self):
+        """
+        Initialize the Groq model.
+
+        This method performs the following steps:
+        1. Retrieves the model credentials.
+        2. Checks for missing or empty required fields.
+        3. Configures the model if necessary.
+        4. Sets up the Groq client.
+
+        If any required fields are missing, it will prompt the user to configure them.
+
+        Raises:
+            Exception: If there's an error during the initialization process.
+                The specific exception is caught, logged, and re-raised.
+        """
+        try:
+            self.config = self.config_manager.get_credentials(self.model_type)
+            
+            required_fields = ['api_key', 'model_id']
+            missing_or_empty_fields = [field for field in required_fields
+                                       if field not in self.config or not self.config[field]]
+            
+            if missing_or_empty_fields:
+                print(f"Warning: Missing or empty fields: {', '.join(missing_or_empty_fields)}")
+                print(f"Starting configuration process for {self.model_type} model.")
+                self.configure_model()
+                # After setup, try to get the credentials again
+                self.config = self.config_manager.get_credentials(self.model_type)
+            
+            self.api_key = self.config['api_key']
+            self.model_id = self.config['model_id']
+
+            self.client = Groq(api_key=self.api_key)
+            print(f"{self.model_type} model initialized successfully.")
+        except Exception as e:
+            print(f"Error initializing {self.model_type} model: {str(e)}")
+            print(f"Please ensure you have provided all required information for the {self.model_type} model.")
+            raise
+
+    def _convert_conversation_format(self, conversation):
+        """
+        Convert the conversation from the current format to the format required by Groq.
+
+        Args:
+            conversation (list): A list of dictionaries in the current format.
+
+        Returns:
+            list: A list of dictionaries in the format required by Groq.
+        """
+        converted_conversation = []
+        for message in conversation:
+            role = message['role']
+            if role == 'model':
+                role = 'assistant'  # Convert 'model' role to 'assistant'
+            
+            if 'parts' in message:
+                # Convert 'parts' structure to 'content'
+                content = ' '.join(part['text'] for part in message['parts'] if 'text' in part)
+            elif 'content' in message:
+                content = message['content']
+            else:
+                continue  # Skip messages without content
+
+            converted_conversation.append({
+                "role": role,
+                "content": content
+            })
+        
+        # Add a system message if it doesn't exist
+        if not any(msg['role'] == 'system' for msg in converted_conversation):
+            converted_conversation.insert(0, {
+                "role": "system",
+                "content": "You are a helpful assistant."
+            })
+
+        return converted_conversation
+
+    def generate_content(self, conversation):
+        """
+        Generate content using the Groq model.
+
+        This method takes a conversation history, converts it to the required format,
+        and uses the Groq model to generate a response.
+
+        Args:
+            conversation (list): A list of dictionaries representing the 
+                conversation history in the current format.
+
+        Returns:
+            str: The generated response text.
+
+        Note:
+            This method converts the conversation history to the format required by the Groq API
+            and returns the generated content.
+        """
+        try:
+            converted_conversation = self._convert_conversation_format(conversation)
+            chat_completion = self.client.chat.completions.create(
+                messages=converted_conversation,
+                model=self.model_id,
+            )
+            return chat_completion.choices[0].message.content
+        except Exception as e:
+            return f"Error generating content: {str(e)}"            
+
+
+
 class ModelManager:
     """
     A utility class for managing and initializing different AI models.
@@ -331,6 +453,8 @@ class ModelManager:
             return ClaudeAIModel()
         elif model_name == 'google-vertex':
             return VertexAIModel()
+        elif model_name == 'groq':
+            return GroqModel()
         else:
             raise ValueError(f"Unsupported model: {model_name}")
         

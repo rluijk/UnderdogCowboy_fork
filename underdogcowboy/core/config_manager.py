@@ -31,6 +31,10 @@ class LLMConfigManager:
                 'project_id': {'question': 'Enter the project id from your google cloud configuration', 'input_type': 'text' },
                 'location': {'question': 'Enter the location from your google cloud configuration', 'input_type': 'text', 'default': 'us-central1' },
                 'model_id': {'question': 'Enter the model name (id from google LLM)', 'input_type': 'text', 'default': 'gemini-1.5-pro-preview-0514' }
+            },
+            'groq': {
+                'api_key': {'question': 'Enter your Groq API key:', 'input_type': 'password'},
+                'model_id': {'question': 'Enter the Groq model ID:', 'input_type': 'text', 'default': 'llama3-8b-8192'}
             }
         }
         self.general_config = {
