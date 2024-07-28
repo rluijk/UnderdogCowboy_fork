@@ -1,6 +1,6 @@
+
 import os
 import json
-import importlib.util
 from pathlib import Path 
 
 from .core.config_manager import LLMConfigManager
@@ -45,6 +45,34 @@ class Agent:
             print(f"Error loading agent file: {str(e)}")
             return None
 
+# moved to new file, less clutering in the __init__.py
+from .core.specialized_agents import SPECIALIZED_AGENTS
+
+def agent_factory(filename, package, is_user_defined=False):
+    """
+    Creates an appropriate Agent instance based on the filename.
+
+    This factory function determines the type of agent to create based on the
+    filename. If the agent ID (derived from the filename) matches a key in
+    SPECIALIZED_AGENTS, it creates an instance of the corresponding specialized
+    agent class. Otherwise, it creates a standard Agent instance.
+
+    Args:
+        filename (str): The name of the JSON file containing the agent configuration.
+        package (str): The package or directory where the agent file is located.
+        is_user_defined (bool, optional): Indicates whether the agent is user-defined.
+            Defaults to False.
+
+    Returns:
+        Agent: An instance of either a specialized Agent subclass or the base Agent class.
+    """
+    agent_id = os.path.splitext(filename)[0]
+    
+    if agent_id in SPECIALIZED_AGENTS:
+        return SPECIALIZED_AGENTS[agent_id](filename, package, is_user_defined)
+    
+    return Agent(filename, package, is_user_defined)
+
 def load_agents(package='underdogcowboy.agents'):
     """
     Dynamically loads agent configurations from JSON files in the specified package and user directory.
@@ -54,8 +82,8 @@ def load_agents(package='underdogcowboy.agents'):
     each found JSON file, with user-defined agents taking precedence over package agents.
 
     Args:
-        package (str): The base package to search for agent configurations. 
-                       Defaults to 'underdogcowboy.agents'.
+        package (str, optional): The base package to search for agent configurations. 
+            Defaults to 'underdogcowboy.agents'.
 
     Returns:
         dict: A dictionary of Agent instances, keyed by their identifiers.
@@ -63,10 +91,22 @@ def load_agents(package='underdogcowboy.agents'):
     agents = {}
     
     def load_agents_recursive(directory, is_user_defined=False):
+        """
+        Recursively loads agent configurations from JSON files in the given directory.
+
+        This inner function walks through the directory tree, creating Agent instances
+        for each JSON file found. It uses the agent_factory function to create the
+        appropriate type of Agent based on the filename.
+
+        Args:
+            directory (str): The directory to search for agent configuration files.
+            is_user_defined (bool, optional): Indicates whether the agents in this
+                directory are user-defined. Defaults to False.
+        """        
         for root, _, files in os.walk(directory):
             for filename in files:
                 if filename.endswith('.json'):
-                    agent = Agent(filename, root, is_user_defined)
+                    agent = agent_factory(filename, root, is_user_defined)
                     agents[agent.id] = agent
     
     # Load from package directory
