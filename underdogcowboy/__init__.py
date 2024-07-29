@@ -1,7 +1,43 @@
 
+"""
+Underdog Cowboy Agent System Initialization
+
+This __init__.py file serves as the entry point for the Underdog Cowboy agent system.
+It provides dynamic loading and initialization of various agent types, including
+both pre-defined and user-defined agents.
+
+Key components:
+- Agent class: Represents an agent with associated content loaded from a JSON file.
+- agent_factory: Creates appropriate Agent instances based on the filename.
+- load_agents: Dynamically loads agent configurations from JSON files.
+- Specialized agents: Imported from core.specialized_agents.
+
+The module performs the following actions:
+1. Imports necessary modules and components.
+2. Defines the Agent class and related functions.
+3. Dynamically loads agents from both the package directory and user directory.
+4. Adds loaded agents to the current module's namespace.
+5. Updates __all__ to include core components and dynamically loaded agent names.
+
+This structure allows for easy extension of the agent system, supporting both
+built-in agents and user-defined agents. User-defined agents take precedence
+over package agents with the same identifier.
+
+Note: 
+The actual agent instances are dynamically added to this module's namespace,
+allowing direct access to them after import.
+"""
+
+
+import logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 import os
 import json
 from pathlib import Path 
+
+logger.debug("Basic imports completed")
 
 from .core.config_manager import LLMConfigManager
 from .core.dialog_manager import DialogManager
@@ -9,41 +45,9 @@ from .core.timeline_editor import Timeline, CommandProcessor
 from .core.model import ModelManager, ModelRequestException, ConfigurableModel, ClaudeAIModel, VertexAIModel
 from .core.intervention import InterventionManager
 from .core.extractor import JSONExtractor
+from .core.agent import Agent
 
-class Agent:
-    """
-    Represents an agent with associated content loaded from a JSON file.
 
-    This class encapsulates the properties and behavior of an agent, including
-    its identifier, filename, package, and content. It can load agent data
-    from a JSON file and handle potential errors during the loading process.
-
-    Attributes:
-        id (str): The identifier of the agent, derived from the filename.
-        filename (str): The name of the JSON file containing the agent data.
-        package (str): The package or directory where the agent file is located.
-        is_user_defined (bool): Indicates whether the agent is user-defined.
-        content (dict): The loaded content of the agent file.
-    """
-    def __init__(self, filename, package, is_user_defined=False):
-        self.id = os.path.splitext(filename)[0]
-        self.filename = filename
-        self.package = package
-        self.is_user_defined = is_user_defined
-        self.content = self._load_content()
-    
-    def _load_content(self):
-        try:
-            file_path = os.path.join(self.package, self.filename)
-            with open(file_path, 'r') as file:
-                content = file.read()
-            return json.loads(content)
-        except FileNotFoundError:
-            print(f"Agent file {self.filename} not found.")
-            return None
-        except Exception as e:
-            print(f"Error loading agent file: {str(e)}")
-            return None
 
 # moved to new file, less clutering in the __init__.py
 from .core.specialized_agents import SPECIALIZED_AGENTS
@@ -66,6 +70,7 @@ def agent_factory(filename, package, is_user_defined=False):
     Returns:
         Agent: An instance of either a specialized Agent subclass or the base Agent class.
     """
+    logger.debug(f"Creating agent for {filename}")
     agent_id = os.path.splitext(filename)[0]
     
     if agent_id in SPECIALIZED_AGENTS:
@@ -88,6 +93,7 @@ def load_agents(package='underdogcowboy.agents'):
     Returns:
         dict: A dictionary of Agent instances, keyed by their identifiers.
     """
+    logger.debug(f"Loading agents from package: {package}")
     agents = {}
     
     def load_agents_recursive(directory, is_user_defined=False):
@@ -122,16 +128,33 @@ def load_agents(package='underdogcowboy.agents'):
 
 
 # Dynamically load agents
+logger.debug("About to load agents")
 agents = load_agents()
+logger.debug(f"Loaded {len(agents)} agents")
 
 # Add loaded agents to the current module's namespace
+logger.debug("Adding agents to namespace")
 for agent_id, agent in agents.items():
-    globals()[agent_id] = agent
+    logger.debug(f"Adding agent {agent_id} to namespace")
+    try:
+        globals()[agent_id] = agent
+        logger.debug(f"Successfully added {agent_id}")
+    except Exception as e:
+        logger.error(f"Error adding agent {agent_id} to namespace: {str(e)}")
+        import traceback
+        traceback.print_exc()
+
+logger.debug("Finished adding agents to namespace")
+
 
 # Update __all__ to include the agent names
+logger.debug("Updating __all__")
 __all__ = [
     'JSONExtractor', 'ClaudeAIModel', 'CommandProcessor', 'ConfigurableModel', 'DialogManager', 
     'InterventionManager', 'LLMConfigManager', 'ModelManager', 'ModelRequestException', 'Timeline', 'VertexAIModel',
     'Agent',
 ]
 __all__.extend(agents.keys())
+logger.debug("Finished updating __all__")
+
+logger.debug("__init__.py execution completed")
