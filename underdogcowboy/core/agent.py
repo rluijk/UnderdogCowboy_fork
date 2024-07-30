@@ -22,6 +22,7 @@ class Agent:
         self.package = package
         self.is_user_defined = is_user_defined
         self.content = self._load_content()
+        self.dialog_manager = None
     
     def _load_content(self):
         try:
@@ -31,7 +32,20 @@ class Agent:
             return json.loads(content)
         except FileNotFoundError:
             print(f"Agent file {self.filename} not found.")
-            return None
+            return None 
         except Exception as e:
             print(f"Error loading agent file: {str(e)}")
             return None
+    
+    def message(self, user_input):
+        if self.dialog_manager is None:
+            raise ValueError("Agent is not registered with a dialog manager")
+
+        response = self.dialog_manager.message(self, user_input)
+        return response    
+
+
+    def register_with_dialog_manager(self, dialog_manager):
+        if self.dialog_manager != dialog_manager:
+            self.dialog_manager = dialog_manager
+            self.dialog_manager.prepare_agent(self)    

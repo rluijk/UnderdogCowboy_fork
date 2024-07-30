@@ -1,4 +1,6 @@
 import os
+
+from abc import ABC, abstractmethod
 from .timeline_editor import Timeline, CommandProcessor
 from .model import ModelManager
 from .config_manager import LLMConfigManager
@@ -12,6 +14,10 @@ class DialogManager:
             return super().__new__(BasicDialogManager)
 
     def __init__(self, *args, **kwargs):
+        pass
+
+    @abstractmethod
+    def message(self, *args, **kwargs):
         pass
 
 class BasicDialogManager(DialogManager):
@@ -59,9 +65,15 @@ class BasicDialogManager(DialogManager):
         return self.dialogs[self.active_dialog]
 
 class AgentDialogManager(DialogManager):
-    def __init__(self, agent_inputs,  **kwargs):
-        super().__init__()
+    
+    def __init__(self, agent_inputs, model_name=None, **kwargs):    
+        super().__init__(**kwargs)
         self.agents = []
+        self.processors = {}
+        self.active_agent = None
+        self.config_manager = LLMConfigManager()
+        self.model_name = model_name
+        
         for agent_input in agent_inputs:
             if isinstance(agent_input, type) and issubclass(agent_input, Agent):
                 # If it's an Agent subclass, instantiate it
@@ -71,7 +83,40 @@ class AgentDialogManager(DialogManager):
                 agent = agent_input
             else:
                 raise TypeError(f"Expected Agent subclass or instance, got {type(agent_input)}")
+            
+            # Register the agent with this dialog manager
+            agent.register_with_dialog_manager(self)
+            
             self.agents.append(agent)
+
+    def prepare_agent(self, agent):
+        if agent not in self.processors:
+            if not hasattr(self, 'model_name') or self.model_name is None:
+                self.model_name = self.config_manager.select_model()
+
+            model = ModelManager.initialize_model(self.model_name)
+            timeline = Timeline()
+            
+            # Use the agent's content as the initial timeline content
+            timeline.load(agent.content)
+            
+            processor = CommandProcessor(timeline, model)
+            self.processors[agent] = processor
+
+        agent.register_with_dialog_manager(self)
+        self.active_agent = agent
+        return self.processors[agent]
+
+    def message(self, agent, user_input):
+        if not isinstance(agent, Agent):
+            raise TypeError("Expected an Agent instance")
+
+        if agent not in self.processors:
+            raise ValueError("The provided agent is not prepared")
+
+        self.active_agent = agent
+        processor = self.processors[agent]
+        return processor.process_single_message(user_input)
 
     def get_agents(self):
         return self.agents

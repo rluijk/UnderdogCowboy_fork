@@ -215,21 +215,36 @@ class Timeline:
             json.dump(data, f, ensure_ascii=False, indent=4)
         print(f"Timeline saved to {filename} with name '{name}' and description: '{description}'")
 
-    def load(self, filename,path=None):
+    def load(self, source, path=None):
         """
-        Load a timeline from a file.
+        Load a timeline from a dictionary, file, or JSON string.
         
         Args: 
-            filename (str): The name of the file to load.
-            path (str, optional): The directory path of the file.
+            source (dict or str): The timeline data as a dictionary, or the name of the file to load, or a JSON string.
+            path (str, optional): The directory path of the file (if loading from a file).
         """
-        if path:
-            full_path = os.path.join(path, filename)
+        if isinstance(source, dict):
+            # If source is already a dictionary, use it directly
+            data = source
+            self.loaded_filename = None
+        elif isinstance(source, str):
+            if path:
+                full_path = os.path.join(path, source)
+                with open(full_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                self.loaded_filename = source
+            else:
+                try:
+                    # Try to parse source as JSON string
+                    data = json.loads(source)
+                    self.loaded_filename = None
+                except json.JSONDecodeError:
+                    # If parsing fails, treat source as a filename
+                    with open(source, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    self.loaded_filename = source
         else:
-            full_path = filename
-
-        with open(full_path, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+            raise ValueError("Source must be either a dictionary or a string")
 
         # Clear existing data
         self.history.clear()
@@ -265,9 +280,9 @@ class Timeline:
             # Set current position to the start of the first frozen segment
             self.current_position = self.frozen_segments[0]['start']
 
-        self.loaded_filename = filename
+        # self.loaded_filename = filename
         print(
-            f"Timeline loaded from {filename}, starting in {self.start_mode} mode with current position at index {self.current_position}.")
+            f"Timeline loaded from {self.loaded_filename}, starting in {self.start_mode} mode with current position at index {self.current_position}.")
 
     def reconstruct_message(self, message_data):
         """
@@ -297,7 +312,6 @@ class Timeline:
 
         return Message(role, reconstructed_text)
 
-
 class ExitCommandException(Exception):
     """Custom exception to handle exit command."""
     pass
@@ -321,7 +335,7 @@ class CommandProcessor:
     def exit_command(self):
         """Raise an exception to exit the command loop."""
         raise ExitCommandException("Exiting command processor.")
-
+    
     def process_file_input(self, file_path):
         # Convert to absolute path if it's not already
         abs_file_path = os.path.abspath(file_path)
@@ -391,8 +405,8 @@ class CommandProcessor:
             'sm': self.select_message,
             'help': self.help,
             '?': self.help,
-            'quit': self.exit_command,  
-            'q': self.exit_command,    
+            'quit': self.exit_command,
+            'q': self.exit_command,
             'select-dialog': self.load_selected_dialog,
             'sd': self.load_selected_dialog,
             'switch-model': self.switch_model,  
@@ -688,29 +702,24 @@ class CommandProcessor:
             int: The current position in the timeline after the interactive session.
         """
         while True:
-            try:
-                user_input = input(
-                    "Enter your next message, 'file <file_path>' to send a file, or 'cmd' to switch to command mode: ").strip()
-                
-                if user_input.lower() == 'cmd':
-                    return self.timeline.get_current_position()
+            user_input = input(
+                "Enter your next message, 'file <file_path>' to send a file, or 'cmd' to switch to command mode: ").strip()
+            
+            if user_input.lower() == 'cmd':
+                return self.timeline.get_current_position()
 
-                if not user_input:
-                    print("Empty input. Please enter a message.")
-                    continue
+            if not user_input:
+                print("Empty input. Please enter a message.")
+                continue
 
-                model_response, error_message = self._process_message(user_input)
-                
-                if error_message:
-                    print(error_message)
-                else:
-                    print("\n\n" + "-" * 30 + "\n")
-                    print(f"{model_response}")
-                    print("-" * 30 + "\n\n")
-            except ExitCommandException:
-                print("Exiting the interactive phase.")
-
-
+            model_response, error_message = self._process_message(user_input)
+            
+            if error_message:
+                print(error_message)
+            else:
+                print("\n\n" + "-" * 30 + "\n")
+                print(f"{model_response}")
+                print("-" * 30 + "\n\n")
 
 
     def _process_message(self, user_input):
