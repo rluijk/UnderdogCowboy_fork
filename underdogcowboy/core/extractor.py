@@ -50,9 +50,9 @@ class JSONExtractor:
 
         return inspection_data
 
-    def check_inspection_data(self, expected_data): #diff second round test
+    def check_inspection_data(self, expected_data): #diff second round test ok and 3th like below
         deviations = {}
-        is_correct = True # diff test change
+        is_correct = True # diff test change with some extras
 
         # Compare number of keys
         if self.inspection_data['number_of_keys'] != expected_data['number_of_keys']:
