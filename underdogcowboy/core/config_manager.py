@@ -3,6 +3,9 @@ from pathlib import Path
 from getpass import getpass
 import keyring
 
+from typing import Any, Dict, List
+
+
 class LLMConfigManager:
     """
     A class for managing configurations for various Language Learning Models (LLMs).
@@ -10,16 +13,16 @@ class LLMConfigManager:
     This class handles loading, saving, and retrieving credentials for different LLM providers.
     It also provides functionality to select a model from available options.
     """
-    def __init__(self):
+    def __init__(self) -> None:
         """
         Initialize the LLMConfigManager.
 
         Sets up the configuration file path and loads existing configurations.
         Also defines the structure for different LLM models and their required credentials.
         """
-        self.config_file = Path.home() / '.underdogcowboy' / 'config.json'
-        self.config = self.load_config()
-        self.models = {
+        self.config_file: Path = Path.home() / '.underdogcowboy' / 'config.json'
+        self.config: Dict[str, Any] = self.load_config()
+        self.models: Dict[str, Dict[str, Dict[str, Any]]] = {
             'anthropic': {
                 'api_key': {'question': 'Enter your Anthropic API key:', 'input_type': 'password'},
                 'model_id': {'question': 'Enter the Anthropic model ID:', 'input_type': 'text', 'default': 'claude-3-sonnet-20240229'},
@@ -37,12 +40,12 @@ class LLMConfigManager:
                 'model_id': {'question': 'Enter the Groq model ID:', 'input_type': 'text', 'default': 'llama3-8b-8192'}
             }
         }
-        self.general_config = {
+        self.general_config: Dict[str, Dict[str, Any]] = {
             'dialog_save_path': {'question': 'Enter the path to save dialogs:', 'input_type': 'path', 'default': str(Path.home() / 'llm_dialogs')},
             'message_export_path': {'question': 'Enter the path to export messages:', 'input_type': 'path', 'default': str(Path.home() / 'llm_exports')}
         }
 
-    def load_config(self):
+    def load_config(self) -> Dict[str, Any]:        
         """
         Load the configuration from the JSON file.
 
@@ -54,7 +57,7 @@ class LLMConfigManager:
                 return json.load(f)
         return {}
 
-    def save_config(self):
+    def save_config(self) -> None:
         """
         Save the current configuration to the JSON file.
 
@@ -71,7 +74,7 @@ class LLMConfigManager:
         with open(self.config_file, 'w') as f:
             json.dump(safe_config, f)
     
-    def get_credentials(self, model):
+    def get_credentials(self, model: str) -> Dict[str, Any]:    
         """
         Retrieve or prompt for credentials for a specific model.
 
@@ -112,7 +115,7 @@ class LLMConfigManager:
             credentials[prop] = value
         return credentials
 
-    def get_general_config(self):
+    def get_general_config(self) -> Dict[str, Any]:
         """
         Retrieve or prompt for general configuration settings.
 
@@ -135,7 +138,7 @@ class LLMConfigManager:
         return {prop: self.config['general'].get(prop, details.get('default')) 
                 for prop, details in self.general_config.items()}
 
-    def update_general_config(self):
+    def update_general_config(self) -> None:
         """
         Update the general configuration settings.
 
@@ -150,7 +153,7 @@ class LLMConfigManager:
         self.save_config()
         print("General configuration updated successfully.")
 
-    def select_model(self):
+    def select_model(self) -> str:
         """
         Prompt the user to select a model from the available options.
 
@@ -176,10 +179,10 @@ class LLMConfigManager:
             except ValueError:
                 print("Please enter a valid number.")
 
-    def get_available_models(self):
+    def get_available_models(self) -> List[str]:
         return sorted(self.models.keys())
     
-    def update_model_property(self, model, property_name, new_value):
+    def update_model_property(self, model: str, property_name: str, new_value: Any) -> None:
         """
         Update a specific property for a given model.
 
@@ -206,7 +209,7 @@ class LLMConfigManager:
         self.save_config()
         print(f"Updated {property_name} for {model}.")
 
-    def remove_model_config(self, model):
+    def remove_model_config(self, model: str) -> None:        
         """
         Remove the configuration for a specific model.
 
