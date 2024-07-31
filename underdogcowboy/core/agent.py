@@ -1,6 +1,12 @@
 import os 
 import json
 
+from typing import Optional, Dict, Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .dialog_manager import DialogManager
+
+
 class Agent:
     """
     Represents an agent with associated content loaded from a JSON file.
@@ -16,15 +22,19 @@ class Agent:
         is_user_defined (bool): Indicates whether the agent is user-defined.
         content (dict): The loaded content of the agent file.
     """
-    def __init__(self, filename, package, is_user_defined=False):
-        self.id = os.path.splitext(filename)[0]
-        self.filename = filename
-        self.package = package
-        self.is_user_defined = is_user_defined
-        self.content = self._load_content()
-        self.dialog_manager = None
-    
-    def _load_content(self):
+
+    dialog_manager: Optional['DialogManager']
+
+    def __init__(self, filename: str, package: str, is_user_defined: bool = False) -> None:
+      
+        self.id: str = os.path.splitext(filename)[0]
+        self.filename: str = filename
+        self.package: str = package
+        self.is_user_defined: bool = is_user_defined
+        self.content: Optional[Dict[str, Any]] = self._load_content()
+        self.dialog_manager: Optional['DialogManager'] = None
+
+    def _load_content(self) -> Optional[Dict[str, Any]]:
         try:
             file_path = os.path.join(self.package, self.filename)
             with open(file_path, 'r') as file:
@@ -37,7 +47,7 @@ class Agent:
             print(f"Error loading agent file: {str(e)}")
             return None
     
-    def message(self, user_input):
+    def message(self, user_input: str) -> Any:
         if self.dialog_manager is None:
             raise ValueError("Agent is not registered with a dialog manager")
 
@@ -45,7 +55,7 @@ class Agent:
         return response    
 
 
-    def register_with_dialog_manager(self, dialog_manager):
+    def register_with_dialog_manager(self, dialog_manager: 'DialogManager') -> None:                  
         if self.dialog_manager != dialog_manager:
             self.dialog_manager = dialog_manager
             self.dialog_manager.prepare_agent(self)    
