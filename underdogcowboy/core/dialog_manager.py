@@ -1,4 +1,5 @@
 import os
+from typing import List, Type, Union, Dict, Optional, Any
 
 from abc import ABC, abstractmethod
 from .timeline_editor import Timeline, CommandProcessor
@@ -6,29 +7,30 @@ from .model import ModelManager
 from .config_manager import LLMConfigManager
 from .agent import Agent
 
-class DialogManager:
-    def __new__(cls, *args, **kwargs):
+class DialogManager(ABC):
+    def __new__(cls, *args: Any, **kwargs: Any) -> Union['AgentDialogManager', 'BasicDialogManager']:
         if 'agent_inputs' in kwargs or (args and isinstance(args[0], (list, tuple))):
             return super().__new__(AgentDialogManager)
         else:
             return super().__new__(BasicDialogManager)
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         pass
 
     @abstractmethod
-    def message(self, *args, **kwargs):
-        pass
+    def message(self, *args: Any, **kwargs: Any) -> Any:
+        pass    
 
 class BasicDialogManager(DialogManager):
-    def __init__(self,model_name=None):
-        self.config_manager = LLMConfigManager()
-        self.dialogs = {}
-        self.dialog_save_path = self.config_manager.get_general_config().get('dialog_save_path', '')
-        self.active_dialog = None
-        self.model_name = model_name
 
-    def load_dialog(self, filename):
+    def __init__(self, model_name: Optional[str] = None) -> None:
+        self.config_manager: LLMConfigManager = LLMConfigManager()
+        self.dialogs: Dict[str, CommandProcessor] = {}
+        self.dialog_save_path: str = self.config_manager.get_general_config().get('dialog_save_path', '')
+        self.active_dialog: Optional[str] = None
+        self.model_name: Optional[str] = model_name
+
+    def load_dialog(self, filename: str) -> CommandProcessor:        
         if filename not in self.dialogs:
             if self.model_name == None:
                 self.model_name = self.config_manager.select_model()
@@ -49,7 +51,7 @@ class BasicDialogManager(DialogManager):
         self.active_dialog = filename
         return self.dialogs[filename]
 
-    def message(self, processor, user_input):
+    def message(self, processor: CommandProcessor, user_input: str) -> Any:        
         if not isinstance(processor, CommandProcessor):
             raise TypeError("Expected a CommandProcessor instance")
 
@@ -59,21 +61,21 @@ class BasicDialogManager(DialogManager):
 
         return processor.process_single_message(user_input)
 
-    def get_active_processor(self):
+    def get_active_processor(self) -> Optional[CommandProcessor]:    
         if self.active_dialog is None:
             return None
         return self.dialogs[self.active_dialog]
 
 class AgentDialogManager(DialogManager):
     
-    def __init__(self, agent_inputs, model_name=None, **kwargs):    
+    def __init__(self, agent_inputs: List[Union[Type[Agent], Agent]], model_name: Optional[str] = None, **kwargs: Any) -> None:
         super().__init__(**kwargs)
-        self.agents = []
-        self.processors = {}
-        self.active_agent = None
-        self.config_manager = LLMConfigManager()
-        self.model_name = model_name
-        
+        self.agents: List[Agent] = []
+        self.processors: Dict[Agent, CommandProcessor] = {}
+        self.active_agent: Optional[Agent] = None
+        self.config_manager: LLMConfigManager = LLMConfigManager()
+        self.model_name: Optional[str] = model_name        
+    
         for agent_input in agent_inputs:
             if isinstance(agent_input, type) and issubclass(agent_input, Agent):
                 # If it's an Agent subclass, instantiate it
@@ -89,7 +91,7 @@ class AgentDialogManager(DialogManager):
             
             self.agents.append(agent)
 
-    def prepare_agent(self, agent):
+    def prepare_agent(self, agent: Agent) -> CommandProcessor:
         if agent not in self.processors:
             if not hasattr(self, 'model_name') or self.model_name is None:
                 self.model_name = self.config_manager.select_model()
@@ -107,7 +109,7 @@ class AgentDialogManager(DialogManager):
         self.active_agent = agent
         return self.processors[agent]
 
-    def message(self, agent, user_input):
+    def message(self, agent: Agent, user_input: str) -> str:
         if not isinstance(agent, Agent):
             raise TypeError("Expected an Agent instance")
 
@@ -118,5 +120,5 @@ class AgentDialogManager(DialogManager):
         processor = self.processors[agent]
         return processor.process_single_message(user_input)
 
-    def get_agents(self):
+    def get_agents(self) -> List[Agent]:
         return self.agents
