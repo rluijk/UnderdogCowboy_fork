@@ -50,7 +50,7 @@ class JSONExtractor:
 
         return inspection_data
 
-    def check_inspection_data(self, expected_data):
+    def check_inspection_data(self, expected_data): #diff second round test
         deviations = {}
         is_correct = True # diff test change
 
