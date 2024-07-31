@@ -52,7 +52,7 @@ class JSONExtractor:
 
     def check_inspection_data(self, expected_data):
         deviations = {}
-        is_correct = True
+        is_correct = True # diff test change
 
         # Compare number of keys
         if self.inspection_data['number_of_keys'] != expected_data['number_of_keys']:
