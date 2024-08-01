@@ -6,6 +6,23 @@ from typing import Optional, Any
 from underdogcowboy import Agent, LLMConfigManager, DialogManager
 
 class CommitPromoAgent(Agent):
+    """
+    An agent class for creating LinkedIn promotional posts based on commit messages and code updates.
+
+    This agent generates Western-themed LinkedIn posts highlighting recent improvements or new features
+    in the Underdogcowboy (UC) library. It processes commit information, creates a promotional message,
+    and saves it as a Markdown file.
+
+    Expected output:
+    - A LinkedIn post with a friendly, Western-themed greeting (using 🤠 emoji)
+    - Highlights of 2-3 key improvements or new features from recent commits
+    - Reinforcement of UC's philosophy on AI agent management
+    - Installation instructions and links to GitHub and PyPI
+    - Relevant hashtags: #OpenSource #AI #UnderdogCowboy
+    - Overall playful and enthusiastic tone with Western-themed metaphors
+
+    The generated post is saved as a Markdown file with a unique identifier in the filename.
+    """
     def __init__(self, filename: str, package: str, is_user_defined: bool = False) -> None:
         super().__init__(filename, package, is_user_defined)
         self.response: Optional[str] = None

@@ -9,11 +9,31 @@ import time
 import uuid
 from typing import Optional, Any
 
-from underdogcowboy import Agent, LLMConfigManager, DialogManager
+from underdogcowboy import Agent, DialogManager
 
 
 class TypeSetterAgent(Agent):
+    """
+    An agent class for adding type annotations to Python code and managing the associated Git workflow.
 
+    This agent processes Python code, adds type annotations, and manages the Git workflow for 
+    reviewing and merging the changes. It interacts with a language model to generate type annotations 
+    and handles the creation of temporary files and Git operations.
+
+    Expected output:
+    - Processed Python code with added type annotations
+    - A new Git branch with the changes
+    - A Git merge operation initiated for review
+
+    The agent performs the following main tasks:
+    1. Generates type annotations for given Python code using a language model
+    2. Cleans and extracts the annotated code from the LLM response
+    3. Saves the annotated code to a temporary file
+    4. Creates a new Git branch and commits the changes
+    5. Initiates a Git merge operation for review
+
+    The resulting Git diff can be used to review and finalize the type annotations.
+    """
     def __init__(self, filename: str, package: str, is_user_defined: bool = False) -> None:
         super().__init__(filename, package, is_user_defined)
         self.response: Optional[str] = None
@@ -123,7 +143,6 @@ class TypeSetterAgent(Agent):
 
         print(f"Merge initiated. Please resolve conflicts (if any) and complete the merge.")
         print(f"You can now use 'git diff' to see the changes.")
-
 
     def run_command(self,command):
         process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
