@@ -1,14 +1,10 @@
-from underdogcowboy import Agent
-
-class CommitPromoAgent(Agent):
-    def __init__(self, filename, package, is_user_defined=False):
-        super().__init__(filename, package, is_user_defined)
-        
-    def dummy_def():
-        pass
+import os
+from underdogcowboy.core.specializedagents.commit_promo_agent import CommitPromoAgent
+from underdogcowboy.core.specializedagents.type_setter_agent import TypeSetterAgent
 
 
 SPECIALIZED_AGENTS = {
     "commit_promo": CommitPromoAgent,
+    "type_maker": TypeSetterAgent,
     # Add more mappings here for other specialized agents
 }
