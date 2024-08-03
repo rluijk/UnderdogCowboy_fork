@@ -5,6 +5,8 @@ import keyring
 
 from typing import Any, Dict, List
 
+from .tracing import TracingProxy
+
 
 class LLMConfigManager:
     """
@@ -44,6 +46,10 @@ class LLMConfigManager:
             'dialog_save_path': {'question': 'Enter the path to save dialogs:', 'input_type': 'path', 'default': str(Path.home() / 'llm_dialogs')},
             'message_export_path': {'question': 'Enter the path to export messages:', 'input_type': 'path', 'default': str(Path.home() / 'llm_exports')}
         }
+        self.tracing_config: Dict[str, Dict[str, Any]] = {
+            'use_langsmith': {'question': 'Use LangSmith for tracing? (yes/no):', 'input_type': 'boolean', 'default': 'no'},
+            'langsmith_api_key': {'question': 'Enter your LangSmith API key:', 'input_type': 'password'},
+        }
 
     def load_config(self) -> Dict[str, Any]:        
         """
@@ -70,6 +76,12 @@ class LLMConfigManager:
                 if details.get('input_type') == 'password':
                     safe_config[model][prop] = "KEYRING_STORED"
         
+        if 'tracing' in safe_config:
+            for prop, details in self.tracing_config.items():
+                if details.get('input_type') == 'password':
+                    safe_config['tracing'][prop] = "KEYRING_STORED"
+        
+
         self.config_file.parent.mkdir(parents=True, exist_ok=True)
         with open(self.config_file, 'w') as f:
             json.dump(safe_config, f)
@@ -232,4 +244,88 @@ class LLMConfigManager:
         self.save_config()
         print(f"Removed configuration for {model}.")
 
+    def get_tracing_config(self) -> Dict[str, Any]:
+
+        """
+        Retrieve or prompt for tracing configuration settings.
+
+        Returns:
+            dict: A dictionary containing the tracing configuration settings.
+        """
+        if 'tracing' not in self.config or not self.config['tracing'].get('configured', False):
+            print("No stored tracing configuration found. Please enter them now.")
+            self.config['tracing'] = {}
+            for prop, details in self.tracing_config.items():
+                if details['input_type'] == 'boolean':
+                    while True:
+                        value = input(f"{details['question']} (default: {details.get('default', 'N/A')}): ").lower()
+                        if value in ['yes', 'no', '']:
+                            break
+                        print("Please enter 'yes' or 'no'.")
+                    value = 'yes' if value == 'yes' else 'no'
+                elif details['input_type'] == 'password':
+                    value = getpass(details['question'])
+                    keyring.set_password("underdogcowboy", f"tracing_{prop}", value)
+                    self.config['tracing'][prop] = "KEYRING_STORED"
+                else:
+                    value = input(f"{details['question']} (default: {details.get('default', 'N/A')}): ")
+                if not value and 'default' in details:
+                    value = details['default']
+                if prop != 'langsmith_api_key':
+                    self.config['tracing'][prop] = value
+            self.config['tracing']['configured'] = True
+            self.save_config()
+
+        tracing_config = {}
+        for prop, details in self.tracing_config.items():
+            if details['input_type'] == 'password':
+                value = keyring.get_password("underdogcowboy", f"tracing_{prop}")
+            else:
+                value = self.config['tracing'].get(prop)
+            if not value and 'default' in details:
+                value = details['default']
+            tracing_config[prop] = value
+        return tracing_config    
         
+    def update_tracing_config(self) -> None:
+        """
+        Update the tracing configuration settings.
+
+        This method allows the user to update the LangSmith tracing settings.
+        """
+        print("Updating tracing configuration settings:")
+        for prop, details in self.tracing_config.items():
+            if details['input_type'] == 'boolean':
+                current_value = self.config['tracing'].get(prop, details.get('default', 'N/A'))
+                while True:
+                    value = input(f"{details['question']} (current: {current_value}, press Enter to keep current): ").lower()
+                    if value in ['yes', 'no', '']:
+                        break
+                    print("Please enter 'yes' or 'no'.")
+                if value:
+                    self.config['tracing'][prop] = value
+            elif details['input_type'] == 'password':
+                value = getpass(f"{details['question']} (press Enter to keep current): ")
+                if value:
+                    keyring.set_password("underdogcowboy", f"tracing_{prop}", value)
+                    self.config['tracing'][prop] = "KEYRING_STORED"
+            else:
+                current_value = self.config['tracing'].get(prop, details.get('default', 'N/A'))
+                value = input(f"{details['question']} (current: {current_value}, press Enter to keep current): ")
+                if value:
+                    self.config['tracing'][prop] = value
+        self.save_config()
+        print("Tracing configuration updated successfully.")
+
+    def get_tracing_proxy(self) -> 'TracingProxy':
+        """
+        Get a TracingProxy instance based on the current tracing configuration.
+
+        Returns:
+            TracingProxy: An instance of TracingProxy configured according to the current settings.
+        """
+        tracing_config = self.get_tracing_config()
+        use_langsmith = tracing_config.get('use_langsmith', 'no').lower() == 'yes'
+        api_key = tracing_config.get('langsmith_api_key', '')
+          # Import your TracingProxy class
+        return TracingProxy(use_langsmith=use_langsmith, api_key=api_key)
