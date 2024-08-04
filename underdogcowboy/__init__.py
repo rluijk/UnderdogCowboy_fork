@@ -40,7 +40,7 @@ from pathlib import Path
 logger.debug("Basic imports completed")
 
 from .core.config_manager import LLMConfigManager
-from .core.dialog_manager import DialogManager
+from .core.dialog_manager import DialogManager, AgentDialogManager
 from .core.timeline_editor import Timeline, CommandProcessor
 from .core.model import ModelManager, ModelRequestException, ConfigurableModel, ClaudeAIModel, VertexAIModel
 from .core.intervention import InterventionManager
@@ -150,7 +150,7 @@ logger.debug("Finished adding agents to namespace")
 # Update __all__ to include the agent names
 logger.debug("Updating __all__")
 __all__ = [
-    'JSONExtractor', 'ClaudeAIModel', 'CommandProcessor', 'ConfigurableModel', 'DialogManager', 
+    'JSONExtractor', 'ClaudeAIModel', 'CommandProcessor', 'ConfigurableModel', 'DialogManager', 'AgentDialogManager', 
     'InterventionManager', 'LLMConfigManager', 'ModelManager', 'ModelRequestException', 'Timeline', 'VertexAIModel',
     'Agent',
 ]
