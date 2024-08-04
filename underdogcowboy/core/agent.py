@@ -28,11 +28,25 @@ class Agent:
     def __init__(self, filename: str, package: str, is_user_defined: bool = False) -> None:
       
         self.id: str = os.path.splitext(filename)[0]
+        self.name: str = self.id
         self.filename: str = filename
         self.package: str = package
         self.is_user_defined: bool = is_user_defined
         self.content: Optional[Dict[str, Any]] = self._load_content()
         self.dialog_manager: Optional['DialogManager'] = None
+
+    def __rshift__(self, user_input: str) -> Any:
+        """
+        Overloads the >> operator to send a message to the agent.
+
+        Args:
+            user_input (str): The user's message to send to the agent.
+
+        Returns:
+            Any: The agent's response.
+        """
+        return self.message(user_input)
+
 
     def _load_content(self) -> Optional[Dict[str, Any]]:
         try:

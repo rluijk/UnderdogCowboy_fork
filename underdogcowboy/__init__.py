@@ -147,12 +147,17 @@ for agent_id, agent in agents.items():
 logger.debug("Finished adding agents to namespace")
 
 
+# Create an instance of AgentDialogManager
+agent_dialog_manager = AgentDialogManager([])
+# Add it to the global namespace
+globals()['adm'] = agent_dialog_manager
+
 # Update __all__ to include the agent names
 logger.debug("Updating __all__")
 __all__ = [
     'JSONExtractor', 'ClaudeAIModel', 'CommandProcessor', 'ConfigurableModel', 'DialogManager', 'AgentDialogManager', 
     'InterventionManager', 'LLMConfigManager', 'ModelManager', 'ModelRequestException', 'Timeline', 'VertexAIModel',
-    'Agent',
+    'Agent', 'adm',
 ]
 __all__.extend(agents.keys())
 logger.debug("Finished updating __all__")
