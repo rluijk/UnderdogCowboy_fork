@@ -127,6 +127,12 @@ def load_agents(package='underdogcowboy.agents'):
     return agents
 
 
+def _reload_agents(package='underdogcowboy.agents'):
+    """Reloads agents and updates global variables."""
+    global agents, __all__
+    agents = load_agents(package)
+    __all__.extend(agents.keys())
+
 # Dynamically load agents
 logger.debug("About to load agents")
 agents = load_agents()

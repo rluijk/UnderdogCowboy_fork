@@ -1,6 +1,7 @@
 import os
 import json
 import sys
+import re
 
 from pathlib import Path
 
@@ -393,6 +394,8 @@ class CommandProcessor:
             'dt': self.display_timeline,
             'save-timeline': self.save_timeline,
             's': self.save_timeline,
+            'save-agent': self.save_agent,
+            'sa': self.save_agent, 
             'load-timeline': self.load_timeline,
             'l': self.load_timeline,
             'export-markdown': self.export_to_markdown,
@@ -645,8 +648,6 @@ class CommandProcessor:
         full_path = os.path.abspath(os.path.join(self.dialog_save_path, filename))
         self.timeline.load(full_path)
 
-
-
     def save_timeline(self):
         """
         Save the current timeline to a file.
@@ -671,6 +672,40 @@ class CommandProcessor:
         # Save with name and description
         self.timeline.save(full_path, name=name, description=description)
         print(f"Saved timeline to '{full_path}' with name '{name}' and description '{description}'.")
+
+    def save_agent(self):
+        """Saves the current dialog as a user-defined agent."""
+
+        agent_name = input("Enter a name for the agent: ")
+        description = input("Enter a description for the agent: ")
+
+        # Validation
+        if not agent_name:
+            print("Error: Agent name cannot be empty.")
+            return
+
+        # Python module name validation
+        if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", agent_name):
+            print("Error: Invalid agent name. Please use only letters, numbers, and underscores. The name must start with a letter or underscore.")
+            return
+
+    
+        # File path construction
+        agents_dir = os.path.expanduser("~/.underdogcowboy/agents")
+    
+        # Create the directory if it doesn't exist
+        os.makedirs(agents_dir, exist_ok=True)
+
+        file_path = os.path.join(agents_dir, f"{agent_name}.json")
+
+        # Use the Timeline's save method
+        self.timeline.save(file_path, name=agent_name, description=description)
+
+        # Reload agents to make the new agent available
+        from underdogcowboy import _reload_agents
+        _reload_agents() 
+
+        print(f"Agent saved to {file_path}")
 
     def head(self):
         """
