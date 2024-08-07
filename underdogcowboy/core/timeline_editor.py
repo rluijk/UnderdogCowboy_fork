@@ -412,6 +412,8 @@ class CommandProcessor:
             'q': self.exit_command,
             'select-dialog': self.load_selected_dialog,
             'sd': self.load_selected_dialog,
+            'select-agent' : self.load_selected_agent,
+            'sla' : self.load_selected_agent,
             'switch-model': self.switch_model,  
             'swm': self.switch_model  
   
@@ -496,6 +498,7 @@ class CommandProcessor:
             list: A list of dialog names with their relative paths.
         """        
         dialog_names = []
+
         for dirpath, _, filenames in os.walk(root_path):
             for file in filenames:
                 if file.endswith('.json'):
@@ -509,6 +512,7 @@ class CommandProcessor:
                     except Exception as e:
                         print(f"Failed to read {file}: {e}")
                         continue
+
         return dialog_names
 
     def list_dialogs_for_selection(self):
@@ -536,6 +540,45 @@ class CommandProcessor:
                         continue
 
         return dialog_names
+
+    def select_agent(self):
+        agents_dir = os.path.expanduser("~/.underdogcowboy/agents")
+
+         # Create the directory if it doesn't exist
+        os.makedirs(agents_dir, exist_ok=True)
+        
+        agent_names = self.list_all_dialogs(agents_dir)
+
+        if not agent_names:
+            print("No user defined agents available to select")
+            return None
+
+        dialog_completer = WordCompleter(agent_names, ignore_case=True, match_middle=True)
+        selection = prompt("Select a dialog (type to filter): ", completer=dialog_completer)
+
+        try:
+            # Extract the relative path from the selection
+            relative_path = selection.split('(')[-1].strip(') ')
+            full_path = os.path.join(agents_dir, relative_path)
+            return full_path
+        except IndexError:
+            print("Invalid selection.")
+            return None    
+
+    def load_selected_agent(self):
+        """
+        Load a agent selected by the user.
+
+        Prompts the user to select a agents and loads it into the timeline.
+        """        
+        filepath = self.select_agent()
+        if filepath:
+            self.timeline.load(filepath)
+            print(f"Agent loaded from {filepath}.")
+        else:
+            print("Agent loading canceled.")
+
+
 
     def select_dialog(self):
         """
@@ -574,6 +617,7 @@ class CommandProcessor:
         else:
             print("Dialog loading canceled.")
 
+
     def help(self):
         """
         Display help information about available commands.
@@ -588,8 +632,10 @@ class CommandProcessor:
         print("  head, h: Display the current position in the timeline.")
         print("  display-item, d: Display a specific item from the timeline by index.")
         print("  display-timeline, dt: Display runtime timeline.")
+        print("  save-agent, sa: Save your dialog as an agent.")
         print("  select-message, sm: Select a specific message by index.")
-        print("  select-dialog, sd: Select a specific agent.")
+        print("  select-dialog, sd: Select a specific dialog.")
+        print("  select-agent, sla: Select a specific agent.")
         print("  switch-model, swm: Switch LLM model.")
         print("  help, ?: Show this help message.")
         print("  quit, q: Exit the application.")
@@ -756,7 +802,6 @@ class CommandProcessor:
                 print(f"{model_response}")
                 print("-" * 30 + "\n\n")
 
-
     def _process_message(self, user_input):
         """
         Core logic for processing a message (including file inputs) and getting a model response.
@@ -794,7 +839,6 @@ class CommandProcessor:
                 self.timeline.history.pop()
             return None, error_message
 
-
     def process_single_message(self, user_input):
         """
         Process a single message (or file input) and return the model's response.
@@ -831,8 +875,8 @@ def  main():
 
     config_manager = LLMConfigManager()
     model_name = config_manager.select_model()
-    credentials = config_manager.get_credentials(model_name)
-    general_config = config_manager.get_general_config()
+    # credentials = config_manager.get_credentials(model_name)
+    # general_config = config_manager.get_general_config()
     
     initial_model = ModelManager.initialize_model(model_name)
     timeline = Timeline()  # Ensure timeline is correctly instantiated
