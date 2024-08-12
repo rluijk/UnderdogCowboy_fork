@@ -23,13 +23,27 @@ class InterventionManager:
         """
         Manages the intervention process, including multi-turn dialogue and command mode.
         """
-        if self.dialog_manager.active_dialog is None:
-            print("No active dialog for intervention.")
-            return
+        if self.dialog_manager.__class__.__name__ == "AgentDialogManager":    
+            active_entity = self.dialog_manager.active_agent
+            if active_entity is None:
+                print("No active agent for intervention.")
+                return
 
-        active_processor = self.dialog_manager.get_active_processor()
-        if active_processor is None:
-            print("No active processor for intervention.")
+            def process_command(command):
+                # Assuming active_agent has a process_command method
+                self.dialog_manager.active_agent.process_command(command)
+
+        elif self.dialog_manager.__class__.__name__ == "BasicDialogManager":
+            active_entity = self.dialog_manager.get_active_processor()
+            if active_entity is None:
+                print("No active dialog for intervention.")
+                return
+
+            def process_command(command):
+                active_entity.process_command(command)
+
+        else:
+            print("Unsupported DialogManager type for intervention.")
             return
 
         while True:
@@ -46,8 +60,8 @@ class InterventionManager:
                         print("Returning to interactive mode.")
                         break
                     else:
-                        active_processor.process_command(command)
+                        process_command(command)  # Call the appropriate process_command function
             else:
                 # Generate and add the agent's response
-                agent_response = self.dialog_manager.message(active_processor, user_input)
+                agent_response = self.dialog_manager.message(active_entity, user_input)
                 print(f"Agent: {agent_response}")

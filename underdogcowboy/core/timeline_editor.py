@@ -546,7 +546,7 @@ class CommandProcessor:
 
          # Create the directory if it doesn't exist
         os.makedirs(agents_dir, exist_ok=True)
-        
+
         agent_names = self.list_all_dialogs(agents_dir)
 
         if not agent_names:
@@ -577,8 +577,6 @@ class CommandProcessor:
             print(f"Agent loaded from {filepath}.")
         else:
             print("Agent loading canceled.")
-
-
 
     def select_dialog(self):
         """

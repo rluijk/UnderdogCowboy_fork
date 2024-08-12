@@ -90,14 +90,16 @@ class LangSmithTracer:
 
         Args:
             name (str): Name of the run.
-            run_type (str): Type of the run (e.g., "chain", "tool").
+            run_type (str): Type of the run (e.g., "chain", "tool").  all:Enum: "tool" "chain" "llm" "retriever" "embedding" "prompt" "parser"
             inputs (dict): Input data for the run.
             parent_id (Optional[str]): ID of the parent run, if any.
 
         Returns:
             str: The ID of the created run.
         """
+
         run_id = uuid4().hex
+        
         data = {
             "id": run_id,
             "name": name,
@@ -105,6 +107,7 @@ class LangSmithTracer:
             "inputs": inputs,
             "start_time": datetime.utcnow().isoformat(),
         }
+
         if parent_id:
             data["parent_run_id"] = parent_id
         
@@ -115,6 +118,7 @@ class LangSmithTracer:
         )
         response.raise_for_status()
         self.run_data[run_id] = {"outputs": {}, "end_time": None}
+        
         return run_id
 
     def patch_run(self, run_id: str, end: bool = False):

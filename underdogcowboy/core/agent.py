@@ -1,7 +1,7 @@
 import os 
 import json
 
-from typing import Optional, Dict, Any, TYPE_CHECKING
+from typing import Optional, Dict, Any, Union, TYPE_CHECKING
 
 if TYPE_CHECKING:
     from .dialog_manager import DialogManager
@@ -34,6 +34,47 @@ class Agent:
         self.is_user_defined: bool = is_user_defined
         self.content: Optional[Dict[str, Any]] = self._load_content()
         self.dialog_manager: Optional['DialogManager'] = None
+        self.response = None
+
+    def __rshift__(self, other: Union[str, 'Agent']) -> Any:
+        """
+        Overloads the >> operator to send a message to the agent.
+
+        Args:
+            other (Union[str, Agent]): The user's message or another agent.
+
+        Returns:
+            Any: The agent's response.
+        """
+        if isinstance(other, Agent):
+            # If 'other' is an Agent, use its last response
+            message = other.get_last_response()
+        else:
+            # If 'other' is a string, use it directly
+            message = other
+
+        return self.message(message)
+
+    def __or__(self, other_agent):
+        """
+        Overloads the | operator to perform operations between agents.
+
+        Args:
+            other_agent: Another agent to interact with.
+
+        Returns:
+            Any: The result of the interaction between agents.
+        """
+        if hasattr(other_agent, 'compress') and callable(other_agent.compress):
+            # If other_agent has a compress method, use it
+            return other_agent.compress(self.content)
+        elif hasattr(self, 'process') and callable(self.process):
+            # If self has a process method, use it with other_agent
+            return self.process(other_agent)
+        else:
+            raise TypeError(f"Unsupported operation between {self.__class__.__name__} and {other_agent.__class__.__name__}")
+
+
 
     def __rshift__(self, user_input: str) -> Any:
         """
@@ -65,11 +106,20 @@ class Agent:
         if self.dialog_manager is None:
             raise ValueError("Agent is not registered with a dialog manager")
 
-        response = self.dialog_manager.message(self, user_input)
-        return response    
+        self.response = self.dialog_manager.message(self, user_input)
+        return self.response    
 
+    def get_last_response(self) -> Optional[str]:
+        """
+        Returns the last response of the agent.
+        If there's no response yet, returns None.
+        """
+        return self.response.text if self.response else None
 
     def register_with_dialog_manager(self, dialog_manager: 'DialogManager') -> None:                  
         if self.dialog_manager != dialog_manager:
             self.dialog_manager = dialog_manager
             self.dialog_manager.prepare_agent(self)    
+
+    def assess(self,msg: str) -> bool:
+        return True        

@@ -14,7 +14,8 @@ dependencies = [
     "vertexai",
     "prompt-toolkit",
     "keyring",
-    "groq"
+    "groq",
+    "langsmith"
 ]
 
 [project.scripts]

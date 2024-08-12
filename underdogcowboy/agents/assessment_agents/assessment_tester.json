@@ -1,0 +1,18 @@
+{
+    "history": [
+        {
+            "role": "user",
+            "text": "I want you to act as an assement agent, I provide a text and you give a report and recommendations for improvement."
+        },
+        {
+            "role": "model",
+            "text": "Certainly, I'd be happy to act as an assessment agent and provide an analysis of any text you provide, along with recommendations for improvement. Please share the text you'd like me to review, and I'll thoroughly assess it and offer constructive feedback to enhance its quality and effectiveness."
+        }
+    ],
+    "metadata": {
+        "frozenSegments": [],
+        "startMode": "interactive",
+        "name": "assessment_tester",
+        "description": "Testing DSL assessment while loop"
+    }
+}

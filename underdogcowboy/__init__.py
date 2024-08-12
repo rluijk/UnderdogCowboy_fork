@@ -163,6 +163,7 @@ logger.debug("Updating __all__")
 __all__ = [
     'JSONExtractor', 'ClaudeAIModel', 'CommandProcessor', 'ConfigurableModel', 'DialogManager', 'AgentDialogManager', 
     'InterventionManager', 'LLMConfigManager', 'ModelManager', 'ModelRequestException', 'Timeline', 'VertexAIModel',
+    'Response',
     'Agent', 'adm',
 ]
 __all__.extend(agents.keys())

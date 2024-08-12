@@ -1,7 +1,7 @@
 import os
 import requests
 
-from abc import ABC, abstractmethod # test diff
+from abc import ABC, abstractmethod # test diff (2)
 
 from getpass import getpass
 import keyring
@@ -215,8 +215,12 @@ class ClaudeAIModel(ConfigurableModel):
             "max_tokens": 1000
         }
         
+        print(f"Request Data: {data}")  # Log the request data
         response = requests.post(self.api_url, headers=self.headers, json=data)
-        
+        print(f"Response Status Code: {response.status_code}")  # Log the response status code
+        print(f"Response Text: {response.text}")  # Log the response text    
+
+
         if response.status_code == 200:
             response_json = response.json()
             if 'content' in response_json and len(response_json['content']) > 0:

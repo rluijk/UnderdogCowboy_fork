@@ -7,24 +7,14 @@ from .model import ModelManager
 from .config_manager import LLMConfigManager
 from .agent import Agent
 from .tracing import TracingProxy
+from .intervention import InterventionManager
+from .response import Response
+
 
 class DialogManager(ABC):
  
-    """def __new__(cls, *args: Any, **kwargs: Any) -> Union['AgentDialogManager', 'BasicDialogManager']:
-        print("DialogManager.__new__ called")
-        print("Args:", args)
-        print("Kwargs:", kwargs)
-        if 'agent_inputs' in kwargs or (args and isinstance(args[0], (list, tuple))):
-            print("Creating AgentDialogManager")
-            return super().__new__(AgentDialogManager, *args, **kwargs)
-        else:
-            print("Creating BasicDialogManager")
-            return super().__new__(BasicDialogManager, *args, **kwargs)"""
-
     def __new__(cls, *args: Any, **kwargs: Any) -> Union['AgentDialogManager', 'BasicDialogManager']:
-        print("DialogManager.__new__ called")
-        print("Args:", args)
-        print("Kwargs:", kwargs)
+       
         if cls is AgentDialogManager:  # Check if the called class is AgentDialogManager
             print("Creating AgentDialogManager")
             return super().__new__(AgentDialogManager)  # Remove *args and **kwargs
@@ -32,7 +22,24 @@ class DialogManager(ABC):
             print("Creating BasicDialogManager")
             return super().__new__(BasicDialogManager)  # Remove *args and **kwargs
 
+    def __pos__(self):
+        """Activates the intervention mode."""
+        if self.intervention_manager is None:
+            self.intervention_manager = InterventionManager(self)
+        self.intervention_manager.intervene()
+        return self
+
+    def __neg__(self):
+        """Deactivates the intervention mode."""
+        if self.intervention_manager is not None:
+            # You might want to add a method to InterventionManager
+            # to gracefully stop the intervention, if necessary.
+            print("Intervention stopped.")
+            self.intervention_manager = None
+        return self
+
     def __init__(self, *args: Any, **kwargs: Any) -> None:
+        self.intervention_manager = None  # Initialize intervention_manager
         self.config_manager = LLMConfigManager()
         use_tracing = kwargs.get('use_tracing')
         
@@ -81,7 +88,7 @@ class BasicDialogManager(DialogManager):
         self.active_dialog = filename
         return self.dialogs[filename]
 
-    def message(self, processor: CommandProcessor, user_input: str) -> Any:  
+    def message(self, processor: CommandProcessor, user_input: str) -> Response:  
         with self.tracer.trace(f"Dialog: {self.active_dialog}"):
             self.tracer.log("User Input", {"input": user_input})      
             if not isinstance(processor, CommandProcessor):
@@ -96,7 +103,7 @@ class BasicDialogManager(DialogManager):
             self.tracer.log("Model Output", {"output": result})
             self.tracer.log_metric("response_length", len(result))
             
-            return result
+            return Response(result)
 
     def get_active_processor(self) -> Optional[CommandProcessor]:    
         if self.active_dialog is None:
@@ -142,9 +149,10 @@ class AgentDialogManager(DialogManager):
             
             # Register the agent with this dialog manager
             agent.register_with_dialog_manager(self)
-            
+            self.prepare_agent(agent)
             self.agents.append(agent)
         return self  # Return self for chaining
+
 
     def prepare_agent(self, agent: Agent) -> CommandProcessor:
         with self.tracer.span(f"Prepare Agent: {agent.id}"):
@@ -165,7 +173,7 @@ class AgentDialogManager(DialogManager):
             self.active_agent = agent
             return self.processors[agent]
 
-    def message(self, agent: Agent, user_input: str) -> str:
+    def message(self, agent: Agent, user_input: str) -> 'Response':
         with self.tracer.trace(f"Agent Dialog: {agent.name}"):
             self.tracer.log("User Input", {"input": user_input})
             if not isinstance(agent, Agent):
@@ -181,7 +189,7 @@ class AgentDialogManager(DialogManager):
             self.tracer.log("Agent Output", {"output": result})
             self.tracer.log_metric("response_length", len(result))
 
-            return result
+            return Response(result)
 
     def get_agents(self) -> List[Agent]:
         return self.agents

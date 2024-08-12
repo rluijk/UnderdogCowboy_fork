@@ -44,6 +44,8 @@ class TypeSetterAgent(Agent):
     def create_typed_diff(self, repo_path: str, file_ref: str, model_name: str = "anthropic") -> None:
         self.register_with_dialog_manager(DialogManager([self], model_name))
         self.response = self.message(file_ref)
+        
+
 
         # parse out the python from the response.
         cleaned_code = self.clean_llm_response(self.response)
