@@ -52,6 +52,9 @@ class DialogManager(ABC):
             api_key = tracing_config.get('langsmith_api_key', '')
             self.tracer = TracingProxy(use_langsmith=use_tracing, api_key=api_key)
 
+        print(f"tracing config: {tracing_config}")
+
+
     @abstractmethod 
     def message(self, *args: Any, **kwargs: Any) -> Any:
         pass    
@@ -155,7 +158,7 @@ class AgentDialogManager(DialogManager):
 
 
     def prepare_agent(self, agent: Agent) -> CommandProcessor:
-        with self.tracer.span(f"Prepare Agent: {agent.id}"):
+        with self.tracer.trace(f"Prepare Agent: {agent.id}"):
             if agent not in self.processors:
                 if not hasattr(self, 'model_name') or self.model_name is None:
                     self.model_name = self.config_manager.select_model()
