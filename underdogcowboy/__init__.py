@@ -30,7 +30,7 @@ allowing direct access to them after import.
 
 
 import logging
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 import os
