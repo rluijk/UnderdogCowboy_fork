@@ -20,6 +20,8 @@ dependencies = [
 
 [project.scripts]
 timelineeditor = "underdogcowboy.core.timeline_editor:main"
+uc-timelineeditor = "underdogcowboy.core.timeline_editor:main"
+uc-tracing = "underdogcowboy.core.tracing_config:main"
 
 [tool.setuptools.packages.find]
 where = ["."]

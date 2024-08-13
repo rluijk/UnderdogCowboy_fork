@@ -16,7 +16,6 @@ class DialogManager(ABC):
     def __new__(cls, *args: Any, **kwargs: Any) -> Union['AgentDialogManager', 'BasicDialogManager']:
        
         if cls is AgentDialogManager:  # Check if the called class is AgentDialogManager
-            print("Creating AgentDialogManager")
             return super().__new__(AgentDialogManager)  # Remove *args and **kwargs
         else:
             print("Creating BasicDialogManager")
@@ -52,8 +51,7 @@ class DialogManager(ABC):
             api_key = tracing_config.get('langsmith_api_key', '')
             self.tracer = TracingProxy(use_langsmith=use_tracing, api_key=api_key)
 
-        print(f"tracing config: {tracing_config}")
-
+        
 
     @abstractmethod 
     def message(self, *args: Any, **kwargs: Any) -> Any:

@@ -33,6 +33,8 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+logger.info("loading core...")
+
 import os
 import json
 from pathlib import Path 
