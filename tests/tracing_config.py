@@ -3,7 +3,7 @@ from unittest.mock import patch, MagicMock
 from io import StringIO
 import sys
 
-from underdogcowboy.core.tracing_config import TracingConfigProcessor
+from underdogcowboy.core.commandtools.tracing_config import TracingConfigProcessor
 from underdogcowboy.core.config_manager import LLMConfigManager
 
 class TestTracingConfigProcessor(unittest.TestCase):
