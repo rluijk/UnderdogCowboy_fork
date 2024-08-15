@@ -1,7 +1,11 @@
+import threading
+import time
+
 import os
 import json
 import sys
 import re
+
 
 from pathlib import Path
 
@@ -780,19 +784,48 @@ class CommandProcessor:
         Returns:
             int: The current position in the timeline after the interactive session.
         """
+        def spinning_cursor():
+            while loading[0]:
+                for cursor in '|/-\\':
+                    sys.stdout.write(f'\rModel response: {cursor}')
+                    sys.stdout.flush()
+                    time.sleep(0.1)
+            sys.stdout.write('\r' + ' ' * 20 + '\r')
+            sys.stdout.flush()
+
         while True:
-            user_input = input(
-                "Enter your next message, 'file <file_path>' to send a file, or 'cmd' to switch to command mode: ").strip()
+            print("Enter your next message (press ENTER twice to finish),")
+            print("'file <file_path>' to send a file, or 'cmd' to switch to command mode:")
             
-            if user_input.lower() == 'cmd':
-                return self.timeline.get_current_position()
+            input_lines = []
+            while True:
+                line = input()
+                if line.lower() == 'cmd':
+                    return self.timeline.get_current_position()
+                if line.startswith('file '):
+                    input_lines = [line]
+                    break
+                if line == "" and not input_lines:
+                    continue  # Ignore leading empty lines
+                if line == "" and input_lines:
+                    break
+                input_lines.append(line)
+
+            user_input = "\n".join(input_lines).strip()
 
             if not user_input:
                 print("Empty input. Please enter a message.")
                 continue
 
+            loading = [True]
+            spinner = threading.Thread(target=spinning_cursor)
+            spinner.start()
+
             model_response, error_message = self._process_message(user_input)
             
+            loading[0] = False
+            spinner.join()
+
             if error_message:
                 print(error_message)
             else:
