@@ -906,10 +906,10 @@ def  main():
 
     config_manager = LLMConfigManager()
     model_name = config_manager.select_model()
-    # credentials = config_manager.get_credentials(model_name)
-    # general_config = config_manager.get_general_config()
     
     initial_model = ModelManager.initialize_model(model_name)
+    # This would be the new way
+    # initial_model = ModelManager.initialize_model('anthropic', 'claude-3-opus-20240229')
     timeline = Timeline()  # Ensure timeline is correctly instantiated
     processor = CommandProcessor(timeline, initial_model)
 
