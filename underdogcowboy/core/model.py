@@ -190,10 +190,9 @@ class GroqModel(ConfigurableModel):
 
 class ModelManager:
     @staticmethod
-    def initialize_model(model_name=None):
+    def initialize_model(model_name):
 
         config_manager = LLMConfigManager()
-        #model_name = config_manager.select_model()
         
         if model_name == 'anthropic':
             model_type = "anthropic"

@@ -905,11 +905,9 @@ class CommandProcessor:
 def  main():
 
     config_manager = LLMConfigManager()
-    model_name = config_manager.select_model()
+    provider, model_name = config_manager.select_model()
     
-    initial_model = ModelManager.initialize_model(model_name)
-    # This would be the new way (of course it would be dynamic) 
-    # initial_model = ModelManager.initialize_model('anthropic', 'claude-3-opus-20240229')
+    initial_model = ModelManager.initialize_model_with_id(provider, model_name)
     timeline = Timeline()  # Ensure timeline is correctly instantiated
     processor = CommandProcessor(timeline, initial_model)
 

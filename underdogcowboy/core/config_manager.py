@@ -24,10 +24,12 @@ class LLMConfigManager:
         """
         self.config_file: Path = Path.home() / '.underdogcowboy' / 'config.json'
         self.config: Dict[str, Any] = self.load_config()
-        self.models: Dict[str, Dict[str, Dict[str, Any]]] = {
+        self.models: Dict[str, Dict[str, Any]] = {
             'anthropic': {
                 'api_key': {'question': 'Enter your Anthropic API key:', 'input_type': 'password'},
-                'model_id': {'question': 'Enter the Anthropic model ID:', 'input_type': 'text', 'default': 'claude-3-5-sonnet-20240620a'},
+                'models': [
+                    {'id': 'claude-3-5-sonnet-20240620', 'name': 'Claude 3.5 Sonnet'}
+                ],
                 'api_url': {'question': 'Enter the Anthropic API URL:', 'input_type': 'text', 'default': 'https://api.anthropic.com/v1/messages'},
                 'anthropic_version': {'question': 'Enter the Anthropic API version:', 'input_type': 'text', 'default': '2023-06-01'}
             },
@@ -35,11 +37,16 @@ class LLMConfigManager:
                 'service_account': {'question': 'Enter the path to your Google service account JSON file:', 'input_type': 'file'},
                 'project_id': {'question': 'Enter the project id from your google cloud configuration', 'input_type': 'text' },
                 'location': {'question': 'Enter the location from your google cloud configuration', 'input_type': 'text', 'default': 'us-central1' },
-                'model_id': {'question': 'Enter the model name (id from google LLM)', 'input_type': 'text', 'default': 'gemini-1.5-pro-preview-0514' }
+                'models': [
+                    {'id': 'gemini-1.5-pro-preview-0514', 'name': 'Gemini 1.5 pro'}
+                ]
             },
             'groq': {
                 'api_key': {'question': 'Enter your Groq API key:', 'input_type': 'password'},
-                'model_id': {'question': 'Enter the Groq model ID:', 'input_type': 'text', 'default': 'llama3-8b-8192'}
+                'models': [
+                    {'id': 'llama3-8b-8192', 'name': 'Llama3 8b'}
+                ]
+
             }
         }
         self.general_config: Dict[str, Dict[str, Any]] = {
@@ -51,6 +58,9 @@ class LLMConfigManager:
             'langsmith_api_key': {'question': 'Enter your LangSmith API key:', 'input_type': 'password'},
         }
 
+        self.migrate_config()  
+
+
     def load_config(self) -> Dict[str, Any]:        
         """
         Load the configuration from the JSON file.
@@ -60,8 +70,10 @@ class LLMConfigManager:
         """
         if self.config_file.exists():
             with open(self.config_file, 'r') as f:
-                return json.load(f)
+                config = json.load(f)
+            return config
         return {}
+
 
     def save_config(self) -> None:
         """
@@ -71,60 +83,69 @@ class LLMConfigManager:
         Instead, it marks such information as "KEYRING_STORED" in the saved config.
         """        
         safe_config = self.config.copy()
-        for model in safe_config:
-            for prop, details in self.models.get(model, {}).items():
-                if details.get('input_type') == 'password':
-                    safe_config[model][prop] = "KEYRING_STORED"
+        for provider, provider_config in safe_config.items():
+            if provider in self.models:
+                for prop, details in self.models[provider].items():
+                    if prop != 'models' and isinstance(details, dict) and details.get('input_type') == 'password':
+                        if prop in provider_config:
+                            provider_config[prop] = "KEYRING_STORED"
         
         if 'tracing' in safe_config:
             for prop, details in self.tracing_config.items():
                 if details.get('input_type') == 'password':
                     safe_config['tracing'][prop] = "KEYRING_STORED"
-        
 
         self.config_file.parent.mkdir(parents=True, exist_ok=True)
         with open(self.config_file, 'w') as f:
-            json.dump(safe_config, f)
+            json.dump(safe_config, f, indent=2)
     
-    def get_credentials(self, model: str) -> Dict[str, Any]:    
-        """
-        Retrieve or prompt for credentials for a specific model.
-
-        If credentials are not already stored, this method will prompt the user to enter them.
-        Sensitive information is stored securely using the keyring module.
-
-        Args:
-            model (str): The name of the model to get credentials for.
-
-        Returns:
-            dict: A dictionary containing the credentials for the specified model.
-        """
-        if model not in self.config or not self.config[model].get('configured', False):
-            print(f"No stored credentials found for {model}. Please enter them now.")
-            self.config[model] = {}
-            for prop, details in self.models[model].items():
-                if details['input_type'] == 'password':
-                    value = getpass(details['question'])
-                    keyring.set_password("underdogcowboy", f"{model}_{prop}", value)
-                    # Don't store the password in the JSON config
-                    self.config[model][prop] = "KEYRING_STORED"
-                else:
-                    value = input(f"{details['question']} (default: {details.get('default', 'N/A')}): ")
-                    if not value and 'default' in details:
-                        value = details['default']
-                    self.config[model][prop] = value
-            self.config[model]['configured'] = True
+    def get_credentials(self, provider: str) -> Dict[str, Any]:
+        if provider not in self.config or not self.config[provider].get('configured', False):
+            print(f"No stored credentials found for {provider}. Please enter them now.")
+            self.config[provider] = {}
+            for prop, details in self.models[provider].items():
+                if prop != 'models':
+                    if details['input_type'] == 'password':
+                        value = getpass(details['question'])
+                        keyring.set_password("underdogcowboy", f"{provider}_{prop}", value)
+                        self.config[provider][prop] = "KEYRING_STORED"
+                    else:
+                        value = input(f"{details['question']} (default: {details.get('default', 'N/A')}): ")
+                        if not value and 'default' in details:
+                            value = details['default']
+                        self.config[provider][prop] = value
+            
+            # Model selection
+            print(f"Available models for {provider}:")
+            for i, model in enumerate(self.models[provider]['models'], 1):
+                print(f"{i}. {model['name']} ({model['id']})")
+            while True:
+                try:
+                    choice = int(input("Select a model (enter the number): "))
+                    if 1 <= choice <= len(self.models[provider]['models']):
+                        selected_model = self.models[provider]['models'][choice - 1]
+                        self.config[provider]['selected_model'] = selected_model['id']
+                        break
+                    else:
+                        print("Invalid choice. Please try again.")
+                except ValueError:
+                    print("Please enter a valid number.")
+            
+            self.config[provider]['configured'] = True
             self.save_config()
 
         credentials = {}
-        for prop, details in self.models[model].items():
-            if details['input_type'] == 'password':
-                value = keyring.get_password("underdogcowboy", f"{model}_{prop}")
-            else:
-                value = self.config[model].get(prop)
-            if not value and 'default' in details:
-                value = details['default']
-            credentials[prop] = value
+        for prop, details in self.models[provider].items():
+            if prop != 'models':
+                if details['input_type'] ==  'password':
+                    value = keyring.get_password("underdogcowboy", f"{provider}_{prop}")
+                else:
+                    value = self.config[provider].get(prop)
+                if not value and 'default' in details:
+                    value = details['default']
+                credentials[prop] = value
+        
+        credentials['model_id'] = self.config[provider]['selected_model']
         return credentials
 
     def get_general_config(self) -> Dict[str, Any]:
@@ -165,84 +186,80 @@ class LLMConfigManager:
         self.save_config()
         print("General configuration updated successfully.")
 
-    def select_model(self) -> str:
-        """
-        Prompt the user to select a model from the available options.
+    def select_model(self) -> tuple[str, str]:
+        print("Available providers:")
+        for i, provider in enumerate(self.models.keys(), 1):
+            print(f"{i}. {provider}")
+        
+        while True:
+            try:
+                choice = int(input("Select a provider (enter the number): "))
+                if 1 <= choice <= len(self.models):
+                    selected_provider = list(self.models.keys())[choice - 1]
+                    break
+                else:
+                    print("Invalid choice. Please try again.")
+            except ValueError:
+                print("Please enter a valid number.")
 
-        This method displays a numbered list of available models and asks the user to choose one.
-
-        Returns:
-            str: The name of the selected model.
-
-        Raises:
-            ValueError: If the user enters an invalid input.
-        """        
-        print("Available models:")
-        for i, model in enumerate(self.models.keys(), 1):
-            print(f"{i}. {model}")
+        print(f"\nAvailable models for {selected_provider}:")
+        for i, model in enumerate(self.models[selected_provider]['models'], 1):
+            print(f"{i}. {model['name']} ({model['id']})")
         
         while True:
             try:
                 choice = int(input("Select a model (enter the number): "))
-                if 1 <= choice <= len(self.models):
-                    return list(self.models.keys())[choice - 1]
+                if 1 <= choice <= len(self.models[selected_provider]['models']):
+                    selected_model = self.models[selected_provider]['models'][choice - 1]
+                    self.config[selected_provider]['selected_model'] = selected_model['id']
+                    self.save_config()
+                    return selected_provider, selected_model['id']
                 else:
                     print("Invalid choice. Please try again.")
             except ValueError:
                 print("Please enter a valid number.")
 
     def get_available_models(self) -> List[str]:
-        return sorted(self.models.keys())
-    
-    def update_model_property(self, model: str, property_name: str, new_value: Any) -> None:
-        """
-        Update a specific property for a given model.
+        available_models = []
+        for provider, details in self.models.items():
+            for model in details['models']:
+                available_models.append(f"{provider}:{model['id']}")
+        return sorted(available_models)        
 
-        Args:
-            model (str): The name of the model.
-            property_name (str): The name of the property to update.
-            new_value (str): The new value for the property.
-
-        Raises:
-            ValueError: If the model or property doesn't exist.
-        """
-        if model not in self.models:
-            raise ValueError(f"Model '{model}' does not exist.")
+    def update_model_property(self, provider: str, property_name: str, new_value: Any) -> None:
+        if provider not in self.models:
+            raise ValueError(f"Provider '{provider}' does not exist.")
         
-        if property_name not in self.models[model]:
-            raise ValueError(f"Property '{property_name}' does not exist for model '{model}'.")
+        if property_name not in self.models[provider] and property_name != 'selected_model':
+            raise ValueError(f"Property '{property_name}' does not exist for provider '{provider}'.")
         
-        if self.models[model][property_name]['input_type'] == 'password':
-            keyring.set_password("underdogcowboy", f"{model}_{property_name}", new_value)
-            self.config[model][property_name] = "KEYRING_STORED"
+        if property_name == 'selected_model':
+            available_models = [model['id'] for model in self.models[provider]['models']]
+            if new_value not in available_models:
+                raise ValueError(f"Model '{new_value}' is not available for provider '{provider}'.")
+            self.config[provider]['selected_model'] = new_value
+        elif self.models[provider][property_name]['input_type'] == 'password':
+            keyring.set_password("underdogcowboy", f"{provider}_{property_name}", new_value)
+            self.config[provider][property_name] = "KEYRING_STORED"
         else:
-            self.config[model][property_name] = new_value
+            self.config[provider][property_name] = new_value
         
         self.save_config()
-        print(f"Updated {property_name} for {model}.")
+        print(f"Updated {property_name} for {provider}.")
 
-    def remove_model_config(self, model: str) -> None:        
-        """
-        Remove the configuration for a specific model.
-
-        Args:
-            model (str): The name of the model to remove.
-
-        Raises:
-            ValueError: If the model doesn't exist in the configuration.
-        """
-        if model not in self.config:
-            raise ValueError(f"Model '{model}' does not exist in the configuration.")
+    def remove_provider_config(self, provider: str) -> None:
+        if provider not in self.config:
+            raise ValueError(f"Provider '{provider}' does not exist in the configuration.")
         
         # Remove from keyring
-        for prop, details in self.models[model].items():
-            if details['input_type'] == 'password':
-                keyring.delete_password("underdogcowboy", f"{model}_{prop}")
+        for prop, details in self.models[provider].items():
+            if prop != 'models' and details['input_type'] == 'password':
+                keyring.delete_password("underdogcowboy", f"{provider}_{prop}")
         
         # Remove from config
-        del self.config[model]
+        del self.config[provider]
         self.save_config()
-        print(f"Removed configuration for {model}.")
+        print(f"Removed configuration for {provider}.")
 
     def get_tracing_config(self) -> Dict[str, Any]:
 
@@ -327,5 +344,44 @@ class LLMConfigManager:
         tracing_config = self.get_tracing_config()
         use_langsmith = tracing_config.get('use_langsmith', 'no').lower() == 'yes'
         api_key = tracing_config.get('langsmith_api_key', '')
-          # Import your TracingProxy class
+        # Import your TracingProxy class
         return TracingProxy(use_langsmith=use_langsmith, api_key=api_key)
+    
+    def migrate_config(self) -> None:
+        """
+        Migrate existing configuration to the new structure with multiple models per provider.
+        """
+        if not self.config:
+            return  # No existing config to migrate
+
+        migrated = False
+        for provider, config in self.config.items():
+            if provider not in self.models:
+                continue  # Skip unknown providers
+
+            if 'model_id' in config:
+                # This is an old-style config that needs migration
+                old_model_id = config['model_id']
+                
+                # Find the corresponding model in the new structure
+                matching_model = next((model for model in self.models[provider]['models'] 
+                                    if model['id'] == old_model_id), None)
+                
+                if matching_model:
+                    # Update to new structure
+                    config['selected_model'] = matching_model['id']
+                    del config['model_id']
+                    migrated = True
+                else:
+                    # If the old model doesn't exist in the new structure, 
+                    # select the first available model as default
+                    config['selected_model'] = self.models[provider]['models'][0]['id']
+                    del config['model_id']
+                    migrated = True
+                    print(f"Warning: Previously selected model '{old_model_id}' for {provider} "
+                        f"is no longer available. Default model '{config['selected_model']}' "
+                        "has been selected.")
+
+        if migrated:
+            self.save_config()
+            print("Configuration has been migrated to the new structure.") 
