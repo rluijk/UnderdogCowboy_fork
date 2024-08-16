@@ -44,7 +44,7 @@ logger.debug("Basic imports completed")
 from .core.config_manager import LLMConfigManager
 from .core.dialog_manager import DialogManager, AgentDialogManager
 from .core.timeline_editor import Timeline, CommandProcessor
-from .core.model import ModelManager, ModelRequestException, ConfigurableModel, ClaudeAIModel, VertexAIModel
+from .core.model import ModelManager, ModelRequestException, ConfigurableModel, VertexAIModel, AnthropicModel, GroqModel
 from .core.intervention import InterventionManager
 from .core.extractor import JSONExtractor
 from .core.agent import Agent
@@ -163,9 +163,9 @@ globals()['adm'] = agent_dialog_manager
 # Update __all__ to include the agent names
 logger.debug("Updating __all__")
 __all__ = [
-    'JSONExtractor', 'ClaudeAIModel', 'CommandProcessor', 'ConfigurableModel', 'DialogManager', 'AgentDialogManager', 
-    'InterventionManager', 'LLMConfigManager', 'ModelManager', 'ModelRequestException', 'Timeline', 'VertexAIModel',
-    'Response',
+    'JSONExtractor', 'CommandProcessor', 'ConfigurableModel', 'DialogManager', 'AgentDialogManager', 
+    'InterventionManager', 'LLMConfigManager', 'ModelManager', 'ModelRequestException', 'Timeline',
+    'Response','VertexAIModel', 'AnthropicModel', 'GroqModel'
     'Agent', 'adm',
 ]
 __all__.extend(agents.keys())
