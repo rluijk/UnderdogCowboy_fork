@@ -8,6 +8,26 @@ from typing import Any, Dict, List
 from .tracing import TracingProxy
 
 
+GROQ_MODELS = [
+    {'id': 'gemma-7b-it', 'name': 'Gemma 7b'},
+    {'id': 'gemma2-9b-it', 'name': 'Gemma 9b'},
+    {'id': 'llama-3.1-70b-versatile', 'name': 'Llama3.1 70b'},
+    {'id': 'llama-3.1-8b-instant', 'name': 'Llama3.1 8b'},
+    {'id': 'llama-guard-3-8b', 'name': 'Llama Guard 3 8b'},
+    {'id': 'llama3-70b-8192	', 'name': 'Llama3 70b'},
+    {'id': 'llama3-8b-8192', 'name': 'Llama3 8b'},
+    {'id': 'llama3-groq-70b-8192-tool-use-preview', 'name': 'Llama3 Groq 70b '},
+    {'id': 'llama3-groq-8b-8192-tool-use-preview', 'name': 'Llama3 Groq 8b'},
+    {'id': 'mixtral-8x7b-32768', 'name': 'Mixtral 8x7b'},
+]
+
+CLAUDE_MODELS = [
+    {'id': 'claude-3-5-sonnet-20240620', 'name': 'Claude 3.5 Sonnet'},
+    {'id': 'claude-3-opus-20240229', 'name': 'Claude 3 Opus'},
+    {'id': 'claude-3-sonnet-20240229', 'name': 'Claude 3 Sonnet'},
+    {'id': 'claude-3-haiku-20240307', 'name': 'Claude 3 Haiku'},
+]
+
 class LLMConfigManager:
     """
     A class for managing configurations for various Language Learning Models (LLMs).
@@ -27,9 +47,7 @@ class LLMConfigManager:
         self.models: Dict[str, Dict[str, Any]] = {
             'anthropic': {
                 'api_key': {'question': 'Enter your Anthropic API key:', 'input_type': 'password'},
-                'models': [
-                    {'id': 'claude-3-5-sonnet-20240620', 'name': 'Claude 3.5 Sonnet'}
-                ],
+                'models':CLAUDE_MODELS,
                 'api_url': {'question': 'Enter the Anthropic API URL:', 'input_type': 'text', 'default': 'https://api.anthropic.com/v1/messages'},
                 'anthropic_version': {'question': 'Enter the Anthropic API version:', 'input_type': 'text', 'default': '2023-06-01'}
             },
@@ -43,10 +61,7 @@ class LLMConfigManager:
             },
             'groq': {
                 'api_key': {'question': 'Enter your Groq API key:', 'input_type': 'password'},
-                'models': [
-                    {'id': 'llama3-8b-8192', 'name': 'Llama3 8b'}
-                ]
-
+                'models':GROQ_MODELS
             }
         }
         self.general_config: Dict[str, Dict[str, Any]] = {
