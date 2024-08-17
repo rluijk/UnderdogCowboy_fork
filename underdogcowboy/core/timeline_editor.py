@@ -441,11 +441,12 @@ class CommandProcessor:
                     print("Invalid choice. Please try again.")
             except ValueError:
                 print("Please enter a valid number.")
-        
-        new_model = ModelManager.initialize_model(new_model_name)
+                
+        provider, model_name = new_model_name.split(":")
+        new_model = ModelManager.initialize_model_with_id(provider, model_name)
         self.model = new_model
-        print(f"Switched to {new_model_name} model.")
-        
+        print(f"Switched to {model_name} model.")
+
         return 
 
     def display_timeline(self):
