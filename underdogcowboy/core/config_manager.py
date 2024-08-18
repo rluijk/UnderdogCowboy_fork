@@ -7,7 +7,7 @@ from typing import Any, Dict, List
 
 from .tracing import TracingProxy
 
-
+# Model definitions
 GROQ_MODELS = [
     {'id': 'gemma-7b-it', 'name': 'Gemma 7b'},
     {'id': 'gemma2-9b-it', 'name': 'Gemma 9b'},
