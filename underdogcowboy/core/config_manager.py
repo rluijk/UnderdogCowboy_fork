@@ -75,6 +75,32 @@ class LLMConfigManager:
 
         self.migrate_config()  
 
+    def get_provider_from_model(self, model_name: str) -> str:
+        """
+        Determine the provider from a given model name.
+
+        Args:
+            model_name (str): The name or ID of the model.
+
+        Returns:
+            str: The name of the provider for the given model.
+
+        Raises:
+            ValueError: If the model is not found in any provider's list.
+        """
+        for provider, details in self.models.items():
+            for model in details['models']:
+                if model['id'] == model_name or model['name'] == model_name:
+                    return provider
+        
+        # If we haven't found a match, check if the model_name includes a provider prefix
+        if ':' in model_name:
+            provider, _ = model_name.split(':', 1)
+            if provider in self.models:
+                return provider
+
+        raise ValueError(f"Model '{model_name}' not found in any provider's list.")
+
 
     def load_config(self) -> Dict[str, Any]:        
         """
