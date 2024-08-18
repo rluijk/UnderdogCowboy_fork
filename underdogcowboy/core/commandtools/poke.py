@@ -49,7 +49,8 @@ class LLMPokeProcessor(cmd.Cmd):
             return
 
         static_prompt = "small message back please, we testing if we can reach you"
-        adm = AgentDialogManager([test_agent], model_name=self.current_model)
+        provider, model = self.current_model.split(":")
+        adm = AgentDialogManager([test_agent], model_name=model)
         print(f"Sending message to: {self.current_model}")
         response = test_agent >> static_prompt
         print(f"Response from {self.current_model}: {response}")
@@ -59,7 +60,8 @@ class LLMPokeProcessor(cmd.Cmd):
         static_prompt = "small message back please, we testing if we can reach you"
 
         for model in self.available_models:
-            adm = AgentDialogManager([test_agent], model_name=model)
+            provider, model_name = model.split(":")
+            adm = AgentDialogManager([test_agent], model_name=model_name)
             print(f"Sending message to: {model}")
             response = test_agent >> static_prompt
             print(f"Response from {model}: {response}\n")

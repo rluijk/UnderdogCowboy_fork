@@ -161,7 +161,8 @@ class AgentDialogManager(DialogManager):
                 if not hasattr(self, 'model_name') or self.model_name is None:
                     self.model_name = self.config_manager.select_model()
 
-                model = ModelManager.initialize_model(self.model_name)
+                provider = self.config_manager.get_provider_from_model(self.model_name)    
+                model = ModelManager.initialize_model_with_id(provider,self.model_name)
                 timeline = Timeline()
                 
                 # Use the agent's content as the initial timeline content
