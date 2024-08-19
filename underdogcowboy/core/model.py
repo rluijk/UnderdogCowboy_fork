@@ -8,6 +8,34 @@ from vertexai.generative_models import GenerativeModel
 from groq import Groq
 from .config_manager import LLMConfigManager
 
+"""
+This module contains classes for different LLM (Large Language Model) providers.
+Each class handles system messages differently based on the requirements of their respective APIs.
+
+System Message Handling:
+
+1. AnthropicModel:
+   - Extracts the system message from the conversation.
+   - Adds it as a separate "system" field in the API request.
+   - Does not include the system message in the main message list.
+
+2. VertexAIModel:
+   - Extracts the system message from the conversation.
+   - Passes it as a parameter when initializing the GenerativeModel.
+   - Removes the system message from the conversation before sending to the API.
+
+3. GroqModel:
+   - Converts the conversation format, including the system message if present.
+   - If no system message is found, adds a default system message at the beginning.
+   - Includes the system message in the main message list sent to the API.
+
+These differences reflect the varying requirements and structures of the underlying APIs
+for each model provider. Understanding these differences is crucial when implementing
+multi-model support in an application to ensure correct handling of system messages,
+which often set the context or behavior for the model.
+"""
+
+
 class ModelRequestException(Exception):
     def __init__(self, message, model_type):
         self.message = message
@@ -76,13 +104,28 @@ class AnthropicModel(ConfigurableModel):
             raise
 
     def generate_content(self, conversation):
-        formatted_conversation = self._format_conversation(conversation)
+        system_message = None
+        formatted_messages = []
+
+        for message in conversation:
+            if message['role'] == 'system':
+                system_message = message['parts'][0]['text']
+            else:
+                formatted_message = {
+                    "role": "assistant" if message['role'] == 'model' else message['role'],
+                    "content": [{"type": "text", "text": part['text']} for part in message['parts']]
+                }
+                formatted_messages.append(formatted_message)
+
         data = {
-            "messages": formatted_conversation,
             "model": self.model_id,
-            "max_tokens": 1000
+            "max_tokens": 1000,
+            "messages": formatted_messages
         }
-        
+
+        if system_message:
+            data["system"] = system_message
+
         response = requests.post(self.api_url, headers=self.headers, json=data)
 
         if response.status_code == 200:
@@ -93,15 +136,6 @@ class AnthropicModel(ConfigurableModel):
                 return "Error: Unexpected response structure"
         else:
             return f"Error: {response.status_code}, {response.text}"
-
-    def _format_conversation(self, conversation):
-        formatted_conversation = []
-        for message in conversation:
-            role = 'assistant' if message['role'] == 'model' else message['role']
-            content = message.get('content', ' '.join(part['text'] for part in message.get('parts', []) if 'text' in part))
-            if content:
-                formatted_conversation.append({"role": role, "content": content})
-        return formatted_conversation
 
 class VertexAIModel(ConfigurableModel):
     def __init__(self, model_id):
@@ -126,14 +160,32 @@ class VertexAIModel(ConfigurableModel):
 
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = self.service_account
             vertexai.init(project=self.project_id, location=self.location)
-            self.model = GenerativeModel(self.model_id)
+            self.model = None # GenerativeModel(self.model_id)
             print(f"{self.provider_type} provider initialized successfully for model {self.model_id}.")
         except Exception as e:
             print(f"Error initializing {self.provider_type} provider: {str(e)}")
             raise
 
     def generate_content(self, conversation):
-        response = self.model.generate_content(conversation)
+        
+        # we pass the system instruction as a property next to the model
+        # name, when making the model.
+        system_instruction = []
+        for message in conversation:
+            if message['role'] == 'system':
+                system_instruction.append(message['parts'][0]['text'])
+                break
+
+        # the conversation can not contain the system message, so we filter it out.                
+        filtered_conversation = [msg for msg in conversation if msg['role'] != 'system']
+                
+        # Create a new GenerativeModel instance with the extracted system instruction
+        self.model = GenerativeModel(
+            model_name=self.model_id,  # Use self.model_id instead of hardcoding
+            system_instruction=system_instruction if system_instruction else [],  # Provide system instruction if found
+        )
+
+        response = self.model.generate_content(filtered_conversation)
         return response.text
 
 class GroqModel(ConfigurableModel):

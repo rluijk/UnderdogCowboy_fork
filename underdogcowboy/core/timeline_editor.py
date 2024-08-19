@@ -45,6 +45,19 @@ class Timeline:
         self.frozen_segments = []
         self.start_mode = 'interactive'
         self.loaded_filename = None
+        self.system_message = None
+
+    def set_system_message(self, message):
+        """Set or update the system message."""
+        self.system_message = Message('system', message)
+
+    def delete_system_message(self):
+        """Delete the system message."""
+        self.system_message = None
+
+    def get_system_message(self):
+        """Get the current system message."""
+        return self.system_message
 
     def display_timeline(self):
         """
@@ -212,7 +225,9 @@ class Timeline:
         # Prepare the data dictionary with additional metadata
         data = {
             "history": [msg.__dict__ for msg in self.history],
-            "metadata": metadata
+            "metadata": metadata,
+            "system_message": self.system_message.__dict__ if self.system_message else None
+
         }
 
         # Writing to file
@@ -254,6 +269,8 @@ class Timeline:
         # Clear existing data
         self.history.clear()
         self.frozen_segments.clear()
+
+        self.system_message = self.reconstruct_message(data.get('system_message')) if data.get('system_message') else None
 
         # Retrieve the original history and frozen segment details
         initial_history = data.get('history', [])
@@ -337,6 +354,25 @@ class CommandProcessor:
 
         print("Interactive mode started.")
 
+    def manage_system_message(self):
+        """Manage the system message."""
+        action = input("Enter 'set', 'update', 'delete', or 'view' for system message: ").lower()
+        if action in ['set', 'update']:
+            message = input("Enter the system message: ")
+            self.timeline.set_system_message(message)
+            print("System message set/updated.")
+        elif action == 'delete':
+            self.timeline.delete_system_message()
+            print("System message deleted.")
+        elif action == 'view':
+            system_message = self.timeline.get_system_message()
+            if system_message:
+                print(f"Current system message: {system_message.text}")
+            else:
+                print("No system message set.")
+        else:
+            print("Invalid action. Please try again.")
+
     def exit_command(self):
         """Raise an exception to exit the command loop."""
         raise ExitCommandException("Exiting command processor.")
@@ -410,6 +446,8 @@ class CommandProcessor:
             'd': self.display_item,
             'select-message': self.select_message,
             'sm': self.select_message,
+            'system-message': self.manage_system_message,
+            'sysm': self.manage_system_message,
             'help': self.help,
             '?': self.help,
             'quit': self.exit_command,
@@ -629,6 +667,7 @@ class CommandProcessor:
         """        
         print("Available commands and shortcuts:")
         print("  interactive, i: Enter interactive mode to chat with the model.")
+        print("  system-message, sysm: Manage the system message.")
         print("  save-timeline, s: Save the current timeline to a file.")
         print("  load-timeline, l: Load a timeline from a file.")
         print("  export-markdown, e: Export a message to Markdown.")
@@ -642,7 +681,7 @@ class CommandProcessor:
         print("  switch-model, swm: Switch LLM model.")
         print("  help, ?: Show this help message.")
         print("  quit, q: Exit the application.")
-
+       
     def select_message(self):
         """
         Allow the user to select a specific message from the timeline.
@@ -844,9 +883,15 @@ class CommandProcessor:
         Returns:
             tuple: (model_response, error_message)
         """
-        conversation = [{'role': msg.role, 'parts': [{'text': msg.text}]} 
-                        for msg in self.timeline.history 
-                        if msg.text.strip()]
+        system_message = self.timeline.get_system_message()
+        
+        conversation = []
+        if system_message:
+            conversation.append({'role': 'system', 'parts': [{'text': system_message.text}]})
+        
+        conversation.extend([{'role': msg.role, 'parts': [{'text': msg.text}]} 
+                             for msg in self.timeline.history 
+                             if msg.text.strip()])
 
         if user_input.startswith('file '):
             file_path = user_input[5:].strip()
