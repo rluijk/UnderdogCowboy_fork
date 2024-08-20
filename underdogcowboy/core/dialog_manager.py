@@ -162,7 +162,8 @@ class AgentDialogManager(DialogManager):
                     self.model_name = self.config_manager.select_model()
 
                 provider = self.config_manager.get_provider_from_model(self.model_name)    
-                model = ModelManager.initialize_model_with_id(provider,self.model_name)
+                #TODO refactor model_name to better name and datastructure.
+                model = ModelManager.initialize_model_with_id(provider,self.model_name[1])
                 timeline = Timeline()
                 
                 # Use the agent's content as the initial timeline content

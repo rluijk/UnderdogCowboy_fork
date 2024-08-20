@@ -90,7 +90,7 @@ class LLMConfigManager:
         """
         for provider, details in self.models.items():
             for model in details['models']:
-                if model['id'] == model_name or model['name'] == model_name:
+                if model['id'] == model_name[1]:
                     return provider
         
         # If we haven't found a match, check if the model_name includes a provider prefix
@@ -253,7 +253,7 @@ class LLMConfigManager:
                 if 1 <= choice <= len(self.models[selected_provider]['models']):
                     selected_model = self.models[selected_provider]['models'][choice - 1]
                     self.config[selected_provider]['selected_model'] = selected_model['id']
-                    self.save_config()
+                    # self.save_config()
                     return selected_provider, selected_model['id']
                 else:
                     print("Invalid choice. Please try again.")
