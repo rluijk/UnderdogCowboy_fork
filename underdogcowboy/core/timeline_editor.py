@@ -303,8 +303,7 @@ class Timeline:
             self.current_position = self.frozen_segments[0]['start']
 
         # self.loaded_filename = filename
-        print(
-            f"Timeline loaded from {self.loaded_filename}, starting in {self.start_mode} mode with current position at index {self.current_position}.")
+        # print( f"Timeline loaded from {self.loaded_filename}, starting in {self.start_mode} mode with current position at index {self.current_position}.")
 
     def reconstruct_message(self, message_data):
         """
