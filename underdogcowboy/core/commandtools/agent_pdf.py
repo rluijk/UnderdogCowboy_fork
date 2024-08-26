@@ -1,27 +1,53 @@
 import cmd
 import json
 import os
-from reportlab.lib import colors
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.enums import TA_JUSTIFY
-from datetime import date
-from prompt_toolkit import prompt
-from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit import prompt, PromptSession
+from prompt_toolkit.completion import WordCompleter, Completer, Completion
+from prompt_toolkit.document import Document
+from prompt_toolkit.shortcuts import CompleteStyle
+from ..tools.pdf_generator import PDFGenerator
 from ..config_manager import LLMConfigManager
 
+class CommandCompleter(Completer):
+    def __init__(self, dialogue_processor):
+        self.dialogue_processor = dialogue_processor
+        self.commands = [cmd[3:] for cmd in dir(dialogue_processor) if cmd.startswith('do_')]
 
-class DialogueProcessor(cmd.Cmd):
+    def get_completions(self, document, complete_event):
+        word_before_cursor = document.get_word_before_cursor(WORD=True)
+        line = document.text
+
+        if ' ' not in line:
+            # Complete commands
+            for command in self.commands:
+                if command.startswith(word_before_cursor):
+                    yield Completion(command, start_position=-len(word_before_cursor))
+        else:
+            # Command-specific completions
+            command = line.split()[0]
+            if command == 'export_pdf':
+                save_path = self.dialogue_processor.config_manager.get_general_config()['dialog_save_path']
+                for filename in os.listdir(save_path):
+                    if filename.endswith('.pdf') and filename.startswith(word_before_cursor):
+                        yield Completion(filename, start_position=-len(word_before_cursor))
+
+class DialogueProcessor(cmd.Cmd):   
     intro = "Welcome to the Dialogue Processor. Type 'help' or '?' to list commands."
     prompt = "(dialogue) "
 
     def __init__(self, config_manager: LLMConfigManager):
         super().__init__()
         self.config_manager = config_manager
-        self.agents_dir = config_manager.get_agents_directory()
+        self.pdf_generator = PDFGenerator()
+        self.agents_dir = os.path.expanduser('~/.underdogcowboy/agents')
         self.agent_data = None
         self.current_agent_file = None
+
+        # Create a CommandCompleter with all available commands
+        self.command_completer = CommandCompleter(self)
+        
+        # Create a PromptSession with the command completer
+        self.session = PromptSession(completer=self.command_completer, complete_style=CompleteStyle.MULTI_COLUMN)
 
     def get_available_agents(self):
         return [f for f in os.listdir(self.agents_dir) if f.endswith('.json')]
@@ -29,7 +55,7 @@ class DialogueProcessor(cmd.Cmd):
     def do_load_agent(self, arg):
         """Load an agent definition from a JSON file. Usage: load_agent"""
         available_agents = self.get_available_agents()
-        
+
         if not available_agents:
             print("No agent files found in the agents directory.")
             return
@@ -39,25 +65,30 @@ class DialogueProcessor(cmd.Cmd):
             print(f"{i}. {agent}")
 
         agent_completer = WordCompleter(available_agents, ignore_case=True)
+        selected_agent = self.prompt_for_agent(agent_completer, available_agents)
+
+        if selected_agent:
+            self.load_agent_file(selected_agent)
+
+    def prompt_for_agent(self, agent_completer, available_agents):
         while True:
             selection = prompt("Select an agent (type part of the name or number): ", completer=agent_completer)
             
             if selection.isdigit():
                 index = int(selection) - 1
                 if 0 <= index < len(available_agents):
-                    selected_agent = available_agents[index]
-                    break
+                    return available_agents[index]
             else:
                 matches = [agent for agent in available_agents if selection.lower() in agent.lower()]
                 if len(matches) == 1:
-                    selected_agent = matches[0]
-                    break
+                    return matches[0]
                 elif len(matches) > 1:
                     print("Multiple matches found. Please be more specific.")
                 else:
                     print("No matching agent found. Please try again.")
 
-        agent_path = os.path.join(self.agents_dir, selected_agent)
+    def load_agent_file(self, agent_filename):
+        agent_path = os.path.join(self.agents_dir, agent_filename)
 
         try:
             with open(agent_path, 'r') as f:
@@ -80,11 +111,6 @@ class DialogueProcessor(cmd.Cmd):
         print(f"Current dialogue: {self.current_agent_file}")
         print(f"Number of exchanges: {len(self.agent_data['history'])}")
 
-    def do_select(self, arg):
-        """Select a specific dialogue if multiple are loaded."""
-        print("This feature is not implemented in the current version.")
-        print("Use 'load_agent' to load a different dialogue.")
-
     def do_export_pdf(self, arg):
         """Export the current dialogue to a PDF file. Usage: export_pdf <output_filename.pdf>"""
         if not self.agent_data:
@@ -98,53 +124,25 @@ class DialogueProcessor(cmd.Cmd):
         output_file = arg if arg.endswith('.pdf') else arg + '.pdf'
         output_path = os.path.join(self.config_manager.get_general_config()['dialog_save_path'], output_file)
 
-        # Create the PDF document
-        doc = SimpleDocTemplate(output_path, pagesize=letter,
-                                rightMargin=72, leftMargin=72,
-                                topMargin=72, bottomMargin=18)
+        try:
+            # Get the filename from the current_agent_file path
+            filename = os.path.basename(self.current_agent_file) if self.current_agent_file else "Unknown"
+            
+            self.pdf_generator.generate_pdf(output_path, "Dialogue Export", self.agent_data['history'], filename)
+            print(f"PDF exported successfully to {output_path}")
+        except Exception as e:
+            print(f"An error occurred while generating the PDF: {str(e)}")
 
-        # Styles
-        styles = getSampleStyleSheet()
-        styles.add(ParagraphStyle(name='Justify', alignment=TA_JUSTIFY))
+    def do_show_dialogue(self, arg):
+        """Display the current dialogue in the console."""
+        if not self.agent_data:
+            print("No dialogue loaded. Use 'load_agent' to load a dialogue first.")
+            return
 
-        # Custom styles for different roles
-        role_styles = {
-            'user': ParagraphStyle(
-                'User',
-                parent=styles['Normal'],
-                fontName='Helvetica',
-                textColor=colors.darkslategray,
-                fontSize=11,
-            ),
-            'model': ParagraphStyle(
-                'Model',
-                parent=styles['Normal'],
-                fontName='Helvetica-Bold',
-                textColor=colors.darkblue,
-                fontSize=11,
-            )
-        }
-
-        # Content
-        content = []
-
-        # Title
-        content.append(Paragraph("Dialogue Export", styles['Title']))
-        content.append(Paragraph(f"Date: {date.today().strftime('%B %d, %Y')}", styles['Normal']))
-        content.append(Spacer(1, 12))
-
-        # Dialogue
         for entry in self.agent_data['history']:
-            role = entry['role']
+            role = entry['role'].capitalize()
             text = entry['text']
-            style = role_styles.get(role, styles['Normal'])
-            content.append(Paragraph(f"{role.capitalize()}: {text}", style))
-            content.append(Spacer(1, 6))
-
-        # Build the PDF
-        doc.build(content)
-
-        print(f"PDF exported successfully to {output_path}")
+            print(f"{role}: {text}\n")
 
     def do_help(self, arg):
         """List available commands with their descriptions."""
@@ -159,6 +157,30 @@ class DialogueProcessor(cmd.Cmd):
         """Exit the Dialogue Processor."""
         print("Exiting Dialogue Processor. Goodbye!")
         return True
+
+    def cmdloop(self, intro=None):
+        """Repeatedly issue a prompt, accept input, parse an initial prefix
+        off the received input, and dispatch to action methods, passing them
+        the remainder of the line as argument.
+        """
+        self.preloop()
+        if intro is not None:
+            self.intro = intro
+        if self.intro:
+            self.stdout.write(str(self.intro)+"\n")
+        stop = None
+        while not stop:
+            try:
+                line = self.session.prompt(self.prompt)
+                line = self.precmd(line)
+                stop = self.onecmd(line)
+                stop = self.postcmd(stop, line)
+            except KeyboardInterrupt:
+                print("^C")
+            except EOFError:
+                print("^D")
+                break
+        self.postloop()
 
 def main():
     config_manager = LLMConfigManager()
