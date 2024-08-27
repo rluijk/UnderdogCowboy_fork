@@ -24,8 +24,8 @@ class AgentClarityProcessor(cmd.Cmd):
         self.agents_dir = os.path.expanduser("~/.underdogcowboy/agents")
         self.timeline = Timeline()
 
-    def do_manage_system_message(self):
-        """Manage the system message."""
+    def do_manage_system_message(self, arg):
+        """Manage the system message. Usage: manage_system_message"""
         action = input("Enter 'set', 'update', 'delete', or 'view' for system message: ").lower()
         if action in ['set', 'update']:
             message = input("Enter the system message: ")
