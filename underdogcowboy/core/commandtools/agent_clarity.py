@@ -4,11 +4,35 @@ import re
 import json
 
 from pathlib import Path
-from prompt_toolkit import prompt
-from prompt_toolkit.completion import WordCompleter
+from prompt_toolkit import prompt, PromptSession
+from prompt_toolkit.completion import WordCompleter, Completer, Completion
+from prompt_toolkit.document import Document
+from prompt_toolkit.shortcuts import CompleteStyle
 
 from underdogcowboy.core.config_manager import LLMConfigManager
 from underdogcowboy import AgentDialogManager, agentclarity, Timeline, adm
+
+class CommandCompleter(Completer):
+    def __init__(self, agent_clarity_processor):
+        self.agent_clarity_processor = agent_clarity_processor
+        self.commands = [cmd[3:] for cmd in dir(agent_clarity_processor) if cmd.startswith('do_')]
+
+    def get_completions(self, document, complete_event):
+        word_before_cursor = document.get_word_before_cursor(WORD=True)
+        line = document.text
+
+        if ' ' not in line:
+            # Complete commands
+            for command in self.commands:
+                if command.startswith(word_before_cursor):
+                    yield Completion(command, start_position=-len(word_before_cursor))
+        else:
+            # Command-specific completions
+            command = line.split()[0]
+            if command == 'select_model':
+                for model in self.agent_clarity_processor.available_models:
+                    if model.startswith(word_before_cursor):
+                        yield Completion(model, start_position=-len(word_before_cursor))
 
 class AgentClarityProcessor(cmd.Cmd):
     intro = "Welcome to the Agent Clarity Tool. Type 'help' or '?' to list commands."
@@ -24,24 +48,66 @@ class AgentClarityProcessor(cmd.Cmd):
         self.agents_dir = os.path.expanduser("~/.underdogcowboy/agents")
         self.timeline = Timeline()
 
-    def do_manage_system_message(self, arg):
-        """Manage the system message. Usage: manage_system_message"""
-        action = input("Enter 'set', 'update', 'delete', or 'view' for system message: ").lower()
-        if action in ['set', 'update']:
+        # Create a CommandCompleter with all available commands
+        self.command_completer = CommandCompleter(self)
+        
+        # Create a PromptSession with the command completer
+        self.session = PromptSession(completer=self.command_completer, complete_style=CompleteStyle.MULTI_COLUMN)
+
+    def do_system_message(self, arg):
+        """Manage the system message for the currently loaded agent. Usage: system_message [set|view|delete]"""
+        if not self.agent_data:
+            print("No agent loaded. Please use 'load_agent' first.")
+            return
+
+        actions = ['set', 'view', 'delete']
+        
+        if not arg:
+            action = input("Enter action (set, view, delete): ").lower().strip()
+        else:
+            action = arg.lower().strip()
+
+        # Handle partial matches
+        matches = [a for a in actions if a.startswith(action)]
+        if len(matches) == 1:
+            action = matches[0]
+        elif len(matches) > 1:
+            print(f"Ambiguous action. Did you mean one of these: {', '.join(matches)}?")
+            return
+        elif not matches:
+            print("Invalid action. Use 'set', 'view', or 'delete'.")
+            return
+
+        update_file = False
+
+        if action == 'set':
             message = input("Enter the system message: ")
             self.timeline.set_system_message(message)
-            print("System message set/updated.")
+            self.agent_data['system_message'] = {'role': 'system', 'content': message}
+            print("System message set/updated for the current agent.")
+            update_file = True
         elif action == 'delete':
             self.timeline.delete_system_message()
-            print("System message deleted.")
+            if 'system_message' in self.agent_data:
+                del self.agent_data['system_message']
+            print("System message deleted for the current agent.")
+            update_file = True
         elif action == 'view':
-            system_message = self.timeline.get_system_message()
+            system_message = self.agent_data.get('system_message', {}).get('content') or self.agent_data.get('system_message', {}).get('text', '')
             if system_message:
-                print(f"Current system message: {system_message.text}")
+                print(f"Current system message: {system_message}")
             else:
-                print("No system message set.")
-        else:
-            print("Invalid action. Please try again.")
+                print("No system message set for the current agent.")
+
+        # Save the updated agent data to file only if changes were made
+        if update_file and self.current_agent_file:
+            with open(self.current_agent_file, 'w') as f:
+                json.dump(self.agent_data, f, indent=2)
+            print(f"Agent definition updated in {self.current_agent_file}")
+
+    def do_sy(self, arg):
+        """Shortcut for system_message command."""
+        return self.do_system_message(arg)
 
     def get_available_agents(self):
         """Return a list of available agent files in the agents directory."""
@@ -91,9 +157,23 @@ class AgentClarityProcessor(cmd.Cmd):
             
             # Update the system message if present in the agent data
             if 'system_message' in self.agent_data:
-                system_message = self.agent_data['system_message'].get('text', '')
+                print("System message found in agent data.")
+                system_message_dict = self.agent_data['system_message']
+                print(f"System message dict: {system_message_dict}")
+                
+                if isinstance(system_message_dict, dict):
+                    system_message = system_message_dict.get('content') or system_message_dict.get('text', '')
+                    print(f"Extracted system message: {system_message}")
+                else:
+                    print(f"Unexpected system_message type: {type(system_message_dict)}")
+                    system_message = str(system_message_dict)
+
                 self.timeline.set_system_message(system_message)
-                print("System message updated from loaded agent.")
+                print(f"System message loaded: {system_message}")
+            else:
+                print("No system message found in the agent definition.")
+
+            print("Use 'system_message set|view|delete' to manage the system message.")
 
         except FileNotFoundError:
             print(f"Agent file not found: {agent_path}")
@@ -101,8 +181,10 @@ class AgentClarityProcessor(cmd.Cmd):
             print(f"Invalid JSON in agent file: {agent_path}")
         except Exception as e:
             print(f"An error occurred while loading the agent: {str(e)}")
-
-
+            print(f"Error type: {type(e)}")
+            print(f"Error args: {e.args}")
+            import traceback
+            traceback.print_exc()
 
     def do_create_agent(self):
         """
@@ -136,7 +218,7 @@ class AgentClarityProcessor(cmd.Cmd):
             },
             "system_message": {
                 "role": "system",
-                "text": agent_system_message
+                "content": agent_system_message
             }
         }
 
@@ -257,6 +339,30 @@ class AgentClarityProcessor(cmd.Cmd):
         """Handle unknown commands."""
         print(f"Unknown command: {line}")
         print("Type 'help' or '?' to list available commands.")
+
+    def cmdloop(self, intro=None):
+        """Repeatedly issue a prompt, accept input, parse an initial prefix
+        off the received input, and dispatch to action methods, passing them
+        the remainder of the line as argument.
+        """
+        self.preloop()
+        if intro is not None:
+            self.intro = intro
+        if self.intro:
+            self.stdout.write(str(self.intro)+"\n")
+        stop = None
+        while not stop:
+            try:
+                line = self.session.prompt(self.prompt)
+                line = self.precmd(line)
+                stop = self.onecmd(line)
+                stop = self.postcmd(stop, line)
+            except KeyboardInterrupt:
+                print("^C")
+            except EOFError:
+                print("^D")
+                break
+        self.postloop()
 
 def main():
     AgentClarityProcessor().cmdloop()

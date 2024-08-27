@@ -270,7 +270,11 @@ class Timeline:
         self.history.clear()
         self.frozen_segments.clear()
 
-        self.system_message = self.reconstruct_message(data.get('system_message')) if data.get('system_message') else None
+        try:
+            self.system_message = self.reconstruct_message(data.get('system_message')) if data.get('system_message') else None
+        except KeyError as e:
+            print(f"Warning: Failed to load system message. Key not found: {e}")
+            self.system_message = None
 
         # Retrieve the original history and frozen segment details
         initial_history = data.get('history', [])
@@ -316,7 +320,7 @@ class Timeline:
             Message: The reconstructed Message object.
         """
         role = message_data['role']
-        text = message_data['text']
+        text = message_data.get('text') or message_data.get('content', '')
 
         if text.startswith('File sent: '):
             file_path_part = text.split('File sent: ')[1]
