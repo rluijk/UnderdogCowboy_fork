@@ -1,11 +1,11 @@
 import threading
 import time
+import logging
 
 import os
 import json
 import sys
 import re
-
 
 from pathlib import Path
 
@@ -815,6 +815,12 @@ class CommandProcessor:
         except ValueError:
             print("Invalid index.")
 
+    # Note: The previous bug causing strange errors or timeouts when entering interactive mode
+    # has likely been resolved. Two key changes address this issue:
+    # 1. Requiring two consecutive Enter presses to finish input, preventing accidental empty submissions.
+    # 2. Explicitly checking for empty input after stripping whitespace, ensuring only non-empty
+    #    messages are sent to the LLM. These changes prevent unintended LLM calls with empty inputs,
+    #    which may have been causing the observed errors or timeouts.
     def interactive_phase(self):
         """
         Enter an interactive chat session with the model.
@@ -882,7 +888,7 @@ class CommandProcessor:
         
         Returns:
             tuple: (model_response, error_message)
-        """
+        """        
         system_message = self.timeline.get_system_message()
         
         conversation = []
@@ -949,7 +955,7 @@ class CommandProcessor:
 
   
 def  main():
-
+    
     config_manager = LLMConfigManager()
     provider, model_name = config_manager.select_model()
     
