@@ -1,4 +1,5 @@
 import os
+import json
 import requests
 from abc import ABC, abstractmethod
 from getpass import getpass
@@ -72,8 +73,10 @@ class ConfigurableModel(ABC):
         print(f"{self.provider_type} provider configuration completed.")
 
 class AnthropicModel(ConfigurableModel):
+
     def __init__(self, model_id):
         super().__init__("anthropic", model_id)
+        self.model_id = model_id  # Make sure this is just the model string, e.g., "claude-3-5-sonnet-20240620"
         self.initialize_model()
 
     def initialize_model(self):
@@ -103,28 +106,45 @@ class AnthropicModel(ConfigurableModel):
             print(f"Error initializing {self.provider_type} provider: {str(e)}")
             raise
 
+        
     def generate_content(self, conversation):
         system_message = None
-        formatted_messages = []
+        formatted_conversation = []
 
         for message in conversation:
-            if message['role'] == 'system':
-                system_message = message['parts'][0]['text']
+            role = message['role']
+            if role == 'model':
+                role = 'assistant'  # Convert 'model' role to 'assistant'
+            
+            if role == 'system':
+                # Handle system message separately
+                system_message = message['parts'][0]['text'] if 'parts' in message else message.get('content', '')
+                continue
+            
+            if 'parts' in message:
+                # Convert 'parts' structure to 'content'
+                content = ' '.join(part['text'] for part in message['parts'] if 'text' in part)
+            elif 'content' in message:
+                content = message['content']
             else:
-                formatted_message = {
-                    "role": "assistant" if message['role'] == 'model' else message['role'],
-                    "content": [{"type": "text", "text": part['text']} for part in message['parts']]
-                }
-                formatted_messages.append(formatted_message)
+                continue  # Skip messages without content
+            
+            formatted_conversation.append({
+                "role": role,
+                "content": content
+            })
 
         data = {
-            "model": self.model_id,
-            "max_tokens": 1000,
-            "messages": formatted_messages
+            "model": self.model_id,  # This should be a string, not a list
+            "messages": formatted_conversation,
+            "max_tokens": 1500
         }
 
         if system_message:
             data["system"] = system_message
+
+        # Debug print statement
+        print(f"Request data: {json.dumps(data, indent=2)}")
 
         response = requests.post(self.api_url, headers=self.headers, json=data)
 
@@ -136,6 +156,8 @@ class AnthropicModel(ConfigurableModel):
                 return "Error: Unexpected response structure"
         else:
             return f"Error: {response.status_code}, {response.text}"
+
+
 
 class VertexAIModel(ConfigurableModel):
     def __init__(self, model_id):
