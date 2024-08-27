@@ -88,17 +88,20 @@ class LLMConfigManager:
         Raises:
             ValueError: If the model is not found in any provider's list.
         """
-        for provider, details in self.models.items():
-            for model in details['models']:
-                if model['id'] == model_name[1]:
+        # First, check if the model_name includes a provider prefix
+        if ':' in model_name:
+            provider, model_id = model_name.split(':', 1)
+            if provider in self.models:
+                # Verify that the model_id exists for this provider
+                if any(model['id'] == model_id for model in self.models[provider]['models']):
                     return provider
         
-        # If we haven't found a match, check if the model_name includes a provider prefix
-        if ':' in model_name:
-            provider, _ = model_name.split(':', 1)
-            if provider in self.models:
-                return provider
-
+        # If no provider prefix or the model wasn't found, search all providers
+        for provider, details in self.models.items():
+            for model in details['models']:
+                if model['id'] == model_name:
+                    return provider
+        
         raise ValueError(f"Model '{model_name}' not found in any provider's list.")
 
 
@@ -186,7 +189,12 @@ class LLMConfigManager:
                     value = details['default']
                 credentials[prop] = value
         
-        credentials['model_id'] = self.config[provider]['selected_model']
+        if ':' in provider:
+            provider, model_id = provider.split(':', 1)
+        else:
+            model_id = self.config[provider]['selected_model']
+        
+        credentials['model_id'] = model_id
         return credentials
 
     def get_general_config(self) -> Dict[str, Any]:

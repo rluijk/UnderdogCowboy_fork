@@ -282,7 +282,7 @@ class ModelManager:
             model_type = "groq"
             config = config_manager.get_credentials(model_type)
             model_id = config['model_id']
-            return GroqModel()
+            return GroqModel(model_id)
         else:
             raise ValueError(f"Unsupported model: {model_name}")
 

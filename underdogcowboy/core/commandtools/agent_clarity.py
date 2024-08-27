@@ -234,6 +234,12 @@ class AgentClarityProcessor(cmd.Cmd):
             print(f"  {i}. {model}")
         print("\nTo select a model, use 'select_model <number>' or 'select_model <name>'")
 
+    def validate_current_model(self):
+        if not self.current_model or ':' not in self.current_model:
+            print("Invalid model selected. Please use 'select_model' to choose a valid model.")
+            return False
+        return True
+
     def do_select_model(self, arg):
         """Select a model to use. Usage: select_model <number or name>"""
         if not arg:
@@ -243,38 +249,77 @@ class AgentClarityProcessor(cmd.Cmd):
         if arg.isdigit():
             index = int(arg) - 1
             if 0 <= index < len(self.available_models):
-                self.current_model = self.available_models[index]
+                selected_model = self.available_models[index]
             else:
                 print(f"Invalid model number. Please choose between 1 and {len(self.available_models)}.")
                 return
         else:
-            if arg in self.available_models:
-                self.current_model = arg
+            matching_models = [model for model in self.available_models if arg.lower() in model.lower()]
+            if len(matching_models) == 1:
+                selected_model = matching_models[0]
+            elif len(matching_models) > 1:
+                print(f"Multiple models match '{arg}'. Please be more specific:")
+                for model in matching_models:
+                    print(f"  - {model}")
+                return
             else:
                 print(f"Model '{arg}' not found. Use 'list_models' to see available options.")
                 return
 
-        print(f"Selected model: {self.current_model}")
-        self.prompt = f"(agent_clarity:{self.current_model}) "
+        validated_model = self.validate_model_name(selected_model)
+        if validated_model:
+            self.current_model = validated_model
+            print(f"Selected model: {self.current_model}")
+            self.prompt = f"(agent_clarity:{self.current_model}) "
+        else:
+            print("Failed to select a valid model. Please try again.")
+
+    def validate_model_name(self, model_name: str) -> str:
+        """Validate and return the full model name without duplication."""
+        if ':' in model_name:
+            provider, model_id = model_name.split(':', 1)
+            if provider.lower() == 'anthropic':
+                try:
+                    AnthropicModel.validate_model_id(model_id)
+                    return model_name
+                except ValueError:
+                    print(f"Invalid Anthropic model ID: {model_id}")
+                    return None
+        else:
+            # If the model name doesn't include the provider, try to find it
+            for provider, details in self.config_manager.models.items():
+                if provider.lower() == 'anthropic':
+                    try:
+                        AnthropicModel.validate_model_id(model_name)
+                        return f"anthropic:{model_name}"
+                    except ValueError:
+                        pass
+        print(f"Invalid or unsupported model: {model_name}")
+    return None
 
     def do_analyze(self, arg):
         """Perform an initial analysis of the loaded agent definition."""
-        if not self.current_model:
-            print("No model selected. Please use 'select_model' first.")
+        if not self.validate_current_model():
             return
         if not self.agent_data:
             print("No agent definition loaded. Please use 'load_agent' first.")
             return
 
-        provider, model = self.current_model.split(":")
-        adm = AgentDialogManager([agentclarity], model_name=model)
-        response = agentclarity >> f"Analyze this agent definition: {json.dumps(self.agent_data)}"
-        print(f"Analysis:\n{response}")
+        try:
+            adm = AgentDialogManager([agentclarity], model_name=self.current_model)
+        except ValueError as e:
+            print(f"Error initializing AgentDialogManager: {str(e)}")
+            return
+
+        try:
+            response = agentclarity >> f"Analyze this agent definition: {json.dumps(self.agent_data)}"
+            print(f"Analysis:\n{response}")
+        except Exception as e:
+            print(f"Error during analysis: {str(e)}")
 
     def do_feedback(self, arg):
         """Get feedback on a specific aspect of the agent definition. Usage: feedback <aspect>"""
-        if not self.current_model:
-            print("No model selected. Please use 'select_model' first.")
+        if not self.validate_current_model():
             return
         if not self.agent_data:
             print("No agent definition loaded. Please use 'load_agent' first.")
@@ -283,52 +328,17 @@ class AgentClarityProcessor(cmd.Cmd):
             print("Please specify an aspect (input, output, rules, or constraints).")
             return
 
-        provider, model = self.current_model.split(":")
-        adm = AgentDialogManager([agentclarity], model_name=model)
-        response = agentclarity >> f"Provide feedback on the {arg} of this agent definition: {json.dumps(self.agent_data)}"
-        print(f"Feedback on {arg}:\n{response}")
-
-    def do_refine(self, arg):
-        """Start an interactive refinement session for the loaded agent definition."""
-        if not self.current_model:
-            print("No model selected. Please use 'select_model' first.")
-            return
-        if not self.agent_data:
-            print("No agent definition loaded. Please use 'load_agent' first.")
-            return
-
-        provider, model = self.current_model.split(":")
-        adm = AgentDialogManager([agentclarity], model_name=model)
-        
-        print("Starting interactive refinement session. Type 'done' to finish.")
-        while True:
-            user_input = input("Your refinement instruction: ")
-            if user_input.lower() == 'done':
-                break
-            response = agentclarity >> f"Refine this aspect of the agent definition: {user_input}\nCurrent definition: {json.dumps(self.agent_data)}"
-            print(f"Refinement suggestion:\n{response}")
-            apply = input("Apply this refinement? (yes/no): ")
-            if apply.lower() == 'yes':
-                # Here you would update self.agent_data based on the refinement
-                print("Refinement applied.")
-            else:
-                print("Refinement not applied.")
-
-    def do_export(self, arg):
-        """Export the refined agent definition. Usage: export <output_file_path>"""
-        if not self.agent_data:
-            print("No agent definition loaded. Please use 'load_agent' first.")
-            return
-        if not arg:
-            print("Please provide an output file path.")
+        try:
+            adm = AgentDialogManager([agentclarity], model_name=self.current_model)
+        except ValueError as e:
+            print(f"Error initializing AgentDialogManager: {str(e)}")
             return
 
         try:
-            with open(arg, 'w') as f:
-                json.dump(self.agent_data, f, indent=2)
-            print(f"Agent definition exported to {arg}")
-        except IOError:
-            print(f"Error writing to file: {arg}")
+            response = agentclarity >> f"Provide feedback on the {arg} of this agent definition: {json.dumps(self.agent_data)}"
+            print(f"Feedback on {arg}:\n{response}")
+        except Exception as e:
+            print(f"Error during feedback: {str(e)}")
 
     def do_exit(self, arg):
         """Exit the Agent Clarity Tool."""
@@ -336,9 +346,12 @@ class AgentClarityProcessor(cmd.Cmd):
         return True
 
     def default(self, line):
-        """Handle unknown commands."""
-        print(f"Unknown command: {line}")
-        print("Type 'help' or '?' to list available commands.")
+        """Handle unknown commands and shortcut for select_model."""
+        if line.isdigit():
+            self.do_select_model(line)
+        else:
+            print(f"Unknown command: {line}")
+            print("Type 'help' or '?' to list available commands.")
 
     def cmdloop(self, intro=None):
         """Repeatedly issue a prompt, accept input, parse an initial prefix
