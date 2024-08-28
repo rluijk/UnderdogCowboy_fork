@@ -1,6 +1,7 @@
 import pytest
-from .model import AnthropicModel, VertexAIModel, GroqModel, ModelManager
+from ..core.model import AnthropicModel, VertexAIModel, GroqModel, ModelManager
 
+@pytest.mark.expensive
 @pytest.mark.parametrize("model_class, model_id", [
     (AnthropicModel, 'claude-3-5-sonnet-20240620'),
     (VertexAIModel, 'gemini-pro'),
