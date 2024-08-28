@@ -10,7 +10,7 @@ from prompt_toolkit.document import Document
 from prompt_toolkit.shortcuts import CompleteStyle
 
 from underdogcowboy.core.config_manager import LLMConfigManager
-from underdogcowboy import AgentDialogManager, agentclarity, Timeline, adm
+from underdogcowboy import AgentDialogManager, agentclarity, Timeline, adm, AnthropicModel
 
 class CommandCompleter(Completer):
     def __init__(self, agent_clarity_processor):
@@ -43,6 +43,7 @@ class AgentClarityProcessor(cmd.Cmd):
         self.config_manager = LLMConfigManager()
         self.current_model = None
         self.available_models = self.config_manager.get_available_models()
+        
         self.current_agent_file = None
         self.agent_data = None
         self.agents_dir = os.path.expanduser("~/.underdogcowboy/agents")
@@ -246,15 +247,17 @@ class AgentClarityProcessor(cmd.Cmd):
             print("Please provide a model number or name. Use 'list_models' to see available options.")
             return
 
+        available_models = self.config_manager.get_available_models()
+
         if arg.isdigit():
             index = int(arg) - 1
-            if 0 <= index < len(self.available_models):
-                selected_model = self.available_models[index]
+            if 0 <= index < len(available_models):
+                selected_model = available_models[index]
             else:
-                print(f"Invalid model number. Please choose between 1 and {len(self.available_models)}.")
+                print(f"Invalid model number. Please choose between 1 and {len(available_models)}.")
                 return
         else:
-            matching_models = [model for model in self.available_models if arg.lower() in model.lower()]
+            matching_models = [model for model in available_models if arg.lower() in model.lower()]
             if len(matching_models) == 1:
                 selected_model = matching_models[0]
             elif len(matching_models) > 1:
@@ -266,36 +269,12 @@ class AgentClarityProcessor(cmd.Cmd):
                 print(f"Model '{arg}' not found. Use 'list_models' to see available options.")
                 return
 
-        validated_model = self.validate_model_name(selected_model)
-        if validated_model:
-            self.current_model = validated_model
-            print(f"Selected model: {self.current_model}")
-            self.prompt = f"(agent_clarity:{self.current_model}) "
-        else:
-            print("Failed to select a valid model. Please try again.")
+        provider, model_id = selected_model.split(':')
+        self.config_manager.update_model_property(provider, 'selected_model', model_id)
+        self.current_model = selected_model
+        print(f"Selected model: {selected_model}")
 
-    def validate_model_name(self, model_name: str) -> str:
-        """Validate and return the full model name without duplication."""
-        if ':' in model_name:
-            provider, model_id = model_name.split(':', 1)
-            if provider.lower() == 'anthropic':
-                try:
-                    AnthropicModel.validate_model_id(model_id)
-                    return model_name
-                except ValueError:
-                    print(f"Invalid Anthropic model ID: {model_id}")
-                    return None
-        else:
-            # If the model name doesn't include the provider, try to find it
-            for provider, details in self.config_manager.models.items():
-                if provider.lower() == 'anthropic':
-                    try:
-                        AnthropicModel.validate_model_id(model_name)
-                        return f"anthropic:{model_name}"
-                    except ValueError:
-                        pass
-        print(f"Invalid or unsupported model: {model_name}")
-    return None
+    
 
     def do_analyze(self, arg):
         """Perform an initial analysis of the loaded agent definition."""
@@ -306,7 +285,8 @@ class AgentClarityProcessor(cmd.Cmd):
             return
 
         try:
-            adm = AgentDialogManager([agentclarity], model_name=self.current_model)
+            model_name = self.current_model.split(':')[1]
+            adm = AgentDialogManager([agentclarity], model_name=model_name)
         except ValueError as e:
             print(f"Error initializing AgentDialogManager: {str(e)}")
             return
