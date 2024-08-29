@@ -79,9 +79,60 @@ def test_claude_multiple_images_handling():
     ]
     
     response = model.generate_content(conversation)
-    
     assert response is not None
     assert isinstance(response, str)
     assert len(response) > 0
     assert "Error:" not in response
     
+@pytest.fixture
+def anthropic_model():
+    return AnthropicModel("claude-3-5-sonnet-20240620")
+
+@pytest.mark.multimodal
+def test_create_conversation_structure(anthropic_model):
+    # Test case 1: Text with no images
+    text1 = "Hello, how are you?"
+    result1 = anthropic_model.create_conversation_structure(text1)
+    expected1 = [{'role': 'user', 'parts': [{'text': 'Hello, how are you?'}]}]
+    assert result1 == expected1
+
+    # Test case 2: Text with one image
+    text2 = "Here's a picture: /path/to/image.jpg"
+    result2 = anthropic_model.create_conversation_structure(text2)
+    expected2 = [{'role': 'user', 'parts': [
+        {'text': "Here's a picture:"},
+        {'image_url': {'url': '/path/to/image.jpg'}}
+    ]}]
+    assert result2 == expected2
+
+    # Test case 3: Text with multiple images and text
+    text3 = """This is the first line.
+    Here's image 1: /path/to/image1.png
+    Some text between images.
+    Here's image 2: /path/to/image2.jpg
+    This is the last line."""
+    result3 = anthropic_model.create_conversation_structure(text3)
+    expected3 = [{'role': 'user', 'parts': [
+        {'text': "This is the first line. Here's image 1:"},
+        {'image_url': {'url': '/path/to/image1.png'}},
+        {'text': "Some text between images. Here's image 2:"},
+        {'image_url': {'url': '/path/to/image2.jpg'}},
+        {'text': 'This is the last line.'}
+    ]}]
+    assert result3 == expected3
+
+    # Test case 4: Text with image and no surrounding text
+    text4 = "/path/to/lonely_image.gif"
+    result4 = anthropic_model.create_conversation_structure(text4)
+    expected4 = [{'role': 'user', 'parts': [
+        {'image_url': {'url': '/path/to/lonely_image.gif'}}
+    ]}]
+    assert result4 == expected4
+
+    # Test case 5: Text with unsupported image format (should be ignored)
+    text5 = "This image should be ignored: /path/to/image.svg"
+    result5 = anthropic_model.create_conversation_structure(text5)
+    expected5 = [{'role': 'user', 'parts': [
+        {'text': 'This image should be ignored: /path/to/image.svg'}
+    ]}]
+    assert result5 == expected5

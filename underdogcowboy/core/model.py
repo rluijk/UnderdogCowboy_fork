@@ -4,6 +4,7 @@ import requests
 import base64
 from PIL import Image
 import io
+import re
 import mimetypes
 
 from abc import ABC, abstractmethod
@@ -119,6 +120,57 @@ class AnthropicModel(ConfigurableModel):
         with open(image_path, 'rb') as image_file:
             return base64.b64encode(image_file.read()).decode('utf-8')
 
+
+    def create_conversation_structure(self, input_text):
+        NORMAL, IMAGE_PATH = 0, 1
+        state = NORMAL
+        text_buffer = ''
+        image_buffer = ''
+        valid_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp'}
+        output = {'role': 'user', 'parts': []}
+
+        def add_text_part():
+            text = ' '.join(text_buffer.split()).strip()  # Remove extra whitespace and newlines
+            if text:
+                if output['parts'] and 'text' in output['parts'][-1]:
+                    output['parts'][-1]['text'] += ' ' + text
+                else:
+                    output['parts'].append({'text': text})
+
+        def add_image_part(image_path):
+            output['parts'].append({'image_url': {'url': image_path.strip()}})
+
+        for char in input_text:
+            if state == NORMAL:
+                if char == '/':
+                    add_text_part()
+                    text_buffer = ''
+                    image_buffer = '/'
+                    state = IMAGE_PATH
+                else:
+                    text_buffer += char
+            elif state == IMAGE_PATH:
+                if char.isspace():
+                    if any(image_buffer.lower().endswith(ext) for ext in valid_extensions):
+                        add_image_part(image_buffer)
+                        image_buffer = ''
+                        state = NORMAL
+                    else:
+                        text_buffer += image_buffer + char
+                        image_buffer = ''
+                        state = NORMAL
+                else:
+                    image_buffer += char
+
+        # Handle any remaining buffer contents
+        if state == IMAGE_PATH:
+            if any(image_buffer.lower().endswith(ext) for ext in valid_extensions):
+                add_image_part(image_buffer)
+            else:
+                text_buffer += image_buffer
+        add_text_part()
+
+        return [output]
 
     def generate_content(self, conversation):
             system_message = None
