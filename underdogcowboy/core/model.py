@@ -1,6 +1,11 @@
 import os
 import json
 import requests
+import base64
+from PIL import Image
+import io
+import mimetypes
+
 from abc import ABC, abstractmethod
 from getpass import getpass
 import keyring
@@ -106,56 +111,81 @@ class AnthropicModel(ConfigurableModel):
             print(f"Error initializing {self.provider_type} provider: {str(e)}")
             raise
 
-        
+    def _encode_image(self, image_path):
+        mime_type, _ = mimetypes.guess_type(image_path)
+        if mime_type not in ['image/jpeg', 'image/png', 'image/gif', 'image/webp']:
+            raise ValueError(f"Unsupported image format: {mime_type}")
+
+        with open(image_path, 'rb') as image_file:
+            return base64.b64encode(image_file.read()).decode('utf-8')
+
+
     def generate_content(self, conversation):
-        system_message = None
-        formatted_conversation = []
+            system_message = None
+            formatted_conversation = []
 
-        for message in conversation:
-            role = message['role']
-            if role == 'model':
-                role = 'assistant'  # Convert 'model' role to 'assistant'
-            
-            if role == 'system':
-                # Handle system message separately
-                system_message = message['parts'][0]['text'] if 'parts' in message else message.get('content', '')
-                continue
-            
-            if 'parts' in message:
-                # Convert 'parts' structure to 'content'
-                content = ' '.join(part['text'] for part in message['parts'] if 'text' in part)
-            elif 'content' in message:
-                content = message['content']
+            for message in conversation:
+                role = message['role']
+                if role == 'model':
+                    role = 'assistant'
+
+                if role == 'system':
+                    system_message = message['parts'][0]['text'] if 'parts' in message else message.get('content', '')
+                    continue
+
+                content = []
+                if 'parts' in message:
+                    for part in message['parts']:
+                        if 'text' in part:
+                            content.append({"type": "text", "text": part['text']})
+                        elif 'image_url' in part:
+                            image_path = part['image_url']['url']
+                            mime_type, _ = mimetypes.guess_type(image_path)
+                            image_data = self._encode_image(image_path)
+                            content.append({
+                                "type": "image",
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": mime_type,
+                                    "data": image_data
+                                }
+                            })
+                elif 'content' in message:
+                    for item in message['content']:
+                        if isinstance(item, dict):
+                            if item['type'] == 'text':
+                                content.append({"type": "text", "text": item['text']})
+                            elif item['type'] == 'image':
+                                content.append(item)
+                        else:
+                            content.append({"type": "text", "text": item})
+
+                formatted_conversation.append({
+                    "role": role,
+                    "content": content
+                })
+
+            data = {
+                "model": self.model_id,
+                "messages": formatted_conversation,
+                "max_tokens": 1500
+            }
+
+            if system_message:
+                data["system"] = system_message
+
+            print(f"Request data: {json.dumps(data, indent=2)}")
+
+            response = requests.post(self.api_url, headers=self.headers, json=data)
+
+            if response.status_code == 200:
+                response_json = response.json()
+                if 'content' in response_json and len(response_json['content']) > 0:
+                    return response_json['content'][0]['text']
+                else:
+                    return "Error: Unexpected response structure"
             else:
-                continue  # Skip messages without content
-            
-            formatted_conversation.append({
-                "role": role,
-                "content": content
-            })
-
-        data = {
-            "model": self.model_id,  # This should be a string, not a list
-            "messages": formatted_conversation,
-            "max_tokens": 1500
-        }
-
-        if system_message:
-            data["system"] = system_message
-
-        # Debug print statement
-        print(f"Request data: {json.dumps(data, indent=2)}")
-
-        response = requests.post(self.api_url, headers=self.headers, json=data)
-
-        if response.status_code == 200:
-            response_json = response.json()
-            if 'content' in response_json and len(response_json['content']) > 0:
-                return response_json['content'][0]['text']
-            else:
-                return "Error: Unexpected response structure"
-        else:
-            return f"Error: {response.status_code}, {response.text}"
+                return f"Error: {response.status_code}, {response.text}"
 
 
 
@@ -187,6 +217,10 @@ class VertexAIModel(ConfigurableModel):
         except Exception as e:
             print(f"Error initializing {self.provider_type} provider: {str(e)}")
             raise
+
+    def _encode_image(self, image_path):
+        with open(image_path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode('utf-8')
 
     def generate_content(self, conversation):
         

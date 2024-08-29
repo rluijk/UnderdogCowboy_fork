@@ -16,7 +16,8 @@ dependencies = [
     "keyring",
     "groq",
     "langsmith",
-    "reportlab"
+    "reportlab",
+    "pillow"
 ]
 
 [project.scripts]
