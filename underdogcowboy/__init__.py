@@ -48,6 +48,7 @@ from .core.model import ModelManager, ModelRequestException, ConfigurableModel, 
 from .core.intervention import InterventionManager
 from .core.extractor import JSONExtractor
 from .core.agent import Agent
+from .core.markdown_pre_processor import MarkdownPreprocessor, GoogleDocsMarkdownPreprocessor
 
 
 
@@ -166,7 +167,7 @@ __all__ = [
     'JSONExtractor', 'CommandProcessor', 'ConfigurableModel', 'DialogManager', 'AgentDialogManager', 
     'InterventionManager', 'LLMConfigManager', 'ModelManager', 'ModelRequestException', 'Timeline',
     'Response','VertexAIModel', 'AnthropicModel', 'GroqModel'
-    'Agent', 'adm',
+    'Agent', 'adm','MarkdownPreprocessor','GoogleDocsMarkdownPreprocessor'
 ]
 __all__.extend(agents.keys())
 logger.debug("Finished updating __all__")
