@@ -122,11 +122,19 @@ class AnthropicModel(ConfigurableModel):
 
 
     def create_conversation_structure(self, input_text):
+
+        """
+        From docs Antropic:
+        We currently support the base64 source type for images, and the 
+        image/jpeg, image/png, image/gif, and image/webp media types.
+        https://docs.anthropic.com/en/api/messages
+        """
+
         NORMAL, IMAGE_PATH = 0, 1
         state = NORMAL
         text_buffer = ''
         image_buffer = ''
-        valid_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.bmp'}
+        valid_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
         output = {'role': 'user', 'parts': []}
 
         def add_text_part():
