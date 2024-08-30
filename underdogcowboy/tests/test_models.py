@@ -1,5 +1,7 @@
 import pytest
+import requests_mock
 import os
+import json
 from ..core.model import AnthropicModel, VertexAIModel, GroqModel, ModelManager
 
 @pytest.mark.expensive
@@ -136,3 +138,112 @@ def test_create_conversation_structure(anthropic_model):
         {'text': 'This image should be ignored: /path/to/image.svg'}
     ]}]
     assert result5 == expected5
+
+     # Test case 6: Text with base64 encoded image
+    text6 = "Here's a base64 image: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg== And some text after."
+    result6 = anthropic_model.create_conversation_structure(text6)
+    expected6 = [{'role': 'user', 'parts': [
+        {'text': "Here's a base64 image:"},
+        {'image': {'type': 'base64', 'media_type': 'image/png', 'data': 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg=='}},
+        {'text': 'And some text after.'}
+    ]}]
+    assert result6 == expected6
+
+    # Test case 7: Multiple base64 encoded images
+    text7 = "First image: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg== Middle text. Second image: data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAA=="
+    result7 = anthropic_model.create_conversation_structure(text7)
+    expected7 = [{'role': 'user', 'parts': [
+        {'text': "First image:"},
+        {'image': {'type': 'base64', 'media_type': 'image/png', 'data': 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg=='}},
+        {'text': 'Middle text. Second image:'},
+        {'image': {'type': 'base64', 'media_type': 'image/jpeg', 'data': '/9j/4AAQSkZJRgABAQEAYABgAAD/2wBDAA=='}}
+    ]}]
+    assert result7 == expected7
+
+    # Test case 8: Mix of file paths and base64 encoded images
+    text8 = "File image: /path/to/image.jpg Then base64: data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg=="
+    result8 = anthropic_model.create_conversation_structure(text8)
+    expected8 = [{'role': 'user', 'parts': [
+        {'text': "File image:"},
+        {'image_url': {'url': '/path/to/image.jpg'}},
+        {'text': 'Then base64:'},
+        {'image': {'type': 'base64', 'media_type': 'image/png', 'data': 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg=='}}
+    ]}]
+    assert result8 == expected8
+
+
+
+@pytest.mark.multimodal
+def test_generate_content_with_base64_images(anthropic_model):
+    # Mock the API response
+    mock_response = {
+        "content": [{"text": "I see two images. The first appears to be a small red square. The second appears to be a small blue circle."}]
+    }
+
+    # Prepare a conversation with base64 encoded images
+    conversation = [{
+        'role': 'user',
+        'parts': [
+            {'text': "Describe these two images:"},
+            {'image': {'type': 'base64', 'media_type': 'image/png', 'data': 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg=='}},
+            {'text': "and"},
+            {'image': {'type': 'base64', 'media_type': 'image/png', 'data': 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg=='}}
+        ]
+    }]
+
+    # Use requests_mock to mock the API call
+    with requests_mock.Mocker() as m:
+        m.post(anthropic_model.api_url, json=mock_response)
+
+        # Call generate_content
+        response = anthropic_model.generate_content(conversation)
+
+        # Check that the response is as expected
+        assert response == mock_response['content'][0]['text']
+
+        # Check that the request was made with the correct data
+        last_request = m.last_request
+        request_body = json.loads(last_request.text)
+
+        # Verify that the images were included in the request
+        assert len(request_body['messages']) == 1
+        assert len(request_body['messages'][0]['content']) == 4
+        assert request_body['messages'][0]['content'][1]['type'] == 'image'
+        assert request_body['messages'][0]['content'][1]['source']['type'] == 'base64'
+        assert request_body['messages'][0]['content'][3]['type'] == 'image'
+        assert request_body['messages'][0]['content'][3]['source']['type'] == 'base64'
+
+
+@pytest.mark.expensive
+@pytest.mark.multimodal
+@pytest.mark.real_api
+def test_generate_content_with_base64_images_real_api(anthropic_model):
+    # Prepare a conversation with base64 encoded images
+    # Note: Using a 1x1 pixel transparent PNG for minimal data transfer
+    tiny_transparent_png = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAACklEQVR4nGMAAQAABQABDQottAAAAABJRU5ErkJggg=="
+    
+    conversation = [{
+        'role': 'user',
+        'parts': [
+            {'text': "Describe these two images:"},
+            {'image': {'type': 'base64', 'media_type': 'image/png', 'data': tiny_transparent_png}},
+            {'text': "and"},
+            {'image': {'type': 'base64', 'media_type': 'image/png', 'data': tiny_transparent_png}}
+        ]
+    }]
+
+    # Call generate_content with real API
+    response = anthropic_model.generate_content(conversation)
+
+    # Basic checks on the response
+    assert response is not None
+    assert isinstance(response, str)
+    assert len(response) > 0
+    assert "Error:" not in response
+
+    # Check for keywords that suggest the model recognized the images
+    expected_keywords = ['image', 'transparent', 'pixel', 'small']
+    assert any(keyword in response.lower() for keyword in expected_keywords)
+
+    # Print the response for manual inspection
+    print(f"API Response: {response}")

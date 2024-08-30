@@ -120,132 +120,171 @@ class AnthropicModel(ConfigurableModel):
         with open(image_path, 'rb') as image_file:
             return base64.b64encode(image_file.read()).decode('utf-8')
 
-
     def create_conversation_structure(self, input_text):
-
-        """
-        From docs Antropic:
-        We currently support the base64 source type for images, and the 
-        image/jpeg, image/png, image/gif, and image/webp media types.
-        https://docs.anthropic.com/en/api/messages
-        """
-
-        NORMAL, IMAGE_PATH = 0, 1
-        state = NORMAL
-        text_buffer = ''
-        image_buffer = ''
-        valid_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
-        output = {'role': 'user', 'parts': []}
-
-        def add_text_part():
-            text = ' '.join(text_buffer.split()).strip()  # Remove extra whitespace and newlines
-            if text:
-                if output['parts'] and 'text' in output['parts'][-1]:
-                    output['parts'][-1]['text'] += ' ' + text
+            """
+            From docs Antropic:
+            We currently support the base64 source type for images, and the 
+            image/jpeg, image/png, image/gif, and image/webp media types.
+            https://docs.anthropic.com/en/api/messages
+            """
+            NORMAL, IMAGE_PATH, BASE64 = 0, 1, 2
+            state = NORMAL
+            text_buffer = ''
+            image_buffer = ''
+            valid_extensions = {'.jpg', '.jpeg', '.png', '.gif', '.webp'}
+            output = {'role': 'user', 'parts': []}
+            
+            def add_text_part():
+                text = ' '.join(text_buffer.split()).strip()
+                if text:
+                    if output['parts'] and isinstance(output['parts'][-1], dict) and 'text' in output['parts'][-1]:
+                        output['parts'][-1]['text'] += ' ' + text
+                    else:
+                        output['parts'].append({'text': text})
+            
+            def add_image_part(image_data):
+                if image_data.startswith('data:image/'):
+                    # It's already a base64 encoded image
+                    mime_type = image_data.split(';')[0].split(':')[1]
+                    base64_data = image_data.split(',')[1]
+                    output['parts'].append({
+                        'image': {
+                            'type': 'base64',
+                            'media_type': mime_type,
+                            'data': base64_data
+                        }
+                    })
                 else:
-                    output['parts'].append({'text': text})
-
-        def add_image_part(image_path):
-            output['parts'].append({'image_url': {'url': image_path.strip()}})
-
-        for char in input_text:
-            if state == NORMAL:
-                if char == '/':
-                    add_text_part()
-                    text_buffer = ''
-                    image_buffer = '/'
-                    state = IMAGE_PATH
-                else:
-                    text_buffer += char
-            elif state == IMAGE_PATH:
-                if char.isspace():
-                    if any(image_buffer.lower().endswith(ext) for ext in valid_extensions):
+                    # It's a file path, we'll encode it later
+                    output['parts'].append({'image_url': {'url': image_data.strip()}})
+            
+            i = 0
+            while i < len(input_text):
+                if state == NORMAL:
+                    if input_text[i] == '/':
+                        add_text_part()
+                        text_buffer = ''
+                        image_buffer = '/'
+                        state = IMAGE_PATH
+                    elif input_text[i:].startswith('data:image/'):
+                        add_text_part()
+                        text_buffer = ''
+                        image_buffer = 'data:image/'
+                        state = BASE64
+                        i += len('data:image/')
+                        continue
+                    else:
+                        text_buffer += input_text[i]
+                elif state == IMAGE_PATH:
+                    if input_text[i].isspace():
+                        if any(image_buffer.lower().endswith(ext) for ext in valid_extensions):
+                            add_image_part(image_buffer)
+                            image_buffer = ''
+                            state = NORMAL
+                        else:
+                            text_buffer += image_buffer + input_text[i]
+                            image_buffer = ''
+                            state = NORMAL
+                    else:
+                        image_buffer += input_text[i]
+                elif state == BASE64:
+                    end_index = input_text.find(' ', i)
+                    if end_index == -1:
+                        end_index = len(input_text)
+                    image_buffer += input_text[i:end_index]
+                    if ';base64,' in image_buffer:
                         add_image_part(image_buffer)
                         image_buffer = ''
                         state = NORMAL
+                        i = end_index
                     else:
-                        text_buffer += image_buffer + char
+                        text_buffer += image_buffer
                         image_buffer = ''
                         state = NORMAL
+                i += 1
+            
+            if image_buffer:
+                if state == BASE64 and ';base64,' in image_buffer:
+                    add_image_part(image_buffer)
+                elif state == IMAGE_PATH and any(image_buffer.lower().endswith(ext) for ext in valid_extensions):
+                    add_image_part(image_buffer)
                 else:
-                    image_buffer += char
-
-        # Handle any remaining buffer contents
-        if state == IMAGE_PATH:
-            if any(image_buffer.lower().endswith(ext) for ext in valid_extensions):
-                add_image_part(image_buffer)
-            else:
-                text_buffer += image_buffer
-        add_text_part()
-
-        return [output]
-
+                    text_buffer += image_buffer
+            add_text_part()
+            
+            return [output]
+    
     def generate_content(self, conversation):
-            system_message = None
-            formatted_conversation = []
+        system_message = None
+        formatted_conversation = []
 
-            for message in conversation:
-                role = message['role']
-                if role == 'model':
-                    role = 'assistant'
+        for message in conversation:
+            role = message['role']
+            if role == 'model':
+                role = 'assistant'
 
-                if role == 'system':
-                    system_message = message['parts'][0]['text'] if 'parts' in message else message.get('content', '')
-                    continue
+            if role == 'system':
+                system_message = message['parts'][0]['text'] if 'parts' in message else message.get('content', '')
+                continue
 
-                content = []
-                if 'parts' in message:
-                    for part in message['parts']:
-                        if 'text' in part:
-                            content.append({"type": "text", "text": part['text']})
-                        elif 'image_url' in part:
-                            image_path = part['image_url']['url']
-                            mime_type, _ = mimetypes.guess_type(image_path)
-                            image_data = self._encode_image(image_path)
-                            content.append({
-                                "type": "image",
-                                "source": {
-                                    "type": "base64",
-                                    "media_type": mime_type,
-                                    "data": image_data
-                                }
-                            })
-                elif 'content' in message:
-                    for item in message['content']:
-                        if isinstance(item, dict):
-                            if item['type'] == 'text':
-                                content.append({"type": "text", "text": item['text']})
-                            elif item['type'] == 'image':
-                                content.append(item)
-                        else:
-                            content.append({"type": "text", "text": item})
+            content = []
+            if 'parts' in message:
+                for part in message['parts']:
+                    if 'text' in part:
+                        content.append({"type": "text", "text": part['text']})
+                    elif 'image_url' in part:
+                        image_path = part['image_url']['url']
+                        mime_type, _ = mimetypes.guess_type(image_path)
+                        image_data = self._encode_image(image_path)
+                        content.append({
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": mime_type,
+                                "data": image_data
+                            }
+                        })
+                    elif 'image' in part:
+                        content.append({
+                            "type": "image",
+                            "source": part['image']
+                        })
+            elif 'content' in message:
+                for item in message['content']:
+                    if isinstance(item, dict):
+                        if item['type'] == 'text':
+                            content.append({"type": "text", "text": item['text']})
+                        elif item['type'] == 'image':
+                            content.append(item)
+                    else:
+                        content.append({"type": "text", "text": item})
 
-                formatted_conversation.append({
-                    "role": role,
-                    "content": content
-                })
+            formatted_conversation.append({
+                "role": role,
+                "content": content
+            })
 
-            data = {
-                "model": self.model_id,
-                "messages": formatted_conversation,
-                "max_tokens": 1500
-            }
+        data = {
+            "model": self.model_id,
+            "messages": formatted_conversation,
+            "max_tokens": 1500
+        }
 
-            if system_message:
-                data["system"] = system_message
+        if system_message:
+            data["system"] = system_message
 
-            print(f"Request data: {json.dumps(data, indent=2)}")
+        print(f"Request data: {json.dumps(data, indent=2)}")
 
-            response = requests.post(self.api_url, headers=self.headers, json=data)
+        response = requests.post(self.api_url, headers=self.headers, json=data)
 
-            if response.status_code == 200:
-                response_json = response.json()
-                if 'content' in response_json and len(response_json['content']) > 0:
-                    return response_json['content'][0]['text']
-                else:
-                    return "Error: Unexpected response structure"
+        if response.status_code == 200:
+            response_json = response.json()
+            if 'content' in response_json and len(response_json['content']) > 0:
+                return response_json['content'][0]['text']
             else:
-                return f"Error: {response.status_code}, {response.text}"
+                return "Error: Unexpected response structure"
+        else:
+            return f"Error: {response.status_code}, {response.text}"
 
 
 
