@@ -49,8 +49,13 @@ class AgentClarityProcessor(cmd.Cmd):
         self.agents_dir = os.path.expanduser("~/.underdogcowboy/agents")
         self.timeline = Timeline()
 
+        self.last_analysis = None
         # Create a CommandCompleter with all available commands
         self.command_completer = CommandCompleter(self)
+
+        self.message_export_path = ''
+        self.dialog_save_path = ''         
+        self.load_config()
         
         # Create a PromptSession with the command completer
         self.session = PromptSession(completer=self.command_completer, complete_style=CompleteStyle.MULTI_COLUMN)
@@ -187,7 +192,7 @@ class AgentClarityProcessor(cmd.Cmd):
             import traceback
             traceback.print_exc()
 
-    def do_create_agent(self):
+    def do_create_agent(self,arg):
         """
         Create a new agent definition and save it to a file.
         """
@@ -274,8 +279,6 @@ class AgentClarityProcessor(cmd.Cmd):
         self.current_model = selected_model
         print(f"Selected model: {selected_model}")
 
-    
-
     def do_analyze(self, arg):
         """Perform an initial analysis of the loaded agent definition."""
         if not self.validate_current_model():
@@ -294,8 +297,63 @@ class AgentClarityProcessor(cmd.Cmd):
         try:
             response = agentclarity >> f"Analyze this agent definition: {json.dumps(self.agent_data)}"
             print(f"Analysis:\n{response}")
+            self.last_analysis = response.text
         except Exception as e:
             print(f"Error during analysis: {str(e)}")
+            self.last_analysis = None
+
+    def do_export_analysis(self, arg):
+        """Export the last analysis to a markdown file. Usage: export_analysis <filename>"""
+        if not self.last_analysis:
+            print("No analysis has been performed yet. Please use 'analyze' first.")
+            return
+        if not arg:
+            print("Please provide a filename for the markdown file.")
+            return
+
+        filename = arg if arg.endswith('.md') else f"{arg}.md"
+        
+        # Use the configured message_export_path if available
+        if self.message_export_path:
+            export_path = os.path.join(self.message_export_path, filename)
+        else:
+            export_path = filename  # Use the current directory if no export path is configured
+
+        try:
+            # Ensure the directory exists
+            os.makedirs(os.path.dirname(export_path), exist_ok=True)
+
+            # Create the markdown file
+            with open(export_path, 'w') as f:
+                f.write(self.last_analysis)
+            
+            print(f"Analysis exported to '{export_path}'.")
+        except Exception as e:
+            print(f"Error during file creation: {str(e)}")
+
+    def load_config(self):
+        """
+        Load configuration settings from a JSON file.
+        
+        Reads the configuration file and sets up message export and dialog save paths.
+        """        
+        config_file = os.path.join(Path.home(), '.underdogcowboy', 'config.json')
+
+        if os.path.exists(config_file):
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+                
+            general_config = config.get('general', {})
+            self.message_export_path = os.path.abspath(general_config.get('message_export_path', ''))
+            self.dialog_save_path = os.path.abspath(general_config.get('dialog_save_path', ''))
+
+            if not self.message_export_path or not self.dialog_save_path:
+                print("Warning: Some configuration values are missing.")
+        else:
+            print(f"Configuration file '{config_file}' not found.")
+            self.message_export_path = ''
+            self.dialog_save_path = ''            
+        
 
     def do_feedback(self, arg):
         """Get feedback on a specific aspect of the agent definition. Usage: feedback <aspect>"""
@@ -319,6 +377,44 @@ class AgentClarityProcessor(cmd.Cmd):
             print(f"Feedback on {arg}:\n{response}")
         except Exception as e:
             print(f"Error during feedback: {str(e)}")
+
+    def do_feedback_input(self, arg):
+        """Get feedback on the input handling of the agent definition."""
+        self._get_feedback("input handling")
+
+    def do_feedback_output(self, arg):
+        """Get feedback on the output generation of the agent definition."""
+        self._get_feedback("output generation")
+
+    def do_feedback_rules(self, arg):
+        """Get feedback on the rules of the agent definition."""
+        self._get_feedback("rules")
+
+    def do_feedback_constraints(self, arg):
+        """Get feedback on the constraints of the agent definition."""
+        self._get_feedback("constraints")
+
+    def _get_feedback(self, aspect):
+        if not self.validate_current_model():
+            return
+        if not self.agent_data:
+            print("No agent definition loaded. Please use 'load_agent' first.")
+            return
+
+        try:
+            model_name = self.current_model.split(':')[1]
+            adm = AgentDialogManager([agentclarity], model_name=model_name)
+        except ValueError as e:
+            print(f"Error initializing AgentDialogManager: {str(e)}")
+            return
+
+        try:
+            response = agentclarity >> f"Provide detailed feedback on the {aspect} of this agent definition: {json.dumps(self.agent_data)}"
+            print(f"Feedback on {aspect}:\n{response}")
+            self.last_analysis = response.text
+        except Exception as e:
+            print(f"Error during feedback: {str(e)}")
+
 
     def do_exit(self, arg):
         """Exit the Agent Clarity Tool."""
