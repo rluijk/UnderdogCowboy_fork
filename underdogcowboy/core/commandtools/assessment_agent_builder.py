@@ -10,7 +10,8 @@ from prompt_toolkit.document import Document
 from prompt_toolkit.shortcuts import CompleteStyle
 
 from underdogcowboy.core.config_manager import LLMConfigManager
-from underdogcowboy import AgentDialogManager, agentclarity, Timeline, adm, AnthropicModel
+from underdogcowboy import AgentDialogManager, assessmentbuilder
+from underdogcowboy import JSONExtractor
 
 class CommandCompleter(Completer):
     def __init__(self, assessment_builder):
@@ -57,6 +58,7 @@ class AssessmentAgentBuilder(cmd.Cmd):
 
         # Create a CommandCompleter with all available commands
         self.command_completer = CommandCompleter(self)
+        self.num_categories = 5
         
         # Create a PromptSession with the command completer
         self.session = PromptSession(completer=self.command_completer, complete_style=CompleteStyle.MULTI_COLUMN)
@@ -122,11 +124,13 @@ class AssessmentAgentBuilder(cmd.Cmd):
         if self.current_assessment_path.exists():
             with open(self.current_assessment_path, 'r') as f:
                 self.assessment_structure = json.load(f)
+            self.num_categories = self.assessment_structure.get("num_categories", 5)
             print(f"Loaded existing assessment from {self.current_assessment_path}")
         else:
             self.assessment_structure["categories"] = []
             self.assessment_structure["meta_notes"] = ""
-            print(f"Initialized new assessment for agent {arg}")
+            self.assessment_structure["num_categories"] = self.num_categories
+            print(f"Initialized new assessment for agent {arg}")            
 
     def do_load(self, arg):
         """
@@ -189,6 +193,7 @@ class AssessmentAgentBuilder(cmd.Cmd):
             with open(assessment_path, 'r') as f:
                 self.assessment_structure = json.load(f)
             self.current_assessment_path = assessment_path
+            self.num_categories = self.assessment_structure.get("num_categories", 5)
             print(f"Loaded assessment from {assessment_path}")
         except json.JSONDecodeError:
             print(f"Error: The file {assessment_path} is not a valid JSON file.")
@@ -196,29 +201,162 @@ class AssessmentAgentBuilder(cmd.Cmd):
             print(f"An error occurred while loading the assessment: {str(e)}")
 
     def do_analyze(self, arg):
-        """Analyze the current agent and suggest categories. Usage: analyze"""
-        if not self.assessment_structure["base_agent"]:
-            print("No agent loaded. Use 'init' command first.")
+        """Perform an initial analysis of the loaded agent definition and suggest categories."""
+        if not self.validate_current_model():
             return
-        
-        suggested_categories = self._analyze_agent(self.assessment_structure["base_agent"])
-        self.assessment_structure["categories"] = suggested_categories
-        print(f"Suggested {len(suggested_categories)} categories.")
+        if not self.assessment_structure or not self.assessment_structure.get("base_agent"):
+            print("No agent definition loaded. Please use 'init' or 'load' command first.")
+            return
 
+        try:
+            model_name = self.current_model.split(':')[1]
+            adm = AgentDialogManager([assessmentbuilder], model_name=model_name)
+        except ValueError as e:
+            print(f"Error initializing AgentDialogManager: {str(e)}")
+            return
+
+        try:
+            # Load the agent definition
+            with open(self.assessment_structure["base_agent"], 'r') as f:
+                agent_data = json.load(f)
+
+            # Prepare existing fixed categories
+            fixed_categories = [cat for cat in self.assessment_structure["categories"] if cat.get("fixed", False)]
+            num_new_categories = self.num_categories - len(fixed_categories)
+
+            # Instruct the LLM to return categories in a specific JSON format
+            prompt = f"""
+            Analyze this agent definition and suggest {num_new_categories} new assessment categories for the output it can generate.
+            The following categories are already fixed and should not be changed:
+            {json.dumps([cat['name'] for cat in fixed_categories])}
+
+            Return your response in the following JSON format:
+            {{
+                "categories": [
+                    {{"name": "Category1", "description": "Description of Category1"}},
+                    ... (repeat for the number of new categories)
+                ]
+            }}
+            Agent definition: {json.dumps(agent_data)}
+            """
+            
+            response = assessmentbuilder >> prompt
+            print("Analysis complete. Extracting categories...")
+
+            # Define the expected keys for our JSON structure
+            expected_keys = ["categories"]
+
+            # Create an instance of JSONExtractor
+            extractor = JSONExtractor(response.text, expected_keys)
+
+            # Extract and parse the JSON
+            json_data, inspection_data = extractor.extract_and_parse_json()
+
+            # Define expected inspection data
+            expected_inspection_data = {
+                'number_of_keys': 1,
+                'keys': ["categories"],
+                'values_presence': {"categories": True},
+                'keys_match': True
+            }
+
+            # Check the inspection data against the expected data
+            is_correct, deviations = extractor.check_inspection_data(expected_inspection_data)
+
+            if is_correct:
+                print("Categories extracted successfully.")
+                new_categories = json_data["categories"]
+                for cat in new_categories:
+                    cat["fixed"] = False
+                self.assessment_structure["categories"] = fixed_categories + new_categories
+                self.do_list_categories(None)
+            else:
+                print("Error in extracting categories. Deviations found:")
+                print(deviations)
+                print("Raw response:")
+                print(response.text)
+
+        except FileNotFoundError:
+            print(f"Agent definition file not found: {self.assessment_structure['base_agent']}")
+        except json.JSONDecodeError:
+            print(f"Invalid JSON in agent definition file: {self.assessment_structure['base_agent']}")
+        except Exception as e:
+            print(f"Error during analysis: {str(e)}")
+            print("Raw response:")
+            print(response.text)    
+
+    def do_toggle_fixed(self, arg):
+        """Toggle the fixed status of a category. Usage: toggle_fixed [category_number]"""
+        if not self.assessment_structure.get("categories"):
+            print("No categories defined. Use 'analyze' to generate categories first.")
+            return
+
+        if not arg:
+            print("Current categories:")
+            for i, category in enumerate(self.assessment_structure["categories"], 1):
+                fixed_status = "[FIXED]" if category.get("fixed", False) else ""
+                print(f"{i}. {category['name']} {fixed_status}")
+            
+            while True:
+                selection = input("Enter the number of the category to toggle (or 'q' to quit): ")
+                if selection.lower() == 'q':
+                    return
+                if selection.isdigit():
+                    arg = selection
+                    break
+                print("Invalid input. Please enter a number or 'q' to quit.")
+
+        try:
+            num = int(arg) - 1
+            if 0 <= num < len(self.assessment_structure["categories"]):
+                category = self.assessment_structure["categories"][num]
+                category["fixed"] = not category.get("fixed", False)
+                status = "fixed" if category["fixed"] else "not fixed"
+                print(f"Category '{category['name']}' is now {status}.")
+            else:
+                print(f"Invalid category number. Please choose a number between 1 and {len(self.assessment_structure['categories'])}.")
+        except ValueError:
+            print("Please provide a valid number.")
+            
     def do_list_categories(self, arg):
         """List all current categories. Usage: list_categories"""
-        for i, category in enumerate(self.assessment_structure["categories"]):
-            print(f"{i+1}. {category['name']}")
+        if not hasattr(self, 'assessment_structure') or not self.assessment_structure:
+            print("No assessment structure initialized. Use 'init' to start a new assessment.")
+            return
+
+        if "categories" not in self.assessment_structure or not self.assessment_structure["categories"]:
+            print("No categories defined yet. Use 'analyze' to generate categories or 'add_category' to add one manually.")
+            return
+
+        print("Current categories:")
+        for i, category in enumerate(self.assessment_structure["categories"], 1):
+            try:
+                fixed_status = "[FIXED]" if category.get("fixed", False) else ""
+                print(f"{i}. {category['name']} {fixed_status}")
+            except KeyError:
+                print(f"{i}. [Invalid category structure]")
+
+        print(f"\nTotal categories: {len(self.assessment_structure['categories'])}")
 
     def do_select_category(self, arg):
-        """Select a category to work on. Usage: select_category <number>"""
+        """Select a category to work on. Usage: select_category [number]"""
+        if "categories" not in self.assessment_structure or not self.assessment_structure["categories"]:
+            print("No categories defined yet. Use 'analyze' to generate categories or 'add_category' to add one manually.")
+            return
+
+        if not arg:
+            print("Current categories:")
+            for i, category in enumerate(self.assessment_structure["categories"], 1):
+                print(f"{i}. {category['name']}")
+            arg = input("Enter the number of the category you want to select: ")
+
         try:
             num = int(arg) - 1
             if 0 <= num < len(self.assessment_structure["categories"]):
                 self.current_category = num
                 print(f"Selected category: {self.assessment_structure['categories'][num]['name']}")
             else:
-                print("Invalid category number.")
+                print(f"Invalid category number. Please choose a number between 1 and {len(self.assessment_structure['categories'])}.")
         except ValueError:
             print("Please provide a valid number.")
 
@@ -229,11 +367,39 @@ class AssessmentAgentBuilder(cmd.Cmd):
             return
         
         category = self.assessment_structure["categories"][self.current_category]
+        if category.get("fixed", False):
+            print(f"Warning: Category '{category['name']}' is fixed. Changes will not be saved unless you unfix it first.")
+            if input("Do you want to proceed anyway? (y/n): ").lower() != 'y':
+                return
+        
         print(f"Defining category: {category['name']}")
         
         refined_category = self._refine_category(category["name"], category, input("Your input: "))
-        self.assessment_structure["categories"][self.current_category] = refined_category
-        print("Category updated.")
+        if not category.get("fixed", False):
+            self.assessment_structure["categories"][self.current_category] = refined_category
+            print("Category updated.")
+        else:
+            print("Category not updated because it is fixed.")
+
+    def do_set_num_categories(self, arg):
+        """Set the number of categories to generate. Usage: set_num_categories [number]"""
+        if not arg:
+            print(f"Current number of categories: {self.num_categories}")
+            arg = input("Enter the new number of categories (1-10): ")
+        
+        try:
+            num = int(arg)
+            if 1 <= num <= 10:
+                self.num_categories = num
+                print(f"Number of categories set to {num}")
+            else:
+                print("Please provide a number between 1 and 10.")
+        except ValueError:
+            print("Please provide a valid number.")
+
+    def do_show_num_categories(self, arg):
+        """Show the current number of categories. Usage: show_num_categories"""
+        print(f"Current number of categories: {self.num_categories}")
 
     def do_save(self, arg):
         """Save the current assessment structure. Usage: save"""
@@ -241,6 +407,7 @@ class AssessmentAgentBuilder(cmd.Cmd):
             print("No active assessment. Use 'init' command first.")
             return
         
+        self.assessment_structure["num_categories"] = self.num_categories
         with open(self.current_assessment_path, 'w') as f:
             json.dump(self.assessment_structure, f, indent=2)
         print(f"Saved to {self.current_assessment_path}")
@@ -364,37 +531,16 @@ class AssessmentAgentBuilder(cmd.Cmd):
         self.current_model = selected_model
         print(f"Selected model: {selected_model}")
 
-
-    def _analyze_agent(self, agent_file: str) -> List[Dict]:
-        if not self.validate_current_model():
-            return []
-        
-        try:
-            model_name = self.current_model.split(':')[1]
-            adm = AgentDialogManager([agentclarity], model_name=model_name)
-            
-            with open(agent_file, 'r') as f:
-                agent_data = json.load(f)
-            
-            response = agentclarity >> f"Analyze this agent definition and suggest 5 assessment categories: {json.dumps(agent_data)}"
-            # Parse the response to extract categories
-            # This is a placeholder and should be adjusted based on the actual response format
-            categories = [{"name": cat.strip()} for cat in response.text.split('\n') if cat.strip()]
-            return categories[:5]  # Ensure we only return 5 categories
-        except Exception as e:
-            print(f"Error during analysis: {str(e)}")
-            return []
-
     def _refine_category(self, name: str, current: Dict, user_input: str) -> Dict:
         if not self.validate_current_model():
             return current
         
         try:
             model_name = self.current_model.split(':')[1]
-            adm = AgentDialogManager([agentclarity], model_name=model_name)
+            adm = AgentDialogManager([assessmentbuilder], model_name=model_name)
             
             prompt = f"Refine this assessment category based on user input:\nCategory: {name}\nCurrent definition: {json.dumps(current)}\nUser input: {user_input}"
-            response = agentclarity >> prompt
+            response = assessmentbuilder >> prompt
             
             # Parse the response to update the category
             # This is a placeholder and should be adjusted based on the actual response format
@@ -410,19 +556,27 @@ class AssessmentAgentBuilder(cmd.Cmd):
         
         try:
             model_name = self.current_model.split(':')[1]
-            adm = AgentDialogManager([agentclarity], model_name=model_name)
+            adm = AgentDialogManager([assessmentbuilder], model_name=model_name)
             
             prompt = f"Generate a system prompt for an assessment agent based on this structure: {json.dumps(structure)}"
-            response = agentclarity >> prompt
+            response = assessmentbuilder >> prompt
             return response.text
         except Exception as e:
             print(f"Error generating system prompt: {str(e)}")
             return ""
 
     def default(self, line):
-        """Handle unknown commands and shortcut for select_model."""
+        """Handle unknown commands and shortcuts for select_model, select_category, and set_num_categories."""
         if line.isdigit():
-            self.do_select_model(line)
+            num = int(line)
+            if 1 <= num <= len(self.available_models):
+                self.do_select_model(line)
+            elif 1 <= num <= len(self.assessment_structure.get("categories", [])):
+                self.do_select_category(line)
+            elif 1 <= num <= 10:
+                self.do_set_num_categories(line)
+            else:
+                print(f"Invalid number. Use 'list_models', 'list_categories', or 'set_num_categories' to see valid options.")
         else:
             print(f"Unknown command: {line}")
             print("Type 'help' or '?' to list available commands.")
