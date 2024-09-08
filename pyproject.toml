@@ -16,7 +16,8 @@ dependencies = [
     "keyring",
     "groq",
     "langsmith",
-    "reportlab"
+    "reportlab",
+    "guided-llm-cli @ file:///Users/reneluijk/projects/guided-llm-cli"   
 ]
 
 [project.scripts]
@@ -27,6 +28,7 @@ uc-timelineeditor = "underdogcowboy.core.timeline_editor:main"
 uc-tracing = "underdogcowboy.core.commandtools.tracing_config:main"
 uc-agent-clarity =  "underdogcowboy.core.commandtools.agent_clarity:main"
 uc-agent-pdf = "underdogcowboy.core.commandtools.agent_pdf:main"
+uc-assessment-builder = "underdogcowboy.core.commandtools.assessment_agent_builder:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
