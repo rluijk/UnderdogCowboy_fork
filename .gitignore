@@ -29,3 +29,4 @@ tests/__pycache__/tracing_config.cpython-311.pyc
 *.pyc
 /venv_an
 /state_machine_visualizations
+/venv
