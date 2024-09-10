@@ -12,12 +12,12 @@ license = {text = "MIT"}
 
 dependencies = [
     "vertexai",
-    "prompt-toolkit",
+    "prompt_toolkit",
     "keyring",
     "groq",
     "langsmith",
     "reportlab",
-    "guided-llm-cli @ file:///Users/reneluijk/projects/guided-llm-cli"   
+    "uccli @ file:///Users/reneluijk/projects/uccli"   
 ]
 
 [project.scripts]
