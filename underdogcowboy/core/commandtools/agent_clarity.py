@@ -12,6 +12,7 @@ from prompt_toolkit.shortcuts import CompleteStyle
 from underdogcowboy.core.config_manager import LLMConfigManager
 from underdogcowboy import AgentDialogManager, agentclarity, Timeline, adm, AnthropicModel
 
+
 class CommandCompleter(Completer):
     def __init__(self, agent_clarity_processor):
         self.agent_clarity_processor = agent_clarity_processor
