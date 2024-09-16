@@ -1,4 +1,3 @@
-
 """
 Underdog Cowboy Agent System Initialization
 
@@ -48,7 +47,7 @@ from .core.model import ModelManager, ModelRequestException, ConfigurableModel, 
 from .core.intervention import InterventionManager
 from .core.extractor import JSONExtractor
 from .core.agent import Agent
-
+from .core.uc_agent_communicator import UCAgentCommunicator
 
 
 # moved to new file, less clutering in the __init__.py
@@ -165,7 +164,7 @@ logger.debug("Updating __all__")
 __all__ = [
     'JSONExtractor', 'CommandProcessor', 'ConfigurableModel', 'DialogManager', 'AgentDialogManager', 
     'InterventionManager', 'LLMConfigManager', 'ModelManager', 'ModelRequestException', 'Timeline',
-    'Response','VertexAIModel', 'AnthropicModel', 'GroqModel'
+    'Response','VertexAIModel', 'AnthropicModel', 'GroqModel','UCAgentCommunicator',
     'Agent', 'adm',
 ]
 __all__.extend(agents.keys())

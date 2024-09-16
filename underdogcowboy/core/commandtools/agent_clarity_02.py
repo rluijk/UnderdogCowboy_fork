@@ -1,21 +1,26 @@
 import os
 import json
 import sys
+import re
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit import prompt
 
 from pathlib import Path
-from uccli import GenericCLI, StateMachine, State, command, cancellable_command,input_required_command, CommandCompleter
-
-from underdogcowboy.core.config_manager import LLMConfigManager
-from underdogcowboy import AgentDialogManager, agentclarity, Timeline, adm, AnthropicModel
+from uccli import StorageManager, GenericCLI, StateMachine, State, command, cancellable_command,input_required_command, CommandCompleter
 
 
+from underdogcowboy.core.config_manager import LLMConfigManager 
+from underdogcowboy import UCAgentCommunicator, AgentDialogManager, Timeline, adm, AnthropicModel
+
+# Import agentclarity and cliagent from their specific modules
+from underdogcowboy  import cliagent
 
 class AgentClarityProcessor(GenericCLI):
     def __init__(self):
 
         self.config_manager = LLMConfigManager()
+
+        self.uc_agent_communicator = UCAgentCommunicator(cliagent)
         self.current_model = None
         self.available_models = self.config_manager.get_available_models()
         
@@ -76,6 +81,20 @@ class AgentClarityProcessor(GenericCLI):
             state_machine.add_state(state)
 
         super().__init__(state_machine)
+
+          # Initialize the storage system
+        self.storage_manager = StorageManager(base_dir=os.path.expanduser("~/.uccli_sessions"))
+        self.current_storage = None
+
+        # Load or create a default session
+        default_session_name = "default_session"
+        try:
+            self.current_storage = self.storage_manager.load_session(default_session_name)
+            print(f"Loaded default session: {default_session_name}")
+        except ValueError:
+            self.current_storage = self.storage_manager.create_session(default_session_name)
+            print(f"Created new default session: {default_session_name}")
+
 
             
     @command("print_state_machine", "Print the current state machine configuration")
