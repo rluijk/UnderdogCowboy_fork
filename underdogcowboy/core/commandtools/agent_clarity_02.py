@@ -21,6 +21,7 @@ class AgentClarityProcessor(GenericCLI):
         self.config_manager = LLMConfigManager()
 
         self.uc_agent_communicator = UCAgentCommunicator(cliagent)
+        
         self.current_model = None
         self.available_models = self.config_manager.get_available_models()
         
@@ -80,13 +81,15 @@ class AgentClarityProcessor(GenericCLI):
         for state in [agent_created_state, agent_loaded_state, model_selected_state, analysis_ready_state]:
             state_machine.add_state(state)
 
-        super().__init__(state_machine)
+        #super().__init__(state_machine)
+        super().__init__(state_machine, agent_communicator=self.uc_agent_communicator)
+       
 
           # Initialize the storage system
         self.storage_manager = StorageManager(base_dir=os.path.expanduser("~/.uccli_sessions"))
         self.current_storage = None
 
-        # Load or create a default session
+        # Load or create a default session --> SharedStorage
         default_session_name = "default_session"
         try:
             self.current_storage = self.storage_manager.load_session(default_session_name)
@@ -219,6 +222,9 @@ class AgentClarityProcessor(GenericCLI):
 
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(agent_data, f, ensure_ascii=False, indent=4)
+
+        self.current_storage.update_data('agent_state', agent_data)
+
 
         print(f"New agent '{agent_name}' created and saved to {file_path}.")
         print("create_agent command executed")
