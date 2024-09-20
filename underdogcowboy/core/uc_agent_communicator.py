@@ -62,6 +62,5 @@ class UCAgentCommunicator(AgentCommunicator):
     def send_update(self, update_data: dict):
         # Implement the actual communication with your Agent CLIBase here
         self.agent.receive_update(update_data)
-        
         #print("Update to Agent CLIBase (UC test):")
         #print(json.dumps(update_data, indent=2))

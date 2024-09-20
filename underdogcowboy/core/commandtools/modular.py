@@ -2,6 +2,10 @@ import os
 import json
 from typing import List, Dict
 from uccli import GenericCLI, StateMachine, State, command, cancellable_command, input_required_command, StorageManager, AgentCommunicator, DummyAgentCommunicator
+from underdogcowboy import UCAgentCommunicator
+
+# Import agentclarity and cliagent from their specific modules
+from underdogcowboy  import cliagent
 
 class ModularCLI(GenericCLI):
     def __init__(self):
@@ -29,9 +33,11 @@ class ModularCLI(GenericCLI):
 
         # Initialize the storage manager and agent communicator
         self.storage_manager = StorageManager(base_dir=os.path.expanduser("~/.modular_cli_sessions"))
-        agent_communicator = DummyAgentCommunicator()
+        #agent_communicator = DummyAgentCommunicator()
+        uc_agent_communicator = UCAgentCommunicator(cliagent)
 
-        super().__init__(state_machine, agent_communicator)
+
+        super().__init__(state_machine, uc_agent_communicator)
 
         # Load or create a default session
         default_session_name = "default_session"
@@ -45,6 +51,8 @@ class ModularCLI(GenericCLI):
         # Initialize modules list
         if "modules" not in self.current_storage.data:
             self.current_storage.update_data("modules", [])
+
+        self.current_storage.data.setdefault("modules", [])    
 
     @command("manage_modules", "Enter the managing modules state")
     def do_manage_modules(self, arg):

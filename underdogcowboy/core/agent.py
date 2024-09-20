@@ -133,5 +133,5 @@ class Agent:
         """
         # For demonstration, we'll simply print the update.
         # Replace this with actual logic to handle the update as needed.
-        print("Agent received update:")
+        print("Agent received update (in):")
         print(json.dumps(update_data, indent=2))
