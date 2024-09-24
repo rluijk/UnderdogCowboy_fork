@@ -12,19 +12,22 @@ license = {text = "MIT"}
 
 dependencies = [
     "vertexai",
-    "prompt_toolkit",
+    "prompt_toolkit", 
     "keyring",
     "groq",
     "langsmith",
     "reportlab",
+    "rich",
+    "mdformat",
+    "textual",
     "uccli @ file:///Users/reneluijk/projects/uccli"   
 ]
 
 [project.scripts]
-timelineeditor = "underdogcowboy.core.timeline_editor:main"
+timelineeditor = "underdogcowboy.run_timeline_editor:main"
 uc-llm = "underdogcowboy.core.commandtools.llm_config:main"
 uc-poke = "underdogcowboy.core.commandtools.poke:main"
-uc-timelineeditor = "underdogcowboy.core.timeline_editor:main"
+uc-timelineeditor = "underdogcowboy.run_timeline_editor:main"
 uc-tracing = "underdogcowboy.core.commandtools.tracing_config:main"
 uc-agent-clarity =  "underdogcowboy.core.commandtools.agent_clarity:main"
 uc-agent-pdf = "underdogcowboy.core.commandtools.agent_pdf:main"

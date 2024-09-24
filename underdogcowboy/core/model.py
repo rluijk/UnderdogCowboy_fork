@@ -144,7 +144,7 @@ class AnthropicModel(ConfigurableModel):
             data["system"] = system_message
 
         # Debug print statement
-        print(f"Request data: {json.dumps(data, indent=2)}")
+        # print(f"Request data: {json.dumps(data, indent=2)}")
 
         response = requests.post(self.api_url, headers=self.headers, json=data)
 

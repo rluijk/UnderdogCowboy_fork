@@ -26,13 +26,41 @@ Note:
 The actual agent instances are dynamically added to this module's namespace,
 allowing direct access to them after import.
 """
+print('test')
+import warnings
+
 
 
 import logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
-logger.info("loading core...")
+# Step 1: Remove all handlers from the root logger
+root_logger = logging.getLogger()
+if root_logger.hasHandlers():
+    root_logger.handlers.clear()
+
+# Step 2: Create and configure your custom logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.WARNING)
+
+file_handler = logging.FileHandler('file.log')
+file_handler.setLevel(logging.WARNING)
+
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(formatter)
+
+logger.addHandler(file_handler)
+logger.propagate = False
+
+# Step 3: Suppress logging from third-party libraries
+third_party_loggers = [
+    'urllib3',
+    'google.cloud.storage',
+    'keyring.backend',
+    # Add more logger names as needed
+]
+
+for lib_logger in third_party_loggers:
+    logging.getLogger(lib_logger).setLevel(logging.ERROR)
 
 import os
 import json
@@ -48,7 +76,7 @@ from .core.intervention import InterventionManager
 from .core.extractor import JSONExtractor
 from .core.agent import Agent
 from .core.uc_agent_communicator import UCAgentCommunicator
-
+from .core.llm_response_markdown import LLMResponseRenderer       
 
 # moved to new file, less clutering in the __init__.py
 from .core.specialized_agents import SPECIALIZED_AGENTS
@@ -164,7 +192,7 @@ logger.debug("Updating __all__")
 __all__ = [
     'JSONExtractor', 'CommandProcessor', 'ConfigurableModel', 'DialogManager', 'AgentDialogManager', 
     'InterventionManager', 'LLMConfigManager', 'ModelManager', 'ModelRequestException', 'Timeline',
-    'Response','VertexAIModel', 'AnthropicModel', 'GroqModel','UCAgentCommunicator',
+    'Response','VertexAIModel', 'AnthropicModel', 'GroqModel','UCAgentCommunicator', 'LLMResponseRenderer',
     'Agent', 'adm',
 ]
 __all__.extend(agents.keys())

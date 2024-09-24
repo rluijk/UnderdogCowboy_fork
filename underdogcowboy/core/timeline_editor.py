@@ -7,6 +7,7 @@ import json
 import sys
 import re
 
+# from rich import print
 from pathlib import Path
 
 from prompt_toolkit import prompt
@@ -14,7 +15,7 @@ from prompt_toolkit.completion import WordCompleter
 
 from .model import ModelManager, ModelRequestException
 from .config_manager import LLMConfigManager
-
+from .llm_response_markdown import LLMResponseRenderer
 
 '''
 The Timeline and CommandProcessor classes work together to manage a conversational history and process user commands. 
@@ -26,6 +27,12 @@ operations on the conversation history stored in the Timeline. This separation o
 division of responsibilities: Timeline manages the data structure and persistence, while CommandProcessor handles
 user interaction and command execution.
 '''
+
+
+renderer = LLMResponseRenderer(
+    mdformat_config_path=None,  # Provide path if you have a custom config
+)
+
 
 
 class Message:
@@ -878,10 +885,9 @@ class CommandProcessor:
             if error_message:
                 print(error_message)
             else:
-                print("\n\n" + "-" * 30 + "\n")
-                print(f"{model_response}")
-                print("-" * 30 + "\n\n")
-
+                # print(f"[blue]{model_response}[/blue]")
+                renderer.process_and_render(model_response, title="LLM Response")
+                
     def _process_message(self, user_input):
         """
         Core logic for processing a message (including file inputs) and getting a model response.
