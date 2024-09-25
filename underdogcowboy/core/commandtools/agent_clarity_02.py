@@ -1,7 +1,11 @@
+
+
 import os
 import json
 import sys
 import re
+from typing import Dict, List, Any 
+
 from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit import prompt
 
@@ -84,7 +88,6 @@ class AgentClarityProcessor(GenericCLI):
         #super().__init__(state_machine)
         super().__init__(state_machine, agent_communicator=self.uc_agent_communicator)
        
-
           # Initialize the storage system
         self.storage_manager = StorageManager(base_dir=os.path.expanduser("~/.uccli_sessions"))
         self.current_storage = None
