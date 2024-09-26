@@ -45,9 +45,10 @@ def process_urls(urls, save_path):
 
 # Example usage with an absolute path
 urls_to_scrape = [
-    "https://textual.textualize.io/widgets/button/",
-    "https://textual.textualize.io/widgets/checkbox/",
-    "https://textual.textualize.io/widgets/input/"
+    "https://textual.textualize.io/guide/CSS/",
+    "https://textual.textualize.io/guide/styles/"
+    "https://textual.textualize.io/guide/queries/",
+
 ]
 
 # Using an absolute path (adjust this to your system)
