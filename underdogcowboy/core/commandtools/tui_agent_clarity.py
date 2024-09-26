@@ -10,9 +10,13 @@ class StateInfo(Static):
         yield Label("", id="current-state")
         yield Label("Available Actions:", id="actions-label")
         yield Label("", id="available-actions")
+        yield Label("Current Action:", id="action-label")
+        yield Label("", id="current-action")
+     
 
-    def update_state_info(self, state_machine: StateMachine):
+    def update_state_info(self, state_machine: StateMachine, current_action: str = ""):
         self.query_one("#current-state").update(state_machine.current_state.name)
+        self.query_one("#current-action").update(current_action)
         available_actions = ", ".join(state_machine.get_available_commands())
         self.query_one("#available-actions").update(available_actions)
 
@@ -41,7 +45,7 @@ class StateButtonGrid(Static):
             print(f"Action '{action}' is not allowed in current state: {self.state_machine.current_state.name}")
 
         self.update_buttons()
-        self.parent.query_one(StateInfo).update_state_info(self.state_machine)
+        self.parent.query_one(StateInfo).update_state_info(self.state_machine, action)
 
     def update_buttons(self) -> None:
         allowed_actions = self.state_machine.get_available_commands()
@@ -62,7 +66,7 @@ class StateMachineApp(App):
             yield StateButtonGrid(self.state_machine)
 
     def on_mount(self) -> None:
-        self.query_one(StateInfo).update_state_info(self.state_machine)
+        self.query_one(StateInfo).update_state_info(self.state_machine, "")
 
 def create_state_machine() -> StateMachine:
     # Define states
