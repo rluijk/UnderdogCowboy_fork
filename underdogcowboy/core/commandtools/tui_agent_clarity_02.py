@@ -1,8 +1,12 @@
 from typing import Dict, List, Set
 from textual.app import App, ComposeResult
-from textual.widgets import Button, Static, Label
-from textual.containers import Grid, Vertical
+from textual.widgets import Button, Static, Label, Header, Footer
+from textual.containers import Grid, Vertical, Container
+from textual.widgets import Placeholder
+
 from uccli import StateMachine, State  # Import from your library
+
+
 
 class StateInfo(Static):
     def compose(self) -> ComposeResult:
@@ -80,20 +84,39 @@ class StateButtonGrid(Static):
             action = str(button.label)
             button.disabled = action not in allowed_actions
 
-class StateMachineApp(App):
-    CSS_PATH = "state_machine_app.css"
-
+class StateMachineWidget(Static):
     def __init__(self, state_machine: StateMachine, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.state_machine = state_machine
 
     def compose(self) -> ComposeResult:
-        with Vertical():
-            yield StateInfo(id="state-info")
-            yield StateButtonGrid(self.state_machine)
+        yield StateInfo(id="state-info")
+        yield StateButtonGrid(self.state_machine)
 
     def on_mount(self) -> None:
         self.query_one(StateInfo).update_state_info(self.state_machine, "")
+
+
+class MainApp(App):
+    CSS_PATH = "state_machine_app.css"
+            
+    def __init__(self, state_machine: StateMachine, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.state_machine = state_machine
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        yield Placeholder("", classes="dynamic-spacer")
+
+        with Vertical(id="app-layout"):
+            yield StateInfo(id="state-info")
+            yield StateButtonGrid(self.state_machine, id="button-grid")
+        yield Footer()
+
+
+    def on_mount(self) -> None:
+        self.query_one(StateInfo).update_state_info(self.state_machine, "")
+
 
 def create_state_machine() -> StateMachine:
     # Define states
@@ -140,7 +163,7 @@ def create_state_machine() -> StateMachine:
 
 def main():
     state_machine = create_state_machine()
-    app = StateMachineApp(state_machine)
+    app = MainApp(state_machine)
     app.run()
 
 if __name__ == "__main__":
