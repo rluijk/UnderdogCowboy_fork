@@ -3,41 +3,102 @@ Screen {
     grid-size: 1;
     grid-rows: auto 1fr auto auto;
     height: 100%;
+    background: #1a1a1a;
+}
+
+Collapsible {
+    background: #2c2c2c;
+    border: solid #4a4a4a;
+    margin: 1 0;
+}
+
+Collapsible > .collapsible--header {
+    background: #3c3c3c;
+    color: #e0e0e0;
+    padding: 1;
+}
+
+Collapsible > .collapsible--content {
+    padding: 1;
+}
+
+.left-dynamic-spacer {
+    width: 1fr;
+    background: #252525;
+    layout: vertical;
+    align: center middle;
+}
+
+.left-side-buttons {
+    grid-size: 2 2;
+    grid-gutter: 1 1;
+    padding: 1;
+    width: 90%;
+    height: auto;
+}
+
+.left-side-button {
+    width: 100%;
+    height: 3;
+    background: #3498db;
+    color: #ffffff;
+}
+
+.left-side-button:hover {
+    background: #2980b9;
 }
 
 Header {
     height: auto;
-    background: $accent;
-    color: $text;
+    background: #2c3e50;
+    color: #ecf0f1;
     padding: 1;
 }
 
 Footer {
     height: auto;
-    background: $error;
-    color: $text;
+    background: #34495e;
+    color: #ecf0f1;
     padding: 1;
 }
 
-
 .dynamic-spacer {
-    background: rebeccapurple;
+    background: #2a2a2a;
     height: 1fr;
     min-height: 100%;
+}
+
+.left-dynamic-spacer {
+    width: 1fr;
+    background: #252525;
+}
+
+.center-dynamic-spacer {
+    width: 2fr;
+    background: #2f2f2f;
+}
+
+.right-dynamic-spacer {
+    width: 1fr;
+    background: #2f2f2f;
+}
+
+#center-placeholder {
+    padding: 1;
 }
 
 #app-layout {
     layout: vertical;
     height: auto;
     dock: bottom;
-    border: red;
+    border: #4a4a4a;
 }
 
 #state-info {
     height: auto;
     padding: 1;
-    background: $panel;
-    border-bottom: solid $primary;
+    background: #2c2c2c;
+    border-bottom: solid #4a4a4a;
 }
 
 #button-grid {
@@ -46,30 +107,27 @@ Footer {
     grid-size: 3;  
     grid-gutter: 1 1;
     padding: 1;
-    background: $surface;
+    background: #333333;
 }
 
 .action-button {
     width: 100%;
     height: 3;
-}
-
-.action-button {
-    background: $accent;
-    color: $text;
+    background: #3498db;
+    color: #ffffff;
 }
 
 .action-button:disabled {
-    background: $panel-darken-2;
-    color: $text-muted;
+    background: #5a6a6a;
+    color: #a0a0a0;
 }
 
 .action-reset-button {
-    background: $error;
-    color: $text;
+    background: #c0392b;
+    color: #ffffff;
 }
 
 .action-reset-button:disabled {
-    background: $panel-darken-2;
-    color: $text-muted;
+    background: #5a6a6a;
+    color: #a0a0a0;
 }
