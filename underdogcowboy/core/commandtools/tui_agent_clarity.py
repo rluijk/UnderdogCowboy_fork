@@ -13,7 +13,6 @@ class StateInfo(Static):
         yield Label("Current Action:", id="action-label")
         yield Label("", id="current-action")
      
-
     def update_state_info(self, state_machine: StateMachine, current_action: str = ""):
         self.query_one("#current-state").update(state_machine.current_state.name)
         self.query_one("#current-action").update(current_action)
@@ -24,10 +23,38 @@ class StateButtonGrid(Static):
     def __init__(self, state_machine: StateMachine, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.state_machine = state_machine
-        self.all_actions = self.get_all_actions()
+        self.all_actions = self.get_ordered_actions()
 
-    def get_all_actions(self) -> Set[str]:
-        return set(action for state in self.state_machine.states.values() for action in state.transitions.keys())
+    def get_ordered_actions(self) -> List[str]:
+        # Get all unique actions
+        all_actions = set()
+        for state in self.state_machine.states.values():
+            all_actions.update(state.transitions.keys())
+
+        # Order actions based on state progression
+        ordered_actions = []
+        visited_states = set()
+        state_queue = [self.state_machine.current_state]  # Use current_state instead of initial_state
+
+        while state_queue:
+            current_state = state_queue.pop(0)
+            if current_state.name in visited_states:
+                continue
+            visited_states.add(current_state.name)
+
+            # Add actions from this state
+            state_actions = list(current_state.transitions.keys())
+            ordered_actions.extend([action for action in state_actions if action not in ordered_actions])
+
+            # Add next states to the queue
+            for action, next_state in current_state.transitions.items():
+                if next_state.name not in visited_states:
+                    state_queue.append(next_state)
+
+        # Add any remaining actions that weren't covered
+        ordered_actions.extend([action for action in all_actions if action not in ordered_actions])
+
+        return ordered_actions
 
     def compose(self) -> ComposeResult:
         with Grid(id="button-grid"):
