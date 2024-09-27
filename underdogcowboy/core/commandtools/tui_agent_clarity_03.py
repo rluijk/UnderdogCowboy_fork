@@ -1,13 +1,14 @@
 from typing import Dict, List, Set
 from textual.app import App, ComposeResult
-from textual.widgets import Button, Static, Label, Header, Footer
+
+from textual.widgets import Button, Static, Label, Header, Footer, Input, ListItem
 from textual.containers import Grid, Vertical, Horizontal, Container
-from textual.widgets import Placeholder, Collapsible
+from textual.widgets import Placeholder, Collapsible, ListView
 from textual.message import Message
 import logging
 
-from uccli import StateMachine, State  # Import from your library
-#
+from uccli import StateMachine, State, StorageManager
+
 #  Clear existing handlers and set up logging to a file
 for handler in logging.root.handlers[:]:
     logging.root.removeHandler(handler)
@@ -17,7 +18,6 @@ logging.basicConfig(
     level=logging.DEBUG, 
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
-
 
 class DynamicContainer(Static):
     """A container to dynamically load UI elements."""
@@ -29,16 +29,96 @@ class DynamicContainer(Static):
         """Load a new widget into the container."""
         self.mount(widget)
 
+class SessionSelected(Message):
+    def __init__(self, session_name: str):
+        self.session_name = session_name
+        logging.info(f"SessionSelected message created with session_name: {session_name}")
+        super().__init__()
+
+
+class NewSessionCreated(Message):
+    def __init__(self, session_name: str):
+        self.session_name = session_name
+        super().__init__()
+
 class LoadSessionUI(Static):
-    """A simple UI that is loaded dynamically upon clicking 'Load'."""
-    def compose(self) -> ComposeResult:
-        yield Button("Confirm Session", id="internal_confirm_button")
+    """A UI for loading sessions, displayed when clicking 'Load'."""
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "internal_confirm_button":
-            # Post the correct button ID that triggers confirmation
-            self.parent.post_message(LeftSideButtonPressed("confirm-session-load"))
+    def compose(self):
+        yield Container(
+            Vertical(
+                Static("Select a session to load:", id="session-prompt", classes="session-prompt"),
+                ListView(id="session-list", classes="session-list"),
+                Label("No sessions available. Create a new session first.", id="no-sessions-label", classes="hidden"),
+                Button("Load Selected Session", id="load-button", disabled=True, classes="action-button"),
+                Button("Cancel", id="cancel-button", classes="action-button")
+            ),
+            id="centered-box", classes="centered-box"
+        )
 
+    def on_mount(self):
+        self.load_sessions()
+
+    def load_sessions(self):
+        sessions = self.app.storage_manager.list_sessions()
+        list_view = self.query_one("#session-list")
+        no_sessions_label = self.query_one("#no-sessions-label")
+        load_button = self.query_one("#load-button")
+
+        list_view.clear()
+        
+        if not sessions:
+            list_view.display = False
+            no_sessions_label.remove_class("hidden")
+            load_button.disabled = True
+        else:
+            list_view.display = True
+            no_sessions_label.add_class("hidden")
+            for session in sessions:
+                list_view.append(ListItem(Label(session)))
+
+    def on_list_view_selected(self, event: ListView.Selected):
+        self.query_one("#load-button").disabled = False
+
+
+    def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "load-button":
+            selected_item = self.query_one("#session-list").highlighted_child
+            if selected_item:
+                selected_session = selected_item.children[0].render()  # Get the text from the Label
+                logging.info(f"Load button pressed, selected session: {selected_session}")
+                self.post_message(SessionSelected(selected_session))
+        elif event.button.id == "cancel-button":
+            self.post_message(LeftSideButtonPressed("cancel-load-session"))
+
+
+
+class NewSessionUI(Static):
+    """A UI for creating a new session."""
+
+    def compose(self):
+        yield Vertical(
+            Static("Create a new session:", id="new-session-prompt"),
+            Label("Enter a name for the new session:", id="session-name-label"),
+            Input(placeholder="Session name", id="session-name-input"),
+            Button("Create Session", id="create-button", disabled=True),
+            Button("Cancel", id="cancel-button")
+        )
+
+    def on_mount(self):
+        self.query_one("#session-name-input").focus()
+
+    def on_input_changed(self, event: Input.Changed):
+        if event.input.id == "session-name-input":
+            self.query_one("#create-button").disabled = len(event.value.strip()) == 0
+
+    def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "create-button":
+            session_name = self.query_one("#session-name-input").value.strip()
+            if session_name:
+                self.post_message(NewSessionCreated(session_name))
+        elif event.button.id == "cancel-button":
+            self.post_message(LeftSideButtonPressed("cancel-new-session"))
 
 
 class LoadUI(Static):
@@ -48,7 +128,6 @@ class LoadUI(Static):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "confirm-load-button":
-            # Do what the current load button does (change state)
             self.parent.post_message(LeftSideButtonPressed("confirm-load"))
 
 class NewUI(Static):
@@ -153,7 +232,6 @@ class LeftSideButtons(Container):
     def compose(self) -> ComposeResult:
         with Grid(id="left-side-buttons", classes="left-side-buttons"):
             yield Button("New", id="new-button", classes="left-side-button")
-            # yield Button("Load", id="load-button", classes="left-side-button")
             yield Button("Load", id="load-session", classes="left-side-button")
             yield Button("List", id="list-button", classes="left-side-button")
             yield Button("Save", id="save-button", classes="left-side-button")
@@ -166,13 +244,15 @@ class LeftSideButtons(Container):
 class LeftSideContainer(Container):
     def compose(self) -> ComposeResult:
         yield LeftSideButtons()
-
 class MainApp(App):
     CSS_PATH = "state_machine_app.css"
             
-    def __init__(self, state_machine: StateMachine, *args, **kwargs):
+    def __init__(self, state_machine: StateMachine, storage_manager: StorageManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.state_machine = state_machine
+        self.storage_manager = storage_manager
+        self.current_storage = None
+        self.title = "Agent Clarity"  # Set an initial title for the app
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -189,23 +269,67 @@ class MainApp(App):
         yield Footer(id="footer", name="footer")
 
     def on_mount(self) -> None:
+        logging.info("MainApp on_mount called")
         self.query_one(StateInfo).update_state_info(self.state_machine, "")
+        self.update_header()  # Initialize the header
+        self.log_header_state()  # Log initial header state
 
-    # Automated UI and action mapping
+    def update_header(self, session_name=None):
+        if session_name:
+            self.sub_title = f"Active Session: {session_name}"
+            logging.info(f"Updated app sub_title with session name: {session_name}")
+        else:
+            self.sub_title = ""
+            logging.info("Cleared app sub_title")
+        
+        # Force a refresh of the entire app
+        self.refresh(layout=True)
+
+    def log_header_state(self):
+        logging.info(f"Current app title: {self.title}")
+        logging.info(f"Current app sub_title: {self.sub_title}")
+
+    def on_session_selected(self, event: SessionSelected):
+        try:
+            self.current_storage = self.storage_manager.load_session(event.session_name)
+            self.notify(f"Session '{event.session_name}' loaded successfully")
+            self.query_one(DynamicContainer).clear_content()
+            
+            # Retrieve the stored state from the session
+            stored_state = self.current_storage.get_data("current_state")
+            if stored_state and stored_state in self.state_machine.states:
+                self.state_machine.current_state = self.state_machine.states[stored_state]
+            else:
+                # If no stored state or invalid state, set to a default state
+                self.state_machine.current_state = self.state_machine.states["analysis_ready"]
+            
+            # Use existing method to update UI
+            self.query_one(StateInfo).update_state_info(self.state_machine, "")
+            self.query_one(StateButtonGrid).update_buttons()
+            
+            # Update header with session name
+            logging.info(f"Attempting to update header with session name: {event.session_name}")
+            self.update_header(event.session_name)
+            self.log_header_state()  # Log the header state after update
+            
+        except ValueError as e:
+            logging.error(f"Error loading session: {str(e)}")
+            self.notify(f"Error loading session: {str(e)}", severity="error")
+
     def ui_factory(self, button_id: str):
         ui_class, action = self.get_ui_and_action(button_id)
         return ui_class, action
 
     def get_ui_and_action(self, button_id: str):
         # Map button ID to UI class and action function
-        if button_id == "load-session":  # Only load the UI, no state change
+        if button_id == "load-session":
             ui_class_name = "LoadSessionUI"
-            action_func_name = None  # No action for just loading the UI
+            action_func_name = None
         elif button_id == "new-button":
-            ui_class_name = "NewUI"
-            action_func_name = "transition_to_analyse_state"
-        elif button_id == "confirm-session-load":  # For confirmation, change state
-            ui_class_name = None  # No UI to load
+            ui_class_name = "NewSessionUI"
+            action_func_name = None
+        elif button_id == "confirm-session-load":
+            ui_class_name = None
             action_func_name = "transition_to_analysis_ready"
         else:
             raise ValueError(f"Unknown button ID: {button_id}. Hint: Ensure that this button ID is mapped correctly in 'get_ui_and_action'.")
@@ -248,9 +372,31 @@ class MainApp(App):
             logging.info(f"Set state to analysis_ready")
             self.query_one(StateInfo).update_state_info(self.state_machine, "")
             self.query_one(StateButtonGrid).update_buttons()
+            
+            # Store the current state in the session
+            if self.current_storage:
+                self.storage_manager.save_current_session(self.current_storage)
         else:
             logging.error(f"Failed to set state to analysis_ready: State not found")
 
+    def clear_session(self):
+        self.current_storage = None
+        self.update_header()
+        self.log_header_state()  # Log the header state after clearing
+
+    def on_new_session_created(self, event: NewSessionCreated):
+        try:
+            self.current_storage = self.storage_manager.create_session(event.session_name)
+            self.notify(f"New session '{event.session_name}' created successfully")
+            self.query_one(DynamicContainer).clear_content()
+            self.transition_to_analysis_ready()
+            
+            logging.info(f"Attempting to update header with new session name: {event.session_name}")
+            self.update_header(event.session_name)
+            self.log_header_state()  # Log the header state after update
+        except ValueError as e:
+            logging.error(f"Error creating session: {str(e)}")
+            self.notify(f"Error creating session: {str(e)}", severity="error")
 
     def on_left_side_button_pressed(self, event: LeftSideButtonPressed) -> None:
         dynamic_container = self.query_one(DynamicContainer)
@@ -262,7 +408,10 @@ class MainApp(App):
             
             # Load the UI component if it exists (for "load-session")
             if ui_class:
-                dynamic_container.load_content(ui_class())
+                if event.button_id == "load-session" and not self.storage_manager.list_sessions():
+                    self.notify("No sessions available. Create a new session first.", severity="warning")
+                else:
+                    dynamic_container.load_content(ui_class())
 
             # Handle the action (state change) only if there's an action function
             if action:
@@ -271,9 +420,9 @@ class MainApp(App):
         except ValueError as e:
             logging.error(f"Error: {e}")
 
-
-
     def on_action_selected(self, event: ActionSelected) -> None:
+        if event.action == "reset":
+            self.clear_session()
         dynamic_container = self.query_one(DynamicContainer)
         dynamic_container.clear_content()
         dynamic_container.mount(CenterContent(event.action))
@@ -311,7 +460,9 @@ def create_state_machine() -> StateMachine:
 
 def main():
     state_machine = create_state_machine()
-    app = MainApp(state_machine)
+    storage_manager = StorageManager("~/.tui_agent_clarity_03")
+    app = MainApp(state_machine, storage_manager)
+    
     app.run()
 
 if __name__ == "__main__":
