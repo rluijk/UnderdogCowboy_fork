@@ -17,6 +17,8 @@ logging.basicConfig(
     level=logging.DEBUG, 
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
+
+
 class DynamicContainer(Static):
     """A container to dynamically load UI elements."""
     def clear_content(self):
@@ -26,6 +28,18 @@ class DynamicContainer(Static):
     def load_content(self, widget: Static):
         """Load a new widget into the container."""
         self.mount(widget)
+
+class LoadSessionUI(Static):
+    """A simple UI that is loaded dynamically upon clicking 'Load'."""
+    def compose(self) -> ComposeResult:
+        yield Button("Confirm Session", id="internal_confirm_button")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "internal_confirm_button":
+            # Post the correct button ID that triggers confirmation
+            self.parent.post_message(LeftSideButtonPressed("confirm-session-load"))
+
+
 
 class LoadUI(Static):
     """A simple UI that is loaded dynamically upon clicking 'Load'."""
@@ -139,7 +153,8 @@ class LeftSideButtons(Container):
     def compose(self) -> ComposeResult:
         with Grid(id="left-side-buttons", classes="left-side-buttons"):
             yield Button("New", id="new-button", classes="left-side-button")
-            yield Button("Load", id="load-button", classes="left-side-button")
+            # yield Button("Load", id="load-button", classes="left-side-button")
+            yield Button("Load", id="load-session", classes="left-side-button")
             yield Button("List", id="list-button", classes="left-side-button")
             yield Button("Save", id="save-button", classes="left-side-button")
             yield Button("Config", id="config-button", classes="left-side-button")
@@ -183,34 +198,28 @@ class MainApp(App):
 
     def get_ui_and_action(self, button_id: str):
         # Map button ID to UI class and action function
-        # E.g., "load-button" -> LoadUI, "new-button" -> NewUI
-        if button_id == "load-button":
-            ui_class_name = "LoadUI"
-            action_func_name = "transition_to_agent_loaded"
+        if button_id == "load-session":  # Only load the UI, no state change
+            ui_class_name = "LoadSessionUI"
+            action_func_name = None  # No action for just loading the UI
         elif button_id == "new-button":
             ui_class_name = "NewUI"
             action_func_name = "transition_to_analyse_state"
+        elif button_id == "confirm-session-load":  # For confirmation, change state
+            ui_class_name = None  # No UI to load
+            action_func_name = "transition_to_analysis_ready"
         else:
-            logging.error(f"Unknown button ID: {button_id}")
-            raise ValueError(f"Unknown button ID: {button_id}")
+            raise ValueError(f"Unknown button ID: {button_id}. Hint: Ensure that this button ID is mapped correctly in 'get_ui_and_action'.")
 
         logging.info(f"Resolving UI class: {ui_class_name}, Action function: {action_func_name}")
 
-        # Get the UI class from globals and action function from the instance
-        ui_class = globals().get(ui_class_name)
-        action_func = getattr(self, action_func_name, None)
+        # Get the UI class and action function
+        ui_class = globals().get(ui_class_name) if ui_class_name else None
+        action_func = getattr(self, action_func_name, None) if action_func_name else None
 
-        if not ui_class:
-            logging.error(f"UI class {ui_class_name} not found.")
-        if not action_func:
-            logging.error(f"Action function {action_func_name} not found.")
-
-        # Ensure both the UI class and action function are valid
-        if ui_class and action_func:
-            logging.info(f"Successfully resolved UI: {ui_class_name} and Action: {action_func_name}")
-            return ui_class(), action_func
-        else:
+        if not action_func and not ui_class:
             raise ValueError(f"No UI or action found for button ID: {button_id}")
+
+        return ui_class, action_func
 
     def transition_to_agent_loaded(self) -> None:
         agent_loaded_state = self.state_machine.states.get("agent_loaded")
@@ -232,6 +241,17 @@ class MainApp(App):
         else:
             logging.error(f"Failed to set state to analysis_ready: State not found")
 
+    def transition_to_analysis_ready(self) -> None:
+        analysis_ready_state = self.state_machine.states.get("analysis_ready")
+        if analysis_ready_state:
+            self.state_machine.current_state = analysis_ready_state
+            logging.info(f"Set state to analysis_ready")
+            self.query_one(StateInfo).update_state_info(self.state_machine, "")
+            self.query_one(StateButtonGrid).update_buttons()
+        else:
+            logging.error(f"Failed to set state to analysis_ready: State not found")
+
+
     def on_left_side_button_pressed(self, event: LeftSideButtonPressed) -> None:
         dynamic_container = self.query_one(DynamicContainer)
         dynamic_container.clear_content()
@@ -239,18 +259,19 @@ class MainApp(App):
         try:
             # Use the UI factory to get the corresponding UI and action
             ui_class, action = self.ui_factory(event.button_id)
-            dynamic_container.load_content(ui_class)
+            
+            # Load the UI component if it exists (for "load-session")
+            if ui_class:
+                dynamic_container.load_content(ui_class())
+
+            # Handle the action (state change) only if there's an action function
+            if action:
+                action()
+
         except ValueError as e:
             logging.error(f"Error: {e}")
 
-        # Handle confirmation button logic
-        if event.button_id.startswith("confirm-"):
-            try:
-                _, action = self.ui_factory(event.button_id.replace("confirm-", "") + "-button")
-                if action:
-                    action()
-            except ValueError as e:
-                logging.error(f"Error handling confirmation: {e}")
+
 
     def on_action_selected(self, event: ActionSelected) -> None:
         dynamic_container = self.query_one(DynamicContainer)
