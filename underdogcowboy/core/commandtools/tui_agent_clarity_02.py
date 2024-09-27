@@ -8,6 +8,35 @@ from textual.message import Message
 
 from uccli import StateMachine, State  # Import from your library
 
+
+class DynamicContainer(Static):
+    """A container to dynamically load UI elements."""
+    def clear_content(self):
+        """Clear all current content."""
+        self.remove_children()
+
+    def load_content(self, widget: Static):
+        """Load a new widget into the container."""
+        self.mount(widget)
+
+class LoadUI(Static):
+    """A simple UI that is loaded dynamically upon clicking 'Load'."""
+    def compose(self) -> ComposeResult:
+        yield Button("Confirm Load", id="confirm-load-button")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "confirm-load-button":
+            # Do what the current load button does (change state)
+            self.parent.post_message(LeftSideButtonPressed("confirm-load"))
+
+class NewUI(Static):
+    def compose(self) -> ComposeResult:
+        yield Button("Confirm Analyze", id="confirm-analyze-button")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id == "confirm-analyze-button":
+            self.parent.post_message(LeftSideButtonPressed("confirm-analyze"))
+
 class StateInfo(Static):
     def compose(self) -> ComposeResult:
         yield Label("Current State:", id="state-label")
@@ -105,6 +134,9 @@ class LeftSideButtons(Container):
             yield Button("Load", id="load-button", classes="left-side-button")
             yield Button("List", id="list-button", classes="left-side-button")
             yield Button("Save", id="save-button", classes="left-side-button")
+            yield Button("Config", id="config-button", classes="left-side-button")
+            yield Button("Model", id="model-button", classes="left-side-button")
+
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         self.post_message(LeftSideButtonPressed(event.button.id))
@@ -124,40 +156,56 @@ class MainApp(App):
         yield Header()
         with Horizontal(id="agent-centre", classes="dynamic-spacer"):
             yield LeftSideContainer(classes="left-dynamic-spacer")
-            yield Placeholder("center", id="center-placeholder", classes="center-dynamic-spacer")
+            yield DynamicContainer(id="center-dynamic-container", classes="center-dynamic-spacer")
             yield Placeholder("right", classes="right-dynamic-spacer")
 
         with Vertical(id="app-layout"):
             with Collapsible(title="State Information", id="state-info-collapsible"):
                 yield StateInfo(id="state-info")
             yield StateButtonGrid(self.state_machine, id="button-grid")
-      
+        
         yield Footer(id="footer", name="footer")
+
 
     def on_mount(self) -> None:
         self.query_one(StateInfo).update_state_info(self.state_machine, "")
+        self.button_action_map = {
+            "load-button": (LoadUI, self.transition_to_agent_loaded),
+            "new-button": (NewUI, self.transition_to_analyse_state),
+            # Add more buttons and actions here
+        }
 
-    def on_action_selected(self, event: ActionSelected) -> None:
-        center_placeholder = self.query_one("#center-placeholder")
-        center_placeholder.remove_children()
-        center_placeholder.mount(CenterContent(event.action))
+    def transition_to_agent_loaded(self) -> None:
+        agent_loaded_state = self.state_machine.states.get("agent_loaded")
+        if agent_loaded_state:
+            self.state_machine.current_state = agent_loaded_state
+            print(f"Set state to agent_loaded")
+            self.query_one(StateInfo).update_state_info(self.state_machine, "")
+            self.query_one(StateButtonGrid).update_buttons()
+        else:
+            print(f"Failed to set state to agent_loaded: State not found")
 
+
+    def transition_to_analyse_state(self) -> None:
+        pass
+
+ 
     def on_left_side_button_pressed(self, event: LeftSideButtonPressed) -> None:
-        center_placeholder = self.query_one("#center-placeholder")
-        center_placeholder.remove_children()
-        
-        if event.button_id == "load-button":
-            # Directly set the state to agent_loaded
-            agent_loaded_state = self.state_machine.states.get("agent_loaded")
-            if agent_loaded_state:
-                self.state_machine.current_state = agent_loaded_state
-                print(f"Set state to agent_loaded")
-                self.query_one(StateInfo).update_state_info(self.state_machine, "")
-                self.query_one(StateButtonGrid).update_buttons()
-            else:
-                print(f"Failed to set state to agent_loaded: State not found")
-            
-        center_placeholder.mount(CenterContent(f"Left side button pressed: {event.button_id}"))
+        dynamic_container = self.query_one(DynamicContainer)
+        dynamic_container.clear_content()
+
+        if event.button_id in self.button_action_map:
+            ui_class, action = self.button_action_map[event.button_id]
+            dynamic_container.load_content(ui_class())
+        elif event.button_id.startswith("confirm-"):
+            _, action = self.button_action_map.get(event.button_id.replace("confirm-", "") + "-button", (None, None))
+            if action:
+                action()
+    
+    def on_action_selected(self, event: ActionSelected) -> None:
+        dynamic_container = self.query_one(DynamicContainer)
+        dynamic_container.clear_content()
+        dynamic_container.mount(CenterContent(event.action))
 
 
 def create_state_machine() -> StateMachine:

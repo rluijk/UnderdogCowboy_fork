@@ -30,7 +30,7 @@ Collapsible > .collapsible--content {
 }
 
 .left-side-buttons {
-    grid-size: 2 2;
+    grid-size: 2 3;
     grid-gutter: 1 1;
     padding: 1;
     width: 90%;
@@ -70,7 +70,7 @@ Footer {
 
 .left-dynamic-spacer {
     width: 1fr;
-    background: #252525;
+    background: #160c0c;
 }
 
 .center-dynamic-spacer {
