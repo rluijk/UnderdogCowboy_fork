@@ -1,7 +1,7 @@
 from typing import Dict, List, Set
 from textual.app import App, ComposeResult
 
-from textual.widgets import Button, Static, Label, Header, Footer, Input, ListItem
+from textual.widgets import Button, Static, Label, Header, Footer, Input, ListItem, TextArea
 from textual.containers import Grid, Vertical, Horizontal, Container
 from textual.widgets import Placeholder, Collapsible, ListView
 from textual.message import Message
@@ -19,6 +19,41 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
+class SystemMessageUI(Static):
+    """A UI for creating and submitting a system message."""
+        
+    def compose(self) -> ComposeResult:
+        # Retrieve any existing system message from the storage manager
+        stored_message = self.app.storage_manager.get_data("system_message")
+        if stored_message is None:
+            stored_message = ""  # Set to empty if no message is found
+
+        # Create the UI layout with a text area, submit, and cancel buttons
+        with Vertical(id="system-message-container"):
+            yield Label("Enter your system message:")
+            yield TextArea(id="system-message-input", text=stored_message)  # Pre-populate if there's a stored message
+            yield Button("Submit", id="submit-system-message", classes="action-button")
+            yield Button("Cancel", id="cancel-system-message", classes="action-button")
+
+    def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "submit-system-message":
+            # Retrieve the message from the text area
+            system_message = self.query_one("#system-message-input").text
+            # Log and store the system message
+            logging.info(f"System message submitted: {system_message}")
+            self.app.storage_manager.update_data("system_message", system_message)
+            
+            # Clear the UI after submission by posting a message
+            self.app.query_one(DynamicContainer).clear_content()
+            self.app.notify("System message stored successfully.")
+        
+        elif event.button.id == "cancel-system-message":
+            # Post a message instead of clearing the UI directly, ensuring consistency
+            self.post_message(LeftSideButtonPressed("cancel-system-message"))
+
+
+
+
 class DynamicContainer(Static):
     """A container to dynamically load UI elements."""
     def clear_content(self):
@@ -34,7 +69,6 @@ class SessionSelected(Message):
         self.session_name = session_name
         logging.info(f"SessionSelected message created with session_name: {session_name}")
         super().__init__()
-
 
 class NewSessionCreated(Message):
     def __init__(self, session_name: str):
@@ -91,8 +125,6 @@ class LoadSessionUI(Static):
         elif event.button.id == "cancel-button":
             self.post_message(LeftSideButtonPressed("cancel-load-session"))
 
-
-
 class NewSessionUI(Static):
     """A UI for creating a new session."""
 
@@ -119,7 +151,6 @@ class NewSessionUI(Static):
                 self.post_message(NewSessionCreated(session_name))
         elif event.button.id == "cancel-button":
             self.post_message(LeftSideButtonPressed("cancel-new-session"))
-
 
 class LoadUI(Static):
     """A simple UI that is loaded dynamically upon clicking 'Load'."""
@@ -244,6 +275,7 @@ class LeftSideButtons(Container):
 class LeftSideContainer(Container):
     def compose(self) -> ComposeResult:
         yield LeftSideButtons()
+
 class MainApp(App):
     CSS_PATH = "state_machine_app.css"
             
@@ -253,6 +285,7 @@ class MainApp(App):
         self.storage_manager = storage_manager
         self.current_storage = None
         self.title = "Agent Clarity"  # Set an initial title for the app
+        
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -262,9 +295,9 @@ class MainApp(App):
             yield Placeholder("right", classes="right-dynamic-spacer")
 
         with Vertical(id="app-layout"):
-            with Collapsible(title="State Information", id="state-info-collapsible"):
+            with Collapsible(title="Task Panel", id="state-info-collapsible", collapsed=False):
                 yield StateInfo(id="state-info")
-            yield StateButtonGrid(self.state_machine, id="button-grid")
+                yield StateButtonGrid(self.state_machine, id="button-grid")
         
         yield Footer(id="footer", name="footer")
 
@@ -289,6 +322,7 @@ class MainApp(App):
         logging.info(f"Current app title: {self.title}")
         logging.info(f"Current app sub_title: {self.sub_title}")
 
+
     def on_session_selected(self, event: SessionSelected):
         try:
             self.current_storage = self.storage_manager.load_session(event.session_name)
@@ -301,6 +335,7 @@ class MainApp(App):
                 self.state_machine.current_state = self.state_machine.states[stored_state]
             else:
                 # If no stored state or invalid state, set to a default state
+                # TODO this would be need to be set via the CLI config, since this is dependd on the specific CLI 
                 self.state_machine.current_state = self.state_machine.states["analysis_ready"]
             
             # Use existing method to update UI
@@ -312,6 +347,10 @@ class MainApp(App):
             self.update_header(event.session_name)
             self.log_header_state()  # Log the header state after update
             
+            # test code (can remove when committed)
+            # self.storage_manager.update_data("analysis", "some analysis data")
+            
+
         except ValueError as e:
             logging.error(f"Error loading session: {str(e)}")
             self.notify(f"Error loading session: {str(e)}", severity="error")
@@ -328,6 +367,9 @@ class MainApp(App):
         elif button_id == "new-button":
             ui_class_name = "NewSessionUI"
             action_func_name = None
+        elif button_id == "system-message":  # Handling system message button
+            ui_class_name = "SystemMessageUI"
+            action_func_name = None    
         elif button_id == "confirm-session-load":
             ui_class_name = None
             action_func_name = "transition_to_analysis_ready"
@@ -422,10 +464,18 @@ class MainApp(App):
 
     def on_action_selected(self, event: ActionSelected) -> None:
         if event.action == "reset":
-            self.clear_session()
+                self.clear_session()
+        
         dynamic_container = self.query_one(DynamicContainer)
         dynamic_container.clear_content()
-        dynamic_container.mount(CenterContent(event.action))
+
+        if event.action == "system_message":
+            # Load SystemMessageUI instead of just displaying a label
+            dynamic_container.mount(SystemMessageUI())
+        else:
+            # For other actions, load generic content as before
+            dynamic_container.mount(CenterContent(event.action))
+
 
 def create_state_machine() -> StateMachine:
     # Define states
@@ -436,15 +486,31 @@ def create_state_machine() -> StateMachine:
     analysis_ready_state = State("analysis_ready")
 
     # Define transitions
+    initial_state.add_transition("load_agent", agent_loaded_state)
+    initial_state.add_transition("create_agent", agent_created_state)
+    initial_state.add_transition("list_models", initial_state)
+
+    agent_created_state.add_transition("load_agent", agent_loaded_state)
+
+    agent_loaded_state.add_transition("load_agent", agent_loaded_state)
+    agent_loaded_state.add_transition("select_model", model_selected_state)
     agent_loaded_state.add_transition("system_message", agent_loaded_state)
     agent_loaded_state.add_transition("list_models", agent_loaded_state)
 
+    model_selected_state.add_transition("load_agent", agent_loaded_state)
+    model_selected_state.add_transition("select_model", model_selected_state)
     model_selected_state.add_transition("analyze", analysis_ready_state)
     model_selected_state.add_transition("system_message", model_selected_state)
 
+    analysis_ready_state.add_transition("load_agent", agent_loaded_state)
+    analysis_ready_state.add_transition("select_model", model_selected_state)
     analysis_ready_state.add_transition("analyze", analysis_ready_state)
     analysis_ready_state.add_transition("export_analysis", analysis_ready_state)
     analysis_ready_state.add_transition("feedback", analysis_ready_state)
+    analysis_ready_state.add_transition("feedback_input", analysis_ready_state)
+    analysis_ready_state.add_transition("feedback_output", analysis_ready_state)
+    analysis_ready_state.add_transition("feedback_rules", analysis_ready_state)
+    analysis_ready_state.add_transition("feedback_constraints", analysis_ready_state)
     analysis_ready_state.add_transition("system_message", analysis_ready_state)
 
     # Add reset transition to all states
@@ -459,11 +525,17 @@ def create_state_machine() -> StateMachine:
     return state_machine
 
 def main():
-    state_machine = create_state_machine()
+    state_machine = create_state_machine()  # Initialize state machine first
     storage_manager = StorageManager("~/.tui_agent_clarity_03")
+    
+    # Now create the app, but don't pass the app reference to the state machine yet
     app = MainApp(state_machine, storage_manager)
     
+    # Inject the app reference into the state machine after initialization
+    state_machine.app = app
+    
+    # Run the app
     app.run()
 
 if __name__ == "__main__":
-    main()
+    main()    
