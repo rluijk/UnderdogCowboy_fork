@@ -5,6 +5,8 @@ from textual.widgets import Button, Static, Label, Header, Footer, Input, ListIt
 from textual.containers import Grid, Vertical, Horizontal, Container
 from textual.widgets import Placeholder, Collapsible, ListView
 from textual.message import Message
+from textual import on
+
 import logging
 
 from uccli import StateMachine, State, StorageManager
@@ -28,6 +30,8 @@ class SystemMessageUI(Static):
         if stored_message is None:
             stored_message = ""  # Set to empty if no message is found
 
+
+        
         # Create the UI layout with a text area, submit, and cancel buttons
         with Vertical(id="system-message-container"):
             yield Label("Enter your system message:")
@@ -49,7 +53,7 @@ class SystemMessageUI(Static):
         
         elif event.button.id == "cancel-system-message":
             # Post a message instead of clearing the UI directly, ensuring consistency
-            self.post_message(LeftSideButtonPressed("cancel-system-message"))
+            self.post_message(UIButtonPressed("cancel-system-message"))
 
 
 
@@ -123,7 +127,7 @@ class LoadSessionUI(Static):
                 logging.info(f"Load button pressed, selected session: {selected_session}")
                 self.post_message(SessionSelected(selected_session))
         elif event.button.id == "cancel-button":
-            self.post_message(LeftSideButtonPressed("cancel-load-session"))
+            self.post_message(UIButtonPressed("cancel-load-session"))
 
 class NewSessionUI(Static):
     """A UI for creating a new session."""
@@ -150,7 +154,7 @@ class NewSessionUI(Static):
             if session_name:
                 self.post_message(NewSessionCreated(session_name))
         elif event.button.id == "cancel-button":
-            self.post_message(LeftSideButtonPressed("cancel-new-session"))
+            self.post_message(UIButtonPressed("cancel-new-session"))
 
 class LoadUI(Static):
     """A simple UI that is loaded dynamically upon clicking 'Load'."""
@@ -159,7 +163,7 @@ class LoadUI(Static):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "confirm-load-button":
-            self.parent.post_message(LeftSideButtonPressed("confirm-load"))
+            self.parent.post_message(UIButtonPressed("confirm-load"))
 
 class NewUI(Static):
     def compose(self) -> ComposeResult:
@@ -167,7 +171,7 @@ class NewUI(Static):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "confirm-analyze-button":
-            self.parent.post_message(LeftSideButtonPressed("confirm-analyze"))
+            self.parent.post_message(UIButtonPressed("confirm-analyze"))
 
 class StateInfo(Static):
     def compose(self) -> ComposeResult:
@@ -254,7 +258,7 @@ class CenterContent(Static):
     def compose(self) -> ComposeResult:
         yield Label(f"Content for action: {self.action}")
 
-class LeftSideButtonPressed(Message):
+class UIButtonPressed(Message):
     def __init__(self, button_id: str):
         self.button_id = button_id
         super().__init__()
@@ -270,7 +274,7 @@ class LeftSideButtons(Container):
             yield Button("Model", id="model-button", classes="left-side-button")
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
-        self.post_message(LeftSideButtonPressed(event.button.id))
+        self.post_message(UIButtonPressed(event.button.id))
 
 class LeftSideContainer(Container):
     def compose(self) -> ComposeResult:
@@ -440,7 +444,9 @@ class MainApp(App):
             logging.error(f"Error creating session: {str(e)}")
             self.notify(f"Error creating session: {str(e)}", severity="error")
 
-    def on_left_side_button_pressed(self, event: LeftSideButtonPressed) -> None:
+    @on(UIButtonPressed)
+    def handle_ui_button_pressed(self, event: UIButtonPressed) -> None:
+        logging.debug(f"Handler 'handle_ui_button_pressed' invoked with button_id: {event.button_id}")
         dynamic_container = self.query_one(DynamicContainer)
         dynamic_container.clear_content()
 
@@ -462,6 +468,7 @@ class MainApp(App):
         except ValueError as e:
             logging.error(f"Error: {e}")
 
+
     def on_action_selected(self, event: ActionSelected) -> None:
         if event.action == "reset":
                 self.clear_session()
@@ -476,6 +483,7 @@ class MainApp(App):
             # For other actions, load generic content as before
             dynamic_container.mount(CenterContent(event.action))
 
+  
 
 def create_state_machine() -> StateMachine:
     # Define states
