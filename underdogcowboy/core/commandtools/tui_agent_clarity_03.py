@@ -1,3 +1,4 @@
+import os
 from typing import Dict, List, Set
 from textual.app import App, ComposeResult
 
@@ -11,6 +12,8 @@ import logging
 
 from uccli import StateMachine, State, StorageManager
 
+from rich.text import Text
+
 #  Clear existing handlers and set up logging to a file
 for handler in logging.root.handlers[:]:
     logging.root.removeHandler(handler)
@@ -20,6 +23,8 @@ logging.basicConfig(
     level=logging.DEBUG, 
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
+
+""" START OF STATE BUTTONS UI DEFINITIONS """
 
 class SystemMessageUI(Static):
     """A UI for creating and submitting a system message."""
@@ -55,6 +60,99 @@ class SystemMessageUI(Static):
             # Post a message instead of clearing the UI directly, ensuring consistency
             self.post_message(UIButtonPressed("cancel-system-message"))
 
+class AnalyzeUI(Static):
+    """A UI for getting an analysis from the underlying agent on a dialog of another agent"""
+    def compose(self) -> ComposeResult:
+        pass
+    def on_button_pressed(self, event: Button.Pressed):
+        pass
+
+class FeedbackInputUI(Static):
+    """A UI for getting feedback from the underlying agent on the way the agent under assessment
+    is understanding the structure of the input it gets"""
+    def compose(self) -> ComposeResult:
+        pass
+    def on_button_pressed(self, event: Button.Pressed):
+        pass
+
+class FeedbackOutputUI(Static):
+    """A UI  for getting feedback from the underlying agent on the way the agent under assessment 
+    is understanding the structure of the output it makes  """
+    def compose(self) -> ComposeResult:
+        pass
+    def on_button_pressed(self, event: Button.Pressed):
+        pass
+
+class FeedbackRulesUI(Static):
+    """A UI  for getting feedback from the underlying agent on the way the agent under assessment 
+    is understanding the rules it is under / needs to follow  """
+    def compose(self) -> ComposeResult:
+        pass
+    def on_button_pressed(self, event: Button.Pressed):
+        pass
+
+class FeedbackConstraintsUI(Static):
+    """A UI  for getting feedback from the underlying agent on the way the agent under assessment 
+    is understanding the constraints it has to operate within  """
+    def compose(self) -> ComposeResult:
+        pass
+    def on_button_pressed(self, event: Button.Pressed):
+        pass
+
+class LoadAgentUI(Static):
+    """A UI for getting an agent selected for the build-in agent to assess"""
+    def compose(self):
+        yield Container(
+            Vertical(
+                Static("Select a agent to load:", id="agent-prompt", classes="agent-prompt"),
+                ListView(id="agent-list", classes="agent-list"),
+                Label("No agent available. Create a new agent first.", id="no-agents-label", classes="hidden"),
+                Button("Load Selected Agent", id="load-button", disabled=True, classes="action-button"),
+                Button("Cancel", id="cancel-button", classes="action-button")
+            ),
+            id="centered-box", classes="centered-box"
+        )
+
+    def on_mount(self):
+        self.load_agents()
+
+    def on_list_view_selected(self, event: ListView.Selected):
+        self.query_one("#load-button").disabled = False
+
+    def load_agents(self):
+        # get agents from file system
+        
+        agents_dir = os.path.expanduser("~/.underdogcowboy/agents")
+        agents = [f.replace('.json', '') for f in os.listdir(agents_dir) if f.endswith('.json')]
+
+        list_view = self.query_one("#agent-list")
+
+        no_agents_label = self.query_one("#no-agents-label")
+        load_button = self.query_one("#load-button")
+
+        list_view.clear()
+        
+        if not agents:
+            list_view.display = False
+            no_agents_label.remove_class("hidden")
+            load_button.disabled = True
+        else:
+            list_view.display = True
+            no_agents_label.add_class("hidden")
+            for agent in agents:
+                list_view.append(ListItem(Label(agent)))
+
+
+    def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "load-button":
+            selected_item = self.query_one("#agent-list").highlighted_child
+            if selected_item:
+                selected_agent = selected_item.children[0].render()  # Get the text from the Label
+                logging.info(f"Load button pressed, selected agent: {selected_agent}")
+                self.post_message(AgentSelected(selected_agent))
+        elif event.button.id == "cancel-button":
+            self.post_message(UIButtonPressed("cancel-load-session"))
+            
 
 
 
@@ -73,6 +171,14 @@ class SessionSelected(Message):
         self.session_name = session_name
         logging.info(f"SessionSelected message created with session_name: {session_name}")
         super().__init__()
+
+
+class AgentSelected(Message):
+    def __init__(self, agent_name: Text):
+        self.agent_name = agent_name  # Store the actual Text object
+        logging.info(f"AgentSelected message created with agent_name: {self.agent_name}")
+        super().__init__()
+
 
 class NewSessionCreated(Message):
     def __init__(self, session_name: str):
@@ -288,6 +394,8 @@ class MainApp(App):
         self.state_machine = state_machine
         self.storage_manager = storage_manager
         self.current_storage = None
+        self.current_agent= None
+        self.agent_name_plain = None
         self.title = "Agent Clarity"  # Set an initial title for the app
         
 
@@ -311,16 +419,23 @@ class MainApp(App):
         self.update_header()  # Initialize the header
         self.log_header_state()  # Log initial header state
 
-    def update_header(self, session_name=None):
-        if session_name:
+    def update_header(self, session_name=None, agent_name=None):
+        if session_name and agent_name:
+            self.sub_title = f"Active Session: {session_name} - Current Agent: {agent_name}"
+            logging.info(f"Updated app sub_title with session name: {session_name} and agent: {agent_name}")
+        elif session_name:
             self.sub_title = f"Active Session: {session_name}"
             logging.info(f"Updated app sub_title with session name: {session_name}")
+        elif agent_name:
+            self.sub_title = f"Current Agent: {agent_name}"
+            logging.info(f"Updated app sub_title with agent name: {agent_name}")
         else:
             self.sub_title = ""
             logging.info("Cleared app sub_title")
         
         # Force a refresh of the entire app
         self.refresh(layout=True)
+
 
     def log_header_state(self):
         logging.info(f"Current app title: {self.title}")
@@ -346,9 +461,11 @@ class MainApp(App):
             self.query_one(StateInfo).update_state_info(self.state_machine, "")
             self.query_one(StateButtonGrid).update_buttons()
             
-            # Update header with session name
-            logging.info(f"Attempting to update header with session name: {event.session_name}")
-            self.update_header(event.session_name)
+            
+
+            logging.info(f"Attempting to update header with session name: {event.session_name}")           
+            self.update_header(session_name=event.session_name, agent_name=self.agent_name_plain)
+
             self.log_header_state()  # Log the header state after update
             
             # test code (can remove when committed)
@@ -358,6 +475,21 @@ class MainApp(App):
         except ValueError as e:
             logging.error(f"Error loading session: {str(e)}")
             self.notify(f"Error loading session: {str(e)}", severity="error")
+
+    def on_agent_selected(self, event: AgentSelected):
+        self.current_agent = AgentSelected
+        self.agent_name_plain = event.agent_name.plain
+        self.notify(f"Loaded Agent: {event.agent_name.plain}")
+        self.query_one(DynamicContainer).clear_content()
+
+
+         # Check if a session is loaded, if not, pass None for session_name
+        session_name = None
+        if self.current_storage:
+            session_name = self.current_storage.get_data("session_name")
+
+        # Update header with current agent and session (if available)
+        self.update_header(session_name=session_name, agent_name=event.agent_name.plain)
 
     def ui_factory(self, button_id: str):
         ui_class, action = self.get_ui_and_action(button_id)
@@ -479,6 +611,8 @@ class MainApp(App):
         if event.action == "system_message":
             # Load SystemMessageUI instead of just displaying a label
             dynamic_container.mount(SystemMessageUI())
+        if event.action == "load_agent":
+            dynamic_container.mount(LoadAgentUI())
         else:
             # For other actions, load generic content as before
             dynamic_container.mount(CenterContent(event.action))
@@ -488,33 +622,19 @@ class MainApp(App):
 def create_state_machine() -> StateMachine:
     # Define states
     initial_state = State("initial")
-    agent_created_state = State("agent_created")
     agent_loaded_state = State("agent_loaded")
-    model_selected_state = State("model_selected")
     analysis_ready_state = State("analysis_ready")
 
     # Define transitions
     initial_state.add_transition("load_agent", agent_loaded_state)
-    initial_state.add_transition("create_agent", agent_created_state)
-    initial_state.add_transition("list_models", initial_state)
-
-    agent_created_state.add_transition("load_agent", agent_loaded_state)
 
     agent_loaded_state.add_transition("load_agent", agent_loaded_state)
-    agent_loaded_state.add_transition("select_model", model_selected_state)
     agent_loaded_state.add_transition("system_message", agent_loaded_state)
-    agent_loaded_state.add_transition("list_models", agent_loaded_state)
-
-    model_selected_state.add_transition("load_agent", agent_loaded_state)
-    model_selected_state.add_transition("select_model", model_selected_state)
-    model_selected_state.add_transition("analyze", analysis_ready_state)
-    model_selected_state.add_transition("system_message", model_selected_state)
+    agent_loaded_state.add_transition("analyze", analysis_ready_state)  # Added transition
 
     analysis_ready_state.add_transition("load_agent", agent_loaded_state)
-    analysis_ready_state.add_transition("select_model", model_selected_state)
     analysis_ready_state.add_transition("analyze", analysis_ready_state)
     analysis_ready_state.add_transition("export_analysis", analysis_ready_state)
-    analysis_ready_state.add_transition("feedback", analysis_ready_state)
     analysis_ready_state.add_transition("feedback_input", analysis_ready_state)
     analysis_ready_state.add_transition("feedback_output", analysis_ready_state)
     analysis_ready_state.add_transition("feedback_rules", analysis_ready_state)
@@ -522,15 +642,16 @@ def create_state_machine() -> StateMachine:
     analysis_ready_state.add_transition("system_message", analysis_ready_state)
 
     # Add reset transition to all states
-    for state in [agent_created_state, agent_loaded_state, model_selected_state, analysis_ready_state]:
+    for state in [initial_state, agent_loaded_state, analysis_ready_state]:
         state.add_transition("reset", initial_state)
 
     # Create state machine
     state_machine = StateMachine(initial_state)
-    for state in [agent_created_state, agent_loaded_state, model_selected_state, analysis_ready_state]:
+    for state in [agent_loaded_state, analysis_ready_state]:
         state_machine.add_state(state)
 
     return state_machine
+
 
 def main():
     state_machine = create_state_machine()  # Initialize state machine first
