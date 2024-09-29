@@ -1,18 +1,23 @@
 import os
+import json
 from typing import Dict, List, Set
-from textual.app import App, ComposeResult
-
-from textual.widgets import Button, Static, Label, Header, Footer, Input, ListItem, TextArea
-from textual.containers import Grid, Vertical, Horizontal, Container
-from textual.widgets import Placeholder, Collapsible, ListView
-from textual.message import Message
-from textual import on
-
 import logging
 
-from uccli import StateMachine, State, StorageManager
+
+from textual import on
+from textual.app import App, ComposeResult
+from textual.containers import Grid, Vertical, Horizontal, Container
+from textual.message import Message
+from textual.widgets import  ( MarkdownViewer, Button, Static, Label, Header, Footer, Input, ListItem, 
+                               TextArea, LoadingIndicator, Placeholder, Collapsible, ListView )
 
 from rich.text import Text
+
+from uccli import StateMachine, State, StorageManager
+from underdogcowboy.core.config_manager import LLMConfigManager 
+from underdogcowboy.core.llm_response_markdown import LLMResponseRenderer
+from underdogcowboy import AgentDialogManager, agentclarity
+
 
 #  Clear existing handlers and set up logging to a file
 for handler in logging.root.handlers[:]:
@@ -60,12 +65,107 @@ class SystemMessageUI(Static):
             # Post a message instead of clearing the UI directly, ensuring consistency
             self.post_message(UIButtonPressed("cancel-system-message"))
 
+class AnalysisComplete(Message):
+    def __init__(self, result: str):
+        self.result = result
+        super().__init__()
+
+class AnalysisError(Message):
+    def __init__(self, error: str):
+        self.error = error
+        super().__init__()
+
 class AnalyzeUI(Static):
-    """A UI for getting an analysis from the underlying agent on a dialog of another agent"""
+    """A UI for displaying and running analysis on an agent definition"""
+    
     def compose(self) -> ComposeResult:
-        pass
-    def on_button_pressed(self, event: Button.Pressed):
-        pass
+        yield Static("Analysis Result:", id="result-label", classes="hidden")
+        # yield MarkdownViewer(id="analysis-result", classes="hidden", show_table_of_contents=True)
+        yield Static(id="analysis-result", classes="hidden")
+        yield Button("Start Analysis", id="start-analysis-button", classes="hidden")
+        yield Button("Re-run Analysis", id="rerun-analysis-button", classes="hidden")
+        yield LoadingIndicator(id="loading-indicator", classes="hidden")
+
+    def on_mount(self) -> None:
+        self.check_existing_analysis()
+
+    def check_existing_analysis(self) -> None:
+        existing_analysis = self.app.storage_manager.get_data("last_analysis")
+        if existing_analysis:
+            self.show_result(existing_analysis)
+            self.query_one("#rerun-analysis-button").remove_class("hidden")
+        else:
+            self.query_one("#start-analysis-button").remove_class("hidden")
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id in ["start-analysis-button", "rerun-analysis-button"]:
+            self.run_analysis()
+
+    def run_analysis(self) -> None:
+        self.query_one("#start-analysis-button").add_class("hidden")
+        self.query_one("#rerun-analysis-button").add_class("hidden")
+        self.query_one("#analysis-result").add_class("hidden")
+        self.query_one("#loading-indicator").remove_class("hidden")
+        
+        self.app.run_worker(self.perform_analysis, exclusive=True)
+
+    async def perform_analysis(self) -> None:
+        llm_config = self.app.get_current_llm_config()
+        if not llm_config:
+            self.post_message(AnalysisError("No LLM configuration available."))
+            return
+
+        try:
+            model_id = llm_config['model_id']
+            adm = AgentDialogManager([agentclarity], model_name=model_id)
+            
+            # Get the current agent name from the app
+            current_agent = self.app.agent_name_plain
+            if not current_agent:
+                self.post_message(AnalysisError("No agent currently loaded. Please load an agent first."))
+                return
+
+            # Load the agent data from the JSON file
+            agents_dir = os.path.expanduser("~/.underdogcowboy/agents")
+            agent_file = os.path.join(agents_dir, f"{current_agent}.json")
+            
+            if not os.path.exists(agent_file):
+                self.post_message(AnalysisError(f"Agent file for '{current_agent}' not found."))
+                return
+
+            with open(agent_file, 'r') as f:
+                agent_data = json.load(f)
+
+            response = agentclarity >> f"Analyze this agent definition: {json.dumps(agent_data)}"
+            self.post_message(AnalysisComplete(response.text))
+        except Exception as e:
+            self.post_message(AnalysisError(str(e)))
+
+    def on_analysis_complete(self, message: AnalysisComplete) -> None:
+        self.update_and_show_result(message.result)
+
+    def on_analysis_error(self, message: AnalysisError) -> None:
+        self.show_error(message.error)
+
+    def update_and_show_result(self, result: str) -> None:
+        self.app.storage_manager.update_data("last_analysis", result)
+        self.show_result(result)
+
+    def show_result(self, result: str) -> None:
+        self.query_one("#loading-indicator").add_class("hidden")
+        self.query_one("#result-label").remove_class("hidden")
+        result_widget = self.query_one("#analysis-result")
+        result_widget.update(result)
+        result_widget.remove_class("hidden")
+        self.query_one("#rerun-analysis-button").remove_class("hidden")
+
+
+
+
+    def show_error(self, error_message: str) -> None:
+        self.query_one("#loading-indicator").add_class("hidden")
+        self.query_one("#start-analysis-button").remove_class("hidden")
+        self.app.notify(f"Error: {error_message}", severity="error")
 
 class FeedbackInputUI(Static):
     """A UI for getting feedback from the underlying agent on the way the agent under assessment
@@ -184,6 +284,8 @@ class NewSessionCreated(Message):
     def __init__(self, session_name: str):
         self.session_name = session_name
         super().__init__()
+
+
 
 class LoadSessionUI(Static):
     """A UI for loading sessions, displayed when clicking 'Load'."""
@@ -388,7 +490,11 @@ class LeftSideContainer(Container):
 
 class MainApp(App):
     CSS_PATH = "state_machine_app.css"
-            
+
+    DEFAULT_PROVIDER = 'anthropic'
+    DEFAULT_MODEL_ID = 'claude-3-5-sonnet-20240620'
+    DEFAULT_MODEL_NAME = 'Claude 3.5 Sonnet'
+
     def __init__(self, state_machine: StateMachine, storage_manager: StorageManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.state_machine = state_machine
@@ -397,14 +503,15 @@ class MainApp(App):
         self.current_agent= None
         self.agent_name_plain = None
         self.title = "Agent Clarity"  # Set an initial title for the app
-        
+        self.llm_config_manager = LLMConfigManager()
+        self.set_default_llm()  # Set the default LLM during initialization
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Horizontal(id="agent-centre", classes="dynamic-spacer"):
             yield LeftSideContainer(classes="left-dynamic-spacer")
             yield DynamicContainer(id="center-dynamic-container", classes="center-dynamic-spacer")
-            yield Placeholder("right", classes="right-dynamic-spacer")
+            #yield Placeholder("right", classes="right-dynamic-spacer")
 
         with Vertical(id="app-layout"):
             with Collapsible(title="Task Panel", id="state-info-collapsible", collapsed=False):
@@ -435,6 +542,37 @@ class MainApp(App):
         
         # Force a refresh of the entire app
         self.refresh(layout=True)
+
+    def set_default_llm(self):
+        # Check if the default model is available
+        available_models = self.llm_config_manager.get_available_models()
+        if f"{self.DEFAULT_PROVIDER}:{self.DEFAULT_MODEL_ID}" in available_models:
+            self.llm_config_manager.update_model_property(self.DEFAULT_PROVIDER, 'selected_model', self.DEFAULT_MODEL_ID)
+            logging.info(f"Default LLM set to {self.DEFAULT_MODEL_NAME} ({self.DEFAULT_MODEL_ID})")
+        else:
+            # If the default model is not available, prompt to configure it
+            logging.warning(f"Default model {self.DEFAULT_MODEL_NAME} is not configured.")
+            self.configure_default_llm()
+
+    def configure_default_llm(self):
+        logging.info(f"Configuring default LLM: {self.DEFAULT_MODEL_NAME}")
+        try:
+            # This will prompt for API key if not already configured
+            self.llm_config_manager.get_credentials(self.DEFAULT_PROVIDER)
+            # Set the selected model
+            self.llm_config_manager.update_model_property(self.DEFAULT_PROVIDER, 'selected_model', self.DEFAULT_MODEL_ID)
+            logging.info(f"Default LLM {self.DEFAULT_MODEL_NAME} configured successfully")
+        except Exception as e:
+            logging.error(f"Failed to configure default LLM: {str(e)}")
+            # You might want to show a notification to the user here
+            self.notify("Failed to configure default LLM. Please check your settings.", severity="error")
+
+    def get_current_llm_config(self):
+        try:
+            return self.llm_config_manager.get_credentials(self.DEFAULT_PROVIDER)
+        except Exception as e:
+            logging.error(f"Failed to get current LLM config: {str(e)}")
+            return None
 
 
     def log_header_state(self):
@@ -613,6 +751,8 @@ class MainApp(App):
             dynamic_container.mount(SystemMessageUI())
         if event.action == "load_agent":
             dynamic_container.mount(LoadAgentUI())
+        if event.action == "analyze":
+            dynamic_container.mount(AnalyzeUI())    
         else:
             # For other actions, load generic content as before
             dynamic_container.mount(CenterContent(event.action))
