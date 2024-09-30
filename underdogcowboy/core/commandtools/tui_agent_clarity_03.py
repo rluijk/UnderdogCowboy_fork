@@ -159,45 +159,463 @@ class AnalyzeUI(Static):
         result_widget.remove_class("hidden")
         self.query_one("#rerun-analysis-button").remove_class("hidden")
 
-
-
-
     def show_error(self, error_message: str) -> None:
         self.query_one("#loading-indicator").add_class("hidden")
         self.query_one("#start-analysis-button").remove_class("hidden")
         self.app.notify(f"Error: {error_message}", severity="error")
 
+# --- Custom Message Classes for Feedback ---
+
+# --- Input ---
+class FeedbackInputComplete(Message):
+    def __init__(self, result: str):
+        self.result = result
+        super().__init__()
+
+class FeedbackInputError(Message):
+    def __init__(self, error: str):
+        self.error = error
+        super().__init__()
+
+# --- Output ---
+class FeedbackOutputComplete(Message):
+    def __init__(self, result: str):
+        self.result = result
+        super().__init__()
+
+class FeedbackOutputError(Message):
+    def __init__(self, error: str):
+        self.error = error
+        super().__init__()
+
+# --- Rules ---
+class FeedbackRulesComplete(Message):
+    def __init__(self, result: str):
+        self.result = result
+        super().__init__()
+
+class FeedbackRulesError(Message):
+    def __init__(self, error: str):
+        self.error = error
+        super().__init__()
+
+#---- Constraints ---
+class FeedbackConstraintsComplete(Message):
+    def __init__(self, result: str):
+        self.result = result
+        super().__init__()
+
+class FeedbackConstraintsError(Message):
+    def __init__(self, error: str):
+        self.error = error
+        super().__init__()
+
+# --- Feedback UI Classes ---
+
 class FeedbackInputUI(Static):
-    """A UI for getting feedback from the underlying agent on the way the agent under assessment
-    is understanding the structure of the input it gets"""
+    """A UI for getting feedback from the underlying agent on how the agent understands the structure of the input it receives."""
+    
     def compose(self) -> ComposeResult:
-        pass
-    def on_button_pressed(self, event: Button.Pressed):
-        pass
+        yield Label("Feedback on Input Structure:", id="feedback-input-label", classes="hidden")
+        yield Static(id="feedback-input-result", classes="feedback-result  hidden")
+        yield Button("Start Feedback", id="start-feedback-input-button", classes="hidden")
+        yield Button("Re-run Feedback", id="rerun-feedback-input-button", classes="hidden")
+        yield LoadingIndicator(id="loading-feedback-input", classes="hidden")
+
+    def on_mount(self) -> None:
+        self.check_existing_feedback()
+    
+    def check_existing_feedback(self) -> None:
+        existing_feedback = self.app.storage_manager.get_data("last_feedback_input")
+        if existing_feedback:
+            self.show_feedback(existing_feedback)
+            self.query_one("#rerun-feedback-input-button").remove_class("hidden")
+        else:
+            self.query_one("#start-feedback-input-button").remove_class("hidden")
+    
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id in ["start-feedback-input-button", "rerun-feedback-input-button"]:
+            self.run_feedback()
+    
+    def run_feedback(self) -> None:
+        self.query_one("#start-feedback-input-button").add_class("hidden")
+        self.query_one("#rerun-feedback-input-button").add_class("hidden")
+        self.query_one("#feedback-input-result").add_class("hidden")
+        self.query_one("#loading-feedback-input").remove_class("hidden")
+        
+        self.app.run_worker(self.perform_feedback, exclusive=True)
+    
+    async def perform_feedback(self) -> None:
+        llm_config = self.app.get_current_llm_config()
+        if not llm_config:
+            self.post_message(FeedbackInputError("No LLM configuration available."))
+            return
+
+        try:
+            model_id = llm_config['model_id']
+            adm = AgentDialogManager([agentclarity], model_name=model_id)
+            
+            # Get the current agent name from the app
+            current_agent = self.app.agent_name_plain
+            if not current_agent:
+                self.post_message(FeedbackInputError("No agent currently loaded. Please load an agent first."))
+                return
+
+            # Load the agent data from the JSON file
+            agents_dir = os.path.expanduser("~/.underdogcowboy/agents")
+            agent_file = os.path.join(agents_dir, f"{current_agent}.json")
+            
+            if not os.path.exists(agent_file):
+                self.post_message(FeedbackInputError(f"Agent file for '{current_agent}' not found."))
+                return
+
+            with open(agent_file, 'r') as f:
+                agent_data = json.load(f)
+
+            # Construct the feedback prompt
+            prompt = (
+                "Provide feedback on how the following agent understands the structure of the input it receives.\n"
+                f"Agent Definition: {json.dumps(agent_data)}"
+            )
+            response = agentclarity >> prompt
+            self.post_message(FeedbackInputComplete(response.text))
+        except Exception as e:
+            self.post_message(FeedbackInputError(str(e)))
+    
+    def on_feedback_input_complete(self, message: FeedbackInputComplete) -> None:
+        self.update_and_show_feedback(message.result)
+    
+    def on_feedback_input_error(self, message: FeedbackInputError) -> None:
+        self.show_error(message.error)
+    
+    def update_and_show_feedback(self, result: str) -> None:
+        self.app.storage_manager.update_data("last_feedback_input", result)
+        self.show_feedback(result)
+    
+    def show_feedback(self, result: str) -> None:
+        self.query_one("#loading-feedback-input").add_class("hidden")
+        self.query_one("#feedback-input-label").remove_class("hidden")
+        feedback_widget = self.query_one("#feedback-input-result")
+        feedback_widget.update(result)
+        feedback_widget.remove_class("hidden")
+        self.query_one("#rerun-feedback-input-button").remove_class("hidden")
+
+    def show_error(self, error_message: str) -> None:
+        self.query_one("#loading-feedback-input").add_class("hidden")
+        self.query_one("#start-feedback-input-button").remove_class("hidden")
+        self.app.notify(f"Error: {error_message}", severity="error")
+    
+    @on(FeedbackInputComplete)
+    def handle_feedback_input_complete(self, event: FeedbackInputComplete) -> None:
+        self.on_feedback_input_complete(event)
+    
+    @on(FeedbackInputError)
+    def handle_feedback_input_error(self, event: FeedbackInputError) -> None:
+        self.on_feedback_input_error(event)
 
 class FeedbackOutputUI(Static):
-    """A UI  for getting feedback from the underlying agent on the way the agent under assessment 
-    is understanding the structure of the output it makes  """
+    """A UI for getting feedback from the underlying agent on how the agent understands the structure of the output it produces."""
+    
     def compose(self) -> ComposeResult:
-        pass
-    def on_button_pressed(self, event: Button.Pressed):
-        pass
+        yield Label("Feedback on Output Structure:", id="feedback-output-label", classes="hidden")
+        yield Static(id="feedback-output-result", classes="feedback-result hidden")
+        yield Button("Start Feedback", id="start-feedback-output-button", classes="hidden")
+        yield Button("Re-run Feedback", id="rerun-feedback-output-button", classes="hidden")
+        yield LoadingIndicator(id="loading-feedback-output", classes="hidden")
+    
+    def on_mount(self) -> None:
+        self.check_existing_feedback()
+    
+    def check_existing_feedback(self) -> None:
+        existing_feedback = self.app.storage_manager.get_data("last_feedback_output")
+        if existing_feedback:
+            self.show_feedback(existing_feedback)
+            self.query_one("#rerun-feedback-output-button").remove_class("hidden")
+        else:
+            self.query_one("#start-feedback-output-button").remove_class("hidden")
+    
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id in ["start-feedback-output-button", "rerun-feedback-output-button"]:
+            self.run_feedback()
+    
+    def run_feedback(self) -> None:
+        self.query_one("#start-feedback-output-button").add_class("hidden")
+        self.query_one("#rerun-feedback-output-button").add_class("hidden")
+        self.query_one("#feedback-output-result").add_class("hidden")
+        self.query_one("#loading-feedback-output").remove_class("hidden")
+        
+        self.app.run_worker(self.perform_feedback, exclusive=True)
+    
+    async def perform_feedback(self) -> None:
+        llm_config = self.app.get_current_llm_config()
+        if not llm_config:
+            self.post_message(FeedbackOutputError("No LLM configuration available."))
+            return
+
+        try:
+            model_id = llm_config['model_id']
+            adm = AgentDialogManager([agentclarity], model_name=model_id)
+            
+            # Get the current agent name from the app
+            current_agent = self.app.agent_name_plain
+            if not current_agent:
+                self.post_message(FeedbackOutputError("No agent currently loaded. Please load an agent first."))
+                return
+
+            # Load the agent data from the JSON file
+            agents_dir = os.path.expanduser("~/.underdogcowboy/agents")
+            agent_file = os.path.join(agents_dir, f"{current_agent}.json")
+            
+            if not os.path.exists(agent_file):
+                self.post_message(FeedbackOutputError(f"Agent file for '{current_agent}' not found."))
+                return
+
+            with open(agent_file, 'r') as f:
+                agent_data = json.load(f)
+
+            # Construct the feedback prompt
+            prompt = (
+                "Provide feedback on how the following agent understands the structure of the output it produces.\n"
+                f"Agent Definition: {json.dumps(agent_data)}"
+            )
+            response = agentclarity >> prompt
+            self.post_message(FeedbackOutputComplete(response.text))
+        except Exception as e:
+            self.post_message(FeedbackOutputError(str(e)))
+    
+    def on_feedback_output_complete(self, message: FeedbackOutputComplete) -> None:
+        self.update_and_show_feedback(message.result)
+    
+    def on_feedback_output_error(self, message: FeedbackOutputError) -> None:
+        self.show_error(message.error)
+    
+    def update_and_show_feedback(self, result: str) -> None:
+        self.app.storage_manager.update_data("last_feedback_output", result)
+        self.show_feedback(result)
+    
+    def show_feedback(self, result: str) -> None:
+        self.query_one("#loading-feedback-output").add_class("hidden")
+        self.query_one("#feedback-output-label").remove_class("hidden")
+        feedback_widget = self.query_one("#feedback-output-result")
+        feedback_widget.update(result)
+        feedback_widget.remove_class("hidden")
+        self.query_one("#rerun-feedback-output-button").remove_class("hidden")
+    
+    def show_error(self, error_message: str) -> None:
+        self.query_one("#loading-feedback-output").add_class("hidden")
+        self.query_one("#start-feedback-output-button").remove_class("hidden")
+        self.app.notify(f"Error: {error_message}", severity="error")
+    
+    @on(FeedbackOutputComplete)
+    def handle_feedback_output_complete(self, event: FeedbackOutputComplete) -> None:
+        self.on_feedback_output_complete(event)
+    
+    @on(FeedbackOutputError)
+    def handle_feedback_output_error(self, event: FeedbackOutputError) -> None:
+        self.on_feedback_output_error(event)
 
 class FeedbackRulesUI(Static):
-    """A UI  for getting feedback from the underlying agent on the way the agent under assessment 
-    is understanding the rules it is under / needs to follow  """
+    """A UI for getting feedback from the underlying agent on how the agent understands the rules it is under or needs to follow."""
+    
     def compose(self) -> ComposeResult:
-        pass
-    def on_button_pressed(self, event: Button.Pressed):
-        pass
+        yield Label("Feedback on Rules Understanding:", id="feedback-rules-label", classes="hidden")
+        yield Static(id="feedback-rules-result", classes="feedback-result hidden")
+        yield Button("Start Feedback", id="start-feedback-rules-button", classes="hidden")
+        yield Button("Re-run Feedback", id="rerun-feedback-rules-button", classes="hidden")
+        yield LoadingIndicator(id="loading-feedback-rules", classes="hidden")
+    
+    def on_mount(self) -> None:
+        self.check_existing_feedback()
+    
+    def check_existing_feedback(self) -> None:
+        existing_feedback = self.app.storage_manager.get_data("last_feedback_rules")
+        if existing_feedback:
+            self.show_feedback(existing_feedback)
+            self.query_one("#rerun-feedback-rules-button").remove_class("hidden")
+        else:
+            self.query_one("#start-feedback-rules-button").remove_class("hidden")
+    
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id in ["start-feedback-rules-button", "rerun-feedback-rules-button"]:
+            self.run_feedback()
+    
+    def run_feedback(self) -> None:
+        self.query_one("#start-feedback-rules-button").add_class("hidden")
+        self.query_one("#rerun-feedback-rules-button").add_class("hidden")
+        self.query_one("#feedback-rules-result").add_class("hidden")
+        self.query_one("#loading-feedback-rules").remove_class("hidden")
+        
+        self.app.run_worker(self.perform_feedback, exclusive=True)
+    
+    async def perform_feedback(self) -> None:
+        llm_config = self.app.get_current_llm_config()
+        if not llm_config:
+            self.post_message(FeedbackRulesError("No LLM configuration available."))
+            return
+
+        try:
+            model_id = llm_config['model_id']
+            adm = AgentDialogManager([agentclarity], model_name=model_id)
+            
+            # Get the current agent name from the app
+            current_agent = self.app.agent_name_plain
+            if not current_agent:
+                self.post_message(FeedbackRulesError("No agent currently loaded. Please load an agent first."))
+                return
+
+            # Load the agent data from the JSON file
+            agents_dir = os.path.expanduser("~/.underdogcowboy/agents")
+            agent_file = os.path.join(agents_dir, f"{current_agent}.json")
+            
+            if not os.path.exists(agent_file):
+                self.post_message(FeedbackRulesError(f"Agent file for '{current_agent}' not found."))
+                return
+
+            with open(agent_file, 'r') as f:
+                agent_data = json.load(f)
+
+            # Construct the feedback prompt
+            prompt = (
+                "Provide feedback on how the following agent understands the rules it is under or needs to follow.\n"
+                f"Agent Definition: {json.dumps(agent_data)}"
+            )
+            response = agentclarity >> prompt
+            self.post_message(FeedbackRulesComplete(response.text))
+        except Exception as e:
+            self.post_message(FeedbackRulesError(str(e)))
+    
+    def on_feedback_rules_complete(self, message: FeedbackRulesComplete) -> None:
+        self.update_and_show_feedback(message.result)
+    
+    def on_feedback_rules_error(self, message: FeedbackRulesError) -> None:
+        self.show_error(message.error)
+    
+    def update_and_show_feedback(self, result: str) -> None:
+        self.app.storage_manager.update_data("last_feedback_rules", result)
+        self.show_feedback(result)
+    
+    def show_feedback(self, result: str) -> None:
+        self.query_one("#loading-feedback-rules").add_class("hidden")
+        self.query_one("#feedback-rules-label").remove_class("hidden")
+        feedback_widget = self.query_one("#feedback-rules-result")
+        feedback_widget.update(result)
+        feedback_widget.remove_class("hidden")
+        self.query_one("#rerun-feedback-rules-button").remove_class("hidden")
+    
+    def show_error(self, error_message: str) -> None:
+        self.query_one("#loading-feedback-rules").add_class("hidden")
+        self.query_one("#start-feedback-rules-button").remove_class("hidden")
+        self.app.notify(f"Error: {error_message}", severity="error")
+    
+    @on(FeedbackRulesComplete)
+    def handle_feedback_rules_complete(self, event: FeedbackRulesComplete) -> None:
+        self.on_feedback_rules_complete(event)
+    
+    @on(FeedbackRulesError)
+    def handle_feedback_rules_error(self, event: FeedbackRulesError) -> None:
+        self.on_feedback_rules_error(event)
 
 class FeedbackConstraintsUI(Static):
-    """A UI  for getting feedback from the underlying agent on the way the agent under assessment 
-    is understanding the constraints it has to operate within  """
+    """A UI for getting feedback from the underlying agent on how the agent understands the constraints it has to operate within."""
+    
     def compose(self) -> ComposeResult:
-        pass
-    def on_button_pressed(self, event: Button.Pressed):
-        pass
+        yield Label("Feedback on Operational Constraints:", id="feedback-constraints-label", classes="hidden")
+        yield Static(id="feedback-constraints-result", classes="feedback-result hidden")
+        yield Button("Start Feedback", id="start-feedback-constraints-button", classes="hidden")
+        yield Button("Re-run Feedback", id="rerun-feedback-constraints-button", classes="hidden")
+        yield LoadingIndicator(id="loading-feedback-constraints", classes="hidden")
+    
+    def on_mount(self) -> None:
+        self.check_existing_feedback()
+    
+    def check_existing_feedback(self) -> None:
+        existing_feedback = self.app.storage_manager.get_data("last_feedback_constraints")
+        if existing_feedback:
+            self.show_feedback(existing_feedback)
+            self.query_one("#rerun-feedback-constraints-button").remove_class("hidden")
+        else:
+            self.query_one("#start-feedback-constraints-button").remove_class("hidden")
+    
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id in ["start-feedback-constraints-button", "rerun-feedback-constraints-button"]:
+            self.run_feedback()
+    
+    def run_feedback(self) -> None:
+        self.query_one("#start-feedback-constraints-button").add_class("hidden")
+        self.query_one("#rerun-feedback-constraints-button").add_class("hidden")
+        self.query_one("#feedback-constraints-result").add_class("hidden")
+        self.query_one("#loading-feedback-constraints").remove_class("hidden")
+        
+        self.app.run_worker(self.perform_feedback, exclusive=True)
+    
+    async def perform_feedback(self) -> None:
+        llm_config = self.app.get_current_llm_config()
+        if not llm_config:
+            self.post_message(FeedbackConstraintsError("No LLM configuration available."))
+            return
+
+        try:
+            model_id = llm_config['model_id']
+            adm = AgentDialogManager([agentclarity], model_name=model_id)
+            
+            # Get the current agent name from the app
+            current_agent = self.app.agent_name_plain
+            if not current_agent:
+                self.post_message(FeedbackConstraintsError("No agent currently loaded. Please load an agent first."))
+                return
+
+            # Load the agent data from the JSON file
+            agents_dir = os.path.expanduser("~/.underdogcowboy/agents")
+            agent_file = os.path.join(agents_dir, f"{current_agent}.json")
+            
+            if not os.path.exists(agent_file):
+                self.post_message(FeedbackConstraintsError(f"Agent file for '{current_agent}' not found."))
+                return
+
+            with open(agent_file, 'r') as f:
+                agent_data = json.load(f)
+
+            # Construct the feedback prompt
+            prompt = (
+                "Provide feedback on how the following agent understands the constraints it has to operate within.\n"
+                f"Agent Definition: {json.dumps(agent_data)}"
+            )
+            response = agentclarity >> prompt
+            self.post_message(FeedbackConstraintsComplete(response.text))
+        except Exception as e:
+            self.post_message(FeedbackConstraintsError(str(e)))
+    
+    def on_feedback_constraints_complete(self, message: FeedbackConstraintsComplete) -> None:
+        self.update_and_show_feedback(message.result)
+    
+    def on_feedback_constraints_error(self, message: FeedbackConstraintsError) -> None:
+        self.show_error(message.error)
+    
+    def update_and_show_feedback(self, result: str) -> None:
+        self.app.storage_manager.update_data("last_feedback_constraints", result)
+        self.show_feedback(result)
+    
+    def show_feedback(self, result: str) -> None:
+        self.query_one("#loading-feedback-constraints").add_class("hidden")
+        self.query_one("#feedback-constraints-label").remove_class("hidden")
+        feedback_widget = self.query_one("#feedback-constraints-result")
+        feedback_widget.update(result)
+        feedback_widget.remove_class("hidden")
+        self.query_one("#rerun-feedback-constraints-button").remove_class("hidden")
+    
+    def show_error(self, error_message: str) -> None:
+        self.query_one("#loading-feedback-constraints").add_class("hidden")
+        self.query_one("#start-feedback-constraints-button").remove_class("hidden")
+        self.app.notify(f"Error: {error_message}", severity="error")
+    
+    @on(FeedbackConstraintsComplete)
+    def handle_feedback_constraints_complete(self, event: FeedbackConstraintsComplete) -> None:
+        self.on_feedback_constraints_complete(event)
+    
+    @on(FeedbackConstraintsError)
+    def handle_feedback_constraints_error(self, event: FeedbackConstraintsError) -> None:
+        self.on_feedback_constraints_error(event)
+
 
 class LoadAgentUI(Static):
     """A UI for getting an agent selected for the build-in agent to assess"""
@@ -741,18 +1159,26 @@ class MainApp(App):
 
     def on_action_selected(self, event: ActionSelected) -> None:
         if event.action == "reset":
-                self.clear_session()
-        
+            self.clear_session()
+
         dynamic_container = self.query_one(DynamicContainer)
         dynamic_container.clear_content()
 
         if event.action == "system_message":
             # Load SystemMessageUI instead of just displaying a label
             dynamic_container.mount(SystemMessageUI())
-        if event.action == "load_agent":
+        elif event.action == "load_agent":
             dynamic_container.mount(LoadAgentUI())
-        if event.action == "analyze":
-            dynamic_container.mount(AnalyzeUI())    
+        elif event.action == "analyze":
+            dynamic_container.mount(AnalyzeUI())
+        elif event.action == "feedback_input":
+            dynamic_container.mount(FeedbackInputUI())
+        elif event.action == "feedback_output":
+            dynamic_container.mount(FeedbackOutputUI())
+        elif event.action == "feedback_rules":
+            dynamic_container.mount(FeedbackRulesUI())
+        elif event.action == "feedback_constraints":
+            dynamic_container.mount(FeedbackConstraintsUI())
         else:
             # For other actions, load generic content as before
             dynamic_container.mount(CenterContent(event.action))
@@ -772,13 +1198,16 @@ def create_state_machine() -> StateMachine:
     agent_loaded_state.add_transition("system_message", agent_loaded_state)
     agent_loaded_state.add_transition("analyze", analysis_ready_state)  # Added transition
 
+    
     analysis_ready_state.add_transition("load_agent", agent_loaded_state)
     analysis_ready_state.add_transition("analyze", analysis_ready_state)
     analysis_ready_state.add_transition("export_analysis", analysis_ready_state)
+    
     analysis_ready_state.add_transition("feedback_input", analysis_ready_state)
     analysis_ready_state.add_transition("feedback_output", analysis_ready_state)
     analysis_ready_state.add_transition("feedback_rules", analysis_ready_state)
     analysis_ready_state.add_transition("feedback_constraints", analysis_ready_state)
+    
     analysis_ready_state.add_transition("system_message", analysis_ready_state)
 
     # Add reset transition to all states
