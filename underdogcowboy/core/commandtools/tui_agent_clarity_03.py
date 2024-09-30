@@ -22,29 +22,18 @@ from underdogcowboy import AgentDialogManager, agentclarity
 from textual.worker import Worker, WorkerState
 from concurrent.futures import ThreadPoolExecutor
 
-def run_analysis(llm_config, agent_name):
-    # Import necessary modules within the function to avoid circular imports
-    from underdogcowboy import  AgentDialogManager
-    from underdogcowboy import agentclarity
 
-    try:
-        model_id = llm_config['model_id']
-        adm = AgentDialogManager([agentclarity], model_name=model_id)
-        
-        agents_dir = os.path.expanduser("~/.underdogcowboy/agents")
-        agent_file = os.path.join(agents_dir, f"{agent_name}.json")
-        
-        if not os.path.exists(agent_file):
-            return f"Error: Agent file for '{agent_name}' not found."
+from agent_llm_handler import send_agent_data_to_llm
 
-        with open(agent_file, 'r') as f:
-            agent_data = json.load(f)
-
-        response = agentclarity >> f"Analyze this agent definition: {json.dumps(agent_data)}"
-        return response.text
-    except Exception as e:
-        return f"Error: {str(e)}"
-
+def run_analysis(llm_config, agent_name, pre_prompt=None):
+    """Legacy function for running analysis. Now wraps around send_agent_data_to_llm."""
+    
+    # Use the passed pre_prompt if provided, otherwise default to the hardcoded value
+    if pre_prompt is None:
+        pre_prompt = "Analyze this agent definition:"
+    
+    # Call the reusable function to send data to the 'clarity' agent
+    return send_agent_data_to_llm(llm_config, agent_name, 'clarity', pre_prompt=pre_prompt)
 
 #  Clear existing handlers and set up logging to a file
 for handler in logging.root.handlers[:]:
