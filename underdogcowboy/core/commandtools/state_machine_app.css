@@ -3,7 +3,31 @@ Screen {
     grid-size: 1;
     grid-rows: auto 1fr auto auto;
     height: 100%;
-    background: #1a1a1a;
+    background: #2c2c2c;
+}
+
+Header {
+    height: auto;
+    min-height: 3;
+    background: #2c3e50;
+    color: #ecf0f1;
+    padding: 1;
+}
+
+Header > .header--title {
+    text-style: bold;
+}
+
+Header > .header--sub_title {
+    margin-top: 1;
+    color: #bdc3c7;
+}
+
+Footer {
+    height: auto;
+    background: #34495e;
+    color: #ecf0f1;
+    padding: 1;
 }
 
 Collapsible {
@@ -22,6 +46,23 @@ Collapsible > .collapsible--content {
     padding: 1;
 }
 
+.result-label {
+    margin: 1 5 2 3;
+}
+
+.result-compose {
+    margin: 1 5 2 3;
+}
+
+.feedback-result {
+    max-height: 50;
+    overflow: auto;
+}
+
+.hidden {
+    display: none;
+}
+
 .left-dynamic-spacer {
     width: 1fr;
     background: #252525;
@@ -30,47 +71,29 @@ Collapsible > .collapsible--content {
 }
 
 .left-side-buttons {
-    grid-size: 2 3;
+    grid-size: 2 1;
     grid-gutter: 1 1;
     padding: 1;
     width: 90%;
     height: auto;
+    background: #252525;   
+    border-title-align: left; 
 }
 
 .left-side-button {
     width: 100%;
     height: 3;
-    background: #3498db;
+    background: #2980b9;
     color: #ffffff;
 }
 
 .left-side-button:hover {
-    background: #2980b9;
-}
-
-Header {
-    height: auto;
-    background: #2c3e50;
-    color: #ecf0f1;
-    padding: 1;
-}
-
-Footer {
-    height: auto;
-    background: #34495e;
-    color: #ecf0f1;
-    padding: 1;
+    background: #3498db;
 }
 
 .dynamic-spacer {
-    background: #2a2a2a;
     height: 1fr;
     min-height: 100%;
-}
-
-.left-dynamic-spacer {
-    width: 1fr;
-    background: #160c0c;
 }
 
 .center-dynamic-spacer {
@@ -117,17 +140,25 @@ Footer {
     color: #ffffff;
 }
 
+.action-button:hover {
+    background: #5dade2;
+}
+
 .action-button:disabled {
-    background: #5a6a6a;
-    color: #a0a0a0;
+    background: #7f8c8d;
+    color: #ecf0f1;
 }
 
 .action-reset-button {
-    background: #c0392b;
+    background: #2c3e50;
     color: #ffffff;
 }
 
+.action-reset-button:hover {
+    background: #34495e;
+}
+
 .action-reset-button:disabled {
-    background: #5a6a6a;
-    color: #a0a0a0;
+    background: #7f8c8d;
+    color: #ecf0f1;
 }

@@ -66,8 +66,6 @@ class SystemMessageUI(Static):
         stored_message = self.app.storage_manager.get_data("system_message")
         if stored_message is None:
             stored_message = ""  # Set to empty if no message is found
-
-
         
         # Create the UI layout with a text area, submit, and cancel buttons
         with Vertical(id="system-message-container"):
@@ -932,9 +930,10 @@ class LeftSideContainer(Container):
         yield LeftSideButtons()
 
 class MainApp(App):
+
     CSS_PATH = "state_machine_app.css"
 
-    DEFAULT_PROVIDER = 'anthropic'
+    DEFAULT_PROVIDER = 'anthropic'  
     DEFAULT_MODEL_ID = 'claude-3-5-sonnet-20240620'
     DEFAULT_MODEL_NAME = 'Claude 3.5 Sonnet'
 
