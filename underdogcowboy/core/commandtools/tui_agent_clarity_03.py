@@ -106,8 +106,8 @@ class AnalyzeUI(Static):
     """A UI for displaying and running analysis on an agent definition"""
     
     def compose(self) -> ComposeResult:
-        yield Static("Analysis Result:", id="result-label", classes="hidden")
-        yield Static(id="analysis-result", classes="hidden")
+        yield Static("Analysis Result:", id="result-label", classes="result-label hidden")
+        yield Static(id="analysis-result", classes="hidden result-compose")
         yield Button("Start Analysis", id="start-analysis-button", classes="hidden")
         yield Button("Re-run Analysis", id="rerun-analysis-button", classes="hidden")
         yield LoadingIndicator(id="loading-indicator", classes="hidden")
