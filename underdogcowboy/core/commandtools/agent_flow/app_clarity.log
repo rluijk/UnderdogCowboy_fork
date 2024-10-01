@@ -1,0 +1,79 @@
+2024-10-01 11:23:27,282 - INFO - Default LLM set to Claude 3.5 Sonnet (claude-3-5-sonnet-20240620)
+2024-10-01 11:23:27,282 - DEBUG - Using selector: KqueueSelector
+2024-10-01 11:23:27,300 - INFO - MainApp on_mount called
+2024-10-01 11:23:27,301 - INFO - Cleared app sub_title
+2024-10-01 11:23:30,375 - DEBUG - Handler 'handle_ui_button_pressed' invoked with button_id: new-button
+2024-10-01 11:23:30,375 - INFO - Resolving UI class: NewSessionUI, Action function: None
+2024-10-01 11:23:32,044 - DEBUG - Handler 'handle_ui_button_pressed' invoked with button_id: load-session
+2024-10-01 11:23:32,044 - INFO - Resolving UI class: LoadSessionUI, Action function: None
+2024-10-01 11:23:38,753 - INFO - Load button pressed, selected session: testRenechess2today
+2024-10-01 11:23:38,753 - INFO - SessionSelected message created with session_name: testRenechess2today
+2024-10-01 11:23:38,756 - INFO - Session 'testRenechess2today' loaded successfully.
+2024-10-01 11:23:38,756 - INFO - Updated app sub_title with session name: testRenechess2today
+2024-10-01 11:23:41,736 - INFO - Action 'load_agent' executed. New state: agent_loaded
+2024-10-01 11:23:45,518 - INFO - Load button pressed, selected agent: mermaid
+2024-10-01 11:23:45,518 - INFO - AgentSelected message created with agent_name: mermaid
+2024-10-01 11:23:45,520 - INFO - Updated app sub_title with agent name: mermaid
+2024-10-01 11:23:56,027 - INFO - Action 'analyze' executed. New state: analysis_ready
+2024-10-01 12:10:29,038 - DEBUG - Using selector: KqueueSelector
+2024-10-01 12:10:29,042 - INFO - Default LLM set to Claude 3.5 Sonnet (claude-3-5-sonnet-20240620)
+2024-10-01 12:10:29,062 - INFO - MainApp on_mount called
+2024-10-01 12:10:29,062 - INFO - Cleared app sub_title
+2024-10-01 12:10:36,583 - INFO - Action 'load_agent' executed. New state: agent_loaded
+2024-10-01 13:14:10,286 - DEBUG - Using selector: KqueueSelector
+2024-10-01 13:14:10,291 - INFO - Default LLM set to Claude 3.5 Sonnet (claude-3-5-sonnet-20240620)
+2024-10-01 13:14:10,310 - INFO - MainApp on_mount called
+2024-10-01 13:14:10,311 - INFO - Cleared app sub_title
+2024-10-01 13:49:10,114 - DEBUG - Using selector: KqueueSelector
+2024-10-01 13:49:10,118 - INFO - Default LLM set to Claude 3.5 Sonnet (claude-3-5-sonnet-20240620)
+2024-10-01 13:49:10,137 - INFO - MainApp on_mount called
+2024-10-01 13:49:10,137 - INFO - Cleared app sub_title
+2024-10-01 13:49:23,367 - DEBUG - Handler 'handle_ui_button_pressed' invoked with button_id: load-session
+2024-10-01 13:49:23,368 - INFO - Resolving UI class: LoadSessionUI, Action function: None
+2024-10-01 13:49:25,359 - DEBUG - Handler 'handle_ui_button_pressed' invoked with button_id: new-button
+2024-10-01 13:49:25,359 - INFO - Resolving UI class: NewSessionUI, Action function: None
+2024-10-01 13:49:26,975 - DEBUG - Handler 'handle_ui_button_pressed' invoked with button_id: load-session
+2024-10-01 13:49:26,975 - INFO - Resolving UI class: LoadSessionUI, Action function: None
+2024-10-01 13:49:29,820 - INFO - Action 'reset' executed. New state: initial
+2024-10-01 13:49:29,821 - INFO - Cleared app sub_title
+2024-10-01 16:22:35,363 - DEBUG - Using selector: KqueueSelector
+2024-10-01 16:22:35,369 - INFO - Default LLM set to Claude 3.5 Sonnet (claude-3-5-sonnet-20240620)
+2024-10-01 16:22:35,390 - INFO - MainApp on_mount called
+2024-10-01 16:22:35,390 - INFO - Cleared app sub_title
+2024-10-01 16:22:41,337 - DEBUG - Handler 'handle_ui_button_pressed' invoked with button_id: load-session
+2024-10-01 16:22:41,337 - INFO - Resolving UI class: LoadSessionUI, Action function: None
+2024-10-01 16:22:44,713 - INFO - Load button pressed, selected session: testRenechess2today
+2024-10-01 16:22:44,713 - INFO - SessionSelected message created with session_name: testRenechess2today
+2024-10-01 16:22:44,723 - INFO - Session 'testRenechess2today' loaded successfully.
+2024-10-01 16:22:44,723 - INFO - Updated app sub_title with session name: testRenechess2today
+2024-10-01 16:22:49,049 - INFO - TimeLineEditorScreen on_mount called
+2024-10-01 16:22:55,536 - INFO - AgentAssessmentBuilderScreen on_mount called
+2024-10-01 16:25:57,987 - DEBUG - Using selector: KqueueSelector
+2024-10-01 16:25:57,992 - INFO - Default LLM set to Claude 3.5 Sonnet (claude-3-5-sonnet-20240620)
+2024-10-01 16:25:58,013 - INFO - MainApp on_mount called
+2024-10-01 16:25:58,013 - INFO - Cleared app sub_title
+2024-10-01 16:26:00,133 - DEBUG - Handler 'handle_ui_button_pressed' invoked with button_id: load-session
+2024-10-01 16:26:00,133 - INFO - Resolving UI class: LoadSessionUI, Action function: None
+2024-10-01 16:26:02,076 - INFO - AgentAssessmentBuilderScreen on_mount called
+2024-10-01 16:35:08,410 - DEBUG - Using selector: KqueueSelector
+2024-10-01 16:35:08,416 - INFO - Default LLM set to Claude 3.5 Sonnet (claude-3-5-sonnet-20240620)
+2024-10-01 16:35:08,439 - INFO - MainApp on_mount called
+2024-10-01 16:35:08,439 - INFO - Cleared app sub_title
+2024-10-01 16:35:15,177 - DEBUG - Handler 'handle_ui_button_pressed' invoked with button_id: load-session
+2024-10-01 16:35:15,177 - INFO - Resolving UI class: LoadSessionUI, Action function: None
+2024-10-01 16:35:17,664 - INFO - TimeLineEditorScreen on_mount called
+2024-10-01 16:35:22,403 - INFO - AgentAssessmentBuilderScreen on_mount called
+2024-10-01 17:09:00,666 - DEBUG - Using selector: KqueueSelector
+2024-10-01 17:09:00,672 - INFO - Default LLM set to Claude 3.5 Sonnet (claude-3-5-sonnet-20240620)
+2024-10-01 17:09:00,691 - INFO - MainApp on_mount called
+2024-10-01 17:09:00,692 - INFO - Cleared app sub_title
+2024-10-01 17:10:14,622 - INFO - TimeLineEditorScreen on_mount called
+2024-10-01 17:10:36,026 - DEBUG - Handler 'handle_ui_button_pressed' invoked with button_id: load-session
+2024-10-01 17:10:36,027 - INFO - Resolving UI class: LoadSessionUI, Action function: None
+2024-10-01 17:10:54,203 - INFO - AgentAssessmentBuilderScreen on_mount called
+2024-10-01 19:25:49,397 - INFO - Action 'start' executed. New state: assessment_in_progress
+2024-10-01 19:25:50,709 - INFO - Action 'complete' executed. New state: assessment_completed
+2024-10-01 19:26:11,910 - INFO - Load button pressed, selected session: testRenechess2today
+2024-10-01 19:26:11,910 - INFO - SessionSelected message created with session_name: testRenechess2today
+2024-10-01 19:26:11,914 - INFO - Session 'testRenechess2today' loaded successfully.
+2024-10-01 19:26:11,914 - INFO - Updated app sub_title with session name: testRenechess2today
