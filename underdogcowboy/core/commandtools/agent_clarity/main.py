@@ -15,6 +15,12 @@ from underdogcowboy.core.llm_response_markdown import LLMResponseRenderer
 # utils
 from agent_llm_handler import send_agent_data_to_llm
 
+# Storage
+from session_manager import SessionManager
+
+# Configs
+from llm_manager import LLMManager
+
 # UI
 from ui_components.system_message_ui import SystemMessageUI
 from ui_components.dynamic_container import DynamicContainer
@@ -29,12 +35,14 @@ from ui_components.state_info_ui import StateInfo
 from ui_components.center_content_ui import CenterContent
 from ui_components.left_side_ui import LeftSideContainer
 from ui_components.load_session_ui import LoadSessionUI
+from ui_components.new_session_ui import NewSessionUI
 
 # Events
 from events.button_events import UIButtonPressed
 from events.agent_events import AgentSelected
 from events.session_events import SessionSelected, NewSessionCreated
 from events.action_events import ActionSelected
+
 
 
 logging.basicConfig(
@@ -51,17 +59,40 @@ class MainApp(App):
     DEFAULT_PROVIDER = 'anthropic'  
     DEFAULT_MODEL_ID = 'claude-3-5-sonnet-20240620'
     DEFAULT_MODEL_NAME = 'Claude 3.5 Sonnet'
-
     def __init__(self, state_machine: StateMachine, storage_manager: StorageManager, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.state_machine = state_machine
+        self.session_manager = SessionManager(storage_manager, state_machine)  # Use SessionManager for session handling
+        
         self.storage_manager = storage_manager
         self.current_storage = None
         self.current_agent= None
+      
         self.agent_name_plain = None
-        self.title = "Agent Clarity"  # Set an initial title for the app
-        self.llm_config_manager = LLMConfigManager()
-        self.set_default_llm()  # Set the default LLM during initialization
+        self.title = "Agent Clarity"
+
+         # Initialize LLMManager
+        self.llm_manager = LLMManager(
+            config_manager=LLMConfigManager(),
+            default_provider='anthropic',
+            default_model_id='claude-3-5-sonnet-20240620',
+            default_model_name='Claude 3.5 Sonnet'
+        )
+
+        # Set the default LLM during initialization
+        self.llm_manager.set_default_llm()
+
+
+    def configure_default_llm(self):
+        """Trigger the configuration process for the default LLM."""
+        try:
+            self.llm_manager.configure_default_llm()
+        except ValueError as e:
+            self.notify(str(e), severity="error")
+
+    def get_current_llm_config(self):
+        """Fetch the current LLM config from LLMManager."""
+        return self.llm_manager.get_current_llm_config()
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -79,7 +110,7 @@ class MainApp(App):
     def on_mount(self) -> None:
         logging.info("MainApp on_mount called")
         self.query_one(StateInfo).update_state_info(self.state_machine, "")
-        self.update_header()  # Initialize the header
+        self.update_header()  
 
     def update_header(self, session_name=None, agent_name=None):
         if session_name and agent_name:
@@ -98,66 +129,13 @@ class MainApp(App):
         # Force a refresh of the entire app
         self.refresh(layout=True)
 
-    def set_default_llm(self):
-        # Check if the default model is available
-        available_models = self.llm_config_manager.get_available_models()
-        if f"{self.DEFAULT_PROVIDER}:{self.DEFAULT_MODEL_ID}" in available_models:
-            self.llm_config_manager.update_model_property(self.DEFAULT_PROVIDER, 'selected_model', self.DEFAULT_MODEL_ID)
-            logging.info(f"Default LLM set to {self.DEFAULT_MODEL_NAME} ({self.DEFAULT_MODEL_ID})")
-        else:
-            # If the default model is not available, prompt to configure it
-            logging.warning(f"Default model {self.DEFAULT_MODEL_NAME} is not configured.")
-            self.configure_default_llm()
-
-    def configure_default_llm(self):
-        logging.info(f"Configuring default LLM: {self.DEFAULT_MODEL_NAME}")
-        try:
-            # This will prompt for API key if not already configured
-            self.llm_config_manager.get_credentials(self.DEFAULT_PROVIDER)
-            # Set the selected model
-            self.llm_config_manager.update_model_property(self.DEFAULT_PROVIDER, 'selected_model', self.DEFAULT_MODEL_ID)
-            logging.info(f"Default LLM {self.DEFAULT_MODEL_NAME} configured successfully")
-        except Exception as e:
-            logging.error(f"Failed to configure default LLM: {str(e)}")
-            # You might want to show a notification to the user here
-            self.notify("Failed to configure default LLM. Please check your settings.", severity="error")
-
-    def get_current_llm_config(self):
-        try:
-            return self.llm_config_manager.get_credentials(self.DEFAULT_PROVIDER)
-        except Exception as e:
-            logging.error(f"Failed to get current LLM config: {str(e)}")
-            return None
-
     def on_session_selected(self, event: SessionSelected):
         try:
-            self.current_storage = self.storage_manager.load_session(event.session_name)
+            self.session_manager.load_session(event.session_name)
             self.notify(f"Session '{event.session_name}' loaded successfully")
-            self.query_one(DynamicContainer).clear_content()
-            
-            # Retrieve the stored state from the session
-            stored_state = self.current_storage.get_data("current_state")
-            if stored_state and stored_state in self.state_machine.states:
-                self.state_machine.current_state = self.state_machine.states[stored_state]
-            else:
-                # If no stored state or invalid state, set to a default state
-                # TODO this would be need to be set via the CLI config, since this is dependd on the specific CLI 
-                self.state_machine.current_state = self.state_machine.states["analysis_ready"]
-            
-            # Use existing method to update UI
-            self.query_one(StateInfo).update_state_info(self.state_machine, "")
-            self.query_one(StateButtonGrid).update_buttons()
-            
-            
-
-            logging.info(f"Attempting to update header with session name: {event.session_name}")           
             self.update_header(session_name=event.session_name, agent_name=self.agent_name_plain)
-
-            self.log_header_state()  # Log the header state after update
-                        
-
+            self.update_ui_after_session_load()
         except ValueError as e:
-            logging.error(f"Error loading session: {str(e)}")
             self.notify(f"Error loading session: {str(e)}", severity="error")
 
     def on_agent_selected(self, event: AgentSelected):
@@ -246,17 +224,23 @@ class MainApp(App):
 
     def on_new_session_created(self, event: NewSessionCreated):
         try:
-            self.current_storage = self.storage_manager.create_session(event.session_name)
+            self.session_manager.create_session(event.session_name)
             self.notify(f"New session '{event.session_name}' created successfully")
-            self.query_one(DynamicContainer).clear_content()
+            self.update_header(session_name=event.session_name)
             self.transition_to_analysis_ready()
-            
-            logging.info(f"Attempting to update header with new session name: {event.session_name}")
-            self.update_header(event.session_name)
-            self.log_header_state()  # Log the header state after update
         except ValueError as e:
-            logging.error(f"Error creating session: {str(e)}")
             self.notify(f"Error creating session: {str(e)}", severity="error")
+
+    def update_ui_after_session_load(self):
+        self.query_one(DynamicContainer).clear_content()
+        stored_state = self.session_manager.get_current_state()
+        if stored_state and stored_state in self.state_machine.states:
+            self.state_machine.current_state = self.state_machine.states[stored_state]
+        else:
+            self.state_machine.current_state = self.state_machine.states["analysis_ready"]
+
+        self.query_one(StateInfo).update_state_info(self.state_machine, "")
+        self.query_one(StateButtonGrid).update_buttons()
 
     @on(UIButtonPressed)
     def handle_ui_button_pressed(self, event: UIButtonPressed) -> None:
