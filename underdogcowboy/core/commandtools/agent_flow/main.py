@@ -8,6 +8,9 @@ from textual.app import App
 from textual.events import Event
 from textual.reactive import Reactive
 
+from underdogcowboy.core.config_manager import LLMConfigManager 
+
+""" imports clarity sytem """
 from state_management.json_storage_manager import JSONStorageManager
 from state_management.storage_interface import StorageInterface
 
@@ -23,8 +26,10 @@ from screens.agent_clarity_src import ClarityScreen
 
 # Session Initializer
 from session_initializer import initialize_shared_session_manager
-
 from session_manager import SessionManager
+
+# Configs
+from llm_manager import LLMManager
 
 # Custom events
 from events.session_events import SessionSyncStopped
@@ -53,6 +58,22 @@ class MultiScreenApp(App):
         self.storage_manager: StorageInterface = JSONStorageManager(base_dir="~/.tui_agent_clarity_03")
         self.screen_session_managers: Dict[str, SessionManager] = {}
         self.session_screens: Set['SessionScreen'] = set()
+
+       # Initialize LLMManager (TODO: we do this current on app and all session screens)
+        self.llm_manager = LLMManager(
+            config_manager=LLMConfigManager(),
+            default_provider='anthropic',
+            default_model_id='claude-3-5-sonnet-20240620',
+            default_model_name='Claude 3.5 Sonnet'
+        )
+        
+        # Set the default LLM during initialization
+        self.llm_manager.set_default_llm()
+
+    def get_current_llm_config(self):
+        """Fetch the current LLM config from LLMManager."""
+        return self.llm_manager.get_current_llm_config()
+
 
     def on_mount(self) -> None:
         """Mount screens when the app starts."""
@@ -95,28 +116,26 @@ class MultiScreenApp(App):
         # Start with the main app screen
         self.push_screen("Clarity")
 
+   
     @on(SessionSyncStopped)
     def on_session_sync_stopped(self, event: SessionSyncStopped) -> None:
         """Handle session synchronization stop triggered by any screen."""
         if not self.sync_active:
             return
 
-        triggering_screen = event.screen
-        screen_name = triggering_screen.screen_name  
+        # Revert all screens to their individual SessionManagers
+        for screen in self.session_screens:
+            individual_session_manager = self.screen_session_managers.get(screen.screen_name)
+            if individual_session_manager:
+                screen.set_session_manager(individual_session_manager)
+                # Do not call update_ui_after_session_load() directly
 
-        # Revert the triggering screen to its own SessionManager
-        individual_session_manager = self.screen_session_managers.get(screen_name)
-        if individual_session_manager:
-            triggering_screen.set_session_manager(individual_session_manager)
-            triggering_screen.update_ui_after_session_load()
-            logging.info(f"Session synchronization stopped due to session change in {screen_name}.")
-            self.notify(f"Session synchronization stopped due to session change in {screen_name}.", severity="info")
-        
         # Disable synchronization entirely
         self.shared_session_manager = None
         self.sync_active = False
         logging.info("Session synchronization is now disabled.")
         self.notify("Session synchronization is now disabled.", severity="info")
+
 
     def action_return_to_clarity(self) -> None:
         """Action to return to the Clarity screen."""
@@ -129,7 +148,6 @@ class MultiScreenApp(App):
     def action_return_to_agent_assessment_builder(self) -> None:
         """Action to navigate to the Agent Assessment Builder screen."""
         self.push_screen("Agent Assessment Builder")
-
     def action_sink_sessions(self) -> None:
         """Sink all sessions to the currently active screen's SessionManager."""
         if self.sync_active:
@@ -142,20 +160,24 @@ class MultiScreenApp(App):
             self.notify("No active session screen to sink sessions from.", severity="warning")
             return
 
-        # Get the shared SessionManager from the active screen
+        # **New Code: Check if the active screen has a session loaded**
+        if active_screen.session_manager.current_session_data is None:
+            self.notify("No session loaded on the active screen. Cannot synchronize sessions.", severity="warning")
+            return
+
+        # Proceed with synchronization
         active_session_manager = active_screen.session_manager
         self.shared_session_manager = active_session_manager
 
-        # Assign the shared SessionManager to all session-related screens
         for screen in self.session_screens:
             if screen != active_screen:
                 screen.set_session_manager(active_session_manager)
-                # Remove the direct call to update_ui_after_session_load()
-                # screen.update_ui_after_session_load()
+                # Do not call update_ui_after_session_load() directly
 
         self.sync_active = True
         self.notify("Session synchronization enabled. All screens now share the active session.", severity="info")
         logging.info("Session synchronization enabled.")
+
 
 
     def get_active_session_screen(self) -> 'SessionScreen':

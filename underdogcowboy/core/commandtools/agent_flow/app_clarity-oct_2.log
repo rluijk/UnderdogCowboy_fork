@@ -38,3 +38,65 @@
 2024-10-02 16:11:17,167 - INFO - Resolving UI class: LoadSessionUI, Action function: None
 2024-10-02 16:11:41,818 - INFO - TimeLineEditorScreen on_mount called
 2024-10-02 16:11:45,483 - INFO - AgentAssessmentBuilderScreen on_mount called
+2024-10-03 11:42:26,277 - DEBUG - Using selector: KqueueSelector
+2024-10-03 11:42:26,283 - INFO - Default LLM set to Claude 3.5 Sonnet (claude-3-5-sonnet-20240620)
+2024-10-03 11:42:26,302 - INFO - ClarityScreen on_mount called
+2024-10-03 11:42:26,302 - INFO - Cleared app sub_title
+2024-10-03 11:42:29,959 - DEBUG - Handler 'handle_ui_button_pressed' invoked with button_id: load-session
+2024-10-03 11:42:29,960 - INFO - Resolving UI class: LoadSessionUI, Action function: None
+2024-10-03 11:42:34,338 - INFO - Load button pressed, selected session: new session
+2024-10-03 11:42:34,338 - INFO - SessionSelected message created with session_name: new session
+2024-10-03 11:42:34,340 - INFO - Session 'new session' loaded successfully.
+2024-10-03 11:42:34,340 - INFO - Updated app sub_title with session name: new session
+2024-10-03 11:42:41,196 - INFO - Session synchronization enabled.
+2024-10-03 11:42:45,672 - INFO - AgentAssessmentBuilderScreen on_mount called
+2024-10-03 11:42:51,239 - INFO - TimeLineEditorScreen on_mount called
+2024-10-03 11:42:54,436 - DEBUG - Handler 'handle_ui_button_pressed' invoked with button_id: load-session
+2024-10-03 11:42:54,436 - INFO - Resolving UI class: LoadSessionUI, Action function: None
+2024-10-03 11:42:57,247 - INFO - Load button pressed, selected session: test 5 07
+2024-10-03 11:42:57,247 - INFO - SessionSelected message created with session_name: test 5 07
+2024-10-03 11:42:57,248 - INFO - Session 'test 5 07' loaded successfully.
+2024-10-03 11:42:57,254 - INFO - Session synchronization is now disabled.
+2024-10-03 11:45:43,342 - INFO - Session synchronization enabled.
+2024-10-03 11:46:16,493 - DEBUG - Handler 'handle_ui_button_pressed' invoked with button_id: load-session
+2024-10-03 11:46:16,494 - INFO - Resolving UI class: LoadSessionUI, Action function: None
+2024-10-03 11:46:20,162 - INFO - Load button pressed, selected session: new session oct 2 03
+2024-10-03 11:46:20,163 - INFO - SessionSelected message created with session_name: new session oct 2 03
+2024-10-03 11:46:20,175 - INFO - Session 'new session oct 2 03' loaded successfully.
+2024-10-03 11:46:20,195 - INFO - Session synchronization is now disabled.
+2024-10-03 11:46:46,867 - INFO - Session synchronization enabled.
+2024-10-03 12:21:37,256 - DEBUG - Using selector: KqueueSelector
+2024-10-03 12:21:37,261 - INFO - Default LLM set to Claude 3.5 Sonnet (claude-3-5-sonnet-20240620)
+2024-10-03 12:21:37,281 - INFO - ClarityScreen on_mount called
+2024-10-03 12:21:37,281 - INFO - Cleared app sub_title
+2024-10-03 12:21:43,496 - DEBUG - Handler 'handle_ui_button_pressed' invoked with button_id: load-session
+2024-10-03 12:21:43,497 - INFO - Resolving UI class: LoadSessionUI, Action function: None
+2024-10-03 12:21:47,286 - INFO - Load button pressed, selected session: anotherone
+2024-10-03 12:21:47,286 - INFO - SessionSelected message created with session_name: anotherone
+2024-10-03 12:21:47,287 - INFO - Session 'anotherone' loaded successfully.
+2024-10-03 12:21:47,288 - INFO - Updated app sub_title with session name: anotherone
+2024-10-03 12:21:47,290 - INFO - Updated app sub_title with session name: anotherone
+2024-10-03 12:21:50,341 - INFO - AgentAssessmentBuilderScreen on_mount called
+2024-10-03 12:21:53,982 - INFO - TimeLineEditorScreen on_mount called
+2024-10-03 12:21:58,643 - INFO - Session synchronization enabled.
+2024-10-03 12:21:58,645 - WARNING - No current session loaded.
+2024-10-03 12:21:58,646 - WARNING - No current session loaded.
+2024-10-03 12:21:58,647 - INFO - Cleared app sub_title
+2024-10-03 12:56:31,490 - DEBUG - Handler 'handle_ui_button_pressed' invoked with button_id: new-button
+2024-10-03 12:56:31,492 - INFO - Resolving UI class: NewSessionUI, Action function: None
+2024-10-03 12:56:40,695 - INFO - Session 'ReneTestOct' created successfully.
+2024-10-03 12:56:40,713 - INFO - Session synchronization is now disabled.
+2024-10-03 12:56:52,597 - INFO - Session synchronization enabled.
+2024-10-03 12:56:52,601 - INFO - Updated app sub_title with session name: ReneTestOct
+2024-10-03 12:57:23,147 - DEBUG - Using selector: KqueueSelector
+2024-10-03 12:57:23,152 - INFO - Default LLM set to Claude 3.5 Sonnet (claude-3-5-sonnet-20240620)
+2024-10-03 12:57:23,171 - INFO - ClarityScreen on_mount called
+2024-10-03 12:57:23,172 - INFO - Cleared app sub_title
+2024-10-03 12:57:26,345 - DEBUG - Handler 'handle_ui_button_pressed' invoked with button_id: load-session
+2024-10-03 12:57:26,347 - INFO - Resolving UI class: LoadSessionUI, Action function: None
+2024-10-03 12:57:44,652 - INFO - Load button pressed, selected session: ReneTestOct
+2024-10-03 12:57:44,652 - INFO - SessionSelected message created with session_name: ReneTestOct
+2024-10-03 12:57:44,654 - INFO - Session 'ReneTestOct' loaded successfully.
+2024-10-03 12:57:44,654 - INFO - Updated app sub_title with session name: ReneTestOct
+2024-10-03 12:57:44,659 - INFO - Updated app sub_title with session name: ReneTestOct
+2024-10-03 12:57:52,065 - INFO - Session synchronization enabled.

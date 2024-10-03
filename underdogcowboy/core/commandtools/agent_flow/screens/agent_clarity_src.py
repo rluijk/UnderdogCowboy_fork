@@ -172,6 +172,8 @@ class ClarityScreen(SessionScreen):
 
             self.query_one(StateInfo).update_state_info(self.state_machine, "")
             self.query_one(StateButtonGrid).update_buttons()
+
+            self.update_header()
         except NoMatches:
             logging.warning("Dynamic container not found; scheduling UI update later.")
             self.call_later(self.update_ui_after_session_load)
@@ -252,27 +254,29 @@ class ClarityScreen(SessionScreen):
 
         logging.info("Exiting transition_to_analysis_ready method")
 
-
     @on(UIButtonPressed)
     def handle_ui_button_pressed(self, event: UIButtonPressed) -> None:
         logging.debug(f"Handler 'handle_ui_button_pressed' invoked with button_id: {event.button_id}")
-        # dynamic_container = self.query_one(DynamicContainer)
-        # dynamic_container.clear_content()
         dynamic_container = self.query_one("#center-dynamic-container-clarity", DynamicContainer)
         dynamic_container.clear_content()
-
 
         try:
             # Use the UI factory to get the corresponding UI and action
             ui_class, action = self.ui_factory.ui_factory(event.button_id)
-            
+
             # Load the UI component if it exists (for "load-session")
             if ui_class:
                 if event.button_id == "load-session" and not self.session_manager.list_sessions():
                     self.notify("No sessions available. Create a new session first.", severity="warning")
-    
                 else:
-                    dynamic_container.load_content(ui_class())
+                    # Pass session_manager and screen_name to AnalyzeUI
+                    if ui_class == AnalyzeUI:
+                        ui_instance = ui_class(session_manager=self.session_manager, 
+                                               screen_name=self.screen_name,
+                                               agent_name_plain=self.agent_name_plain)
+                    else:
+                        ui_instance = ui_class()
+                    dynamic_container.load_content(ui_instance)
 
             # Handle the action (state change) only if there's an action function
             if action:
@@ -281,16 +285,13 @@ class ClarityScreen(SessionScreen):
         except ValueError as e:
             logging.error(f"Error: {e}")
 
+
     def on_action_selected(self, event: ActionSelected) -> None:
         if event.action == "reset":
             self.clear_session()
 
-        # dynamic_container = self.query_one(DynamicContainer)
-        # dynamic_container.clear_content()
         dynamic_container = self.query_one("#center-dynamic-container-clarity", DynamicContainer)
         dynamic_container.clear_content()
-
-
 
         if event.action == "system_message":
             # Load SystemMessageUI instead of just displaying a label
@@ -298,7 +299,9 @@ class ClarityScreen(SessionScreen):
         elif event.action == "load_agent":
             dynamic_container.mount(LoadAgentUI())
         elif event.action == "analyze":
-            dynamic_container.mount(AnalyzeUI())
+            dynamic_container.mount(AnalyzeUI(session_manager=self.session_manager, 
+                                              screen_name=self.screen_name, 
+                                              agent_name_plain=self.agent_name_plain))
         elif event.action == "feedback_input":
             dynamic_container.mount(FeedbackInputUI())
         elif event.action == "feedback_output":

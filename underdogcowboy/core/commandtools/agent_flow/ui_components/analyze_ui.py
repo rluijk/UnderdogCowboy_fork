@@ -8,6 +8,7 @@ from textual.app import ComposeResult
 
 from events.analysis_events import AnalysisComplete, AnalysisError  
 from agent_llm_handler import run_analysis
+from session_manager import SessionManager
 
 
 #  Clear existing handlers and set up logging to a file
@@ -18,6 +19,12 @@ for handler in logging.root.handlers[:]:
 class AnalyzeUI(Static):
     """A UI for displaying and running analysis on an agent definition"""
     
+    def __init__(self, session_manager: SessionManager, screen_name: str, agent_name_plain: str, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.session_manager = session_manager
+        self.screen_name = screen_name
+        self.agent_name_plain = agent_name_plain
+
     def compose(self) -> ComposeResult:
         yield Static("Analysis Result:", id="result-label", classes="hidden")
         yield Static(id="analysis-result", classes="hidden")
@@ -29,12 +36,13 @@ class AnalyzeUI(Static):
         self.check_existing_analysis()
 
     def check_existing_analysis(self) -> None:
-        existing_analysis = self.app.storage_manager.get_data("last_analysis")
+        existing_analysis = self.session_manager.get_data("last_analysis", screen_name=self.screen_name)
         if existing_analysis:
             self.show_result(existing_analysis)
             self.query_one("#rerun-analysis-button").remove_class("hidden")
         else:
             self.query_one("#start-analysis-button").remove_class("hidden")
+
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id in ["start-analysis-button", "rerun-analysis-button"]:
@@ -57,7 +65,7 @@ class AnalyzeUI(Static):
             if not llm_config:
                 raise ValueError("No LLM configuration available.")
 
-            current_agent = self.app.agent_name_plain
+            current_agent = self.agent_name_plain
             if not current_agent:
                 raise ValueError("No agent currently loaded. Please load an agent first.")
 
@@ -85,7 +93,7 @@ class AnalyzeUI(Static):
         self.query_one("#loading-indicator").add_class("hidden")
 
     def update_and_show_result(self, result: str) -> None:
-        self.app.storage_manager.update_data("last_analysis", result)
+        self.session_manager.update_data("last_analysis", result)
         self.show_result(result)
 
     def show_result(self, result: str) -> None:

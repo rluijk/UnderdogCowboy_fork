@@ -20,6 +20,8 @@ from ui_components.dynamic_container import DynamicContainer
 from ui_components.state_button_grid_ui import StateButtonGrid
 from ui_components.state_info_ui import StateInfo
 from ui_components.left_side_ui import LeftSideContainer
+from ui_components.analyze_ui import AnalyzeUI 
+
 
 # Events
 from events.button_events import UIButtonPressed
@@ -96,11 +98,8 @@ class TimeLineEditorScreen(SessionScreen):
     @on(UIButtonPressed)
     def handle_ui_button_pressed(self, event: UIButtonPressed) -> None:
         logging.debug(f"Handler 'handle_ui_button_pressed' invoked with button_id: {event.button_id}")
-        # dynamic_container = self.query_one(DynamicContainer)
-        # dynamic_container.clear_content()
         dynamic_container = self.query_one("#center-dynamic-container-timeline-editor", DynamicContainer)
         dynamic_container.clear_content()
-
 
         try:
             # Use the UI factory to get the corresponding UI and action
@@ -111,7 +110,8 @@ class TimeLineEditorScreen(SessionScreen):
                 if event.button_id == "load-session" and not self.session_manager.list_sessions():
                     self.notify("No sessions available. Create a new session first.", severity="warning")
                 else:
-                    dynamic_container.load_content(ui_class())
+                    ui_instance = ui_class()
+                    dynamic_container.load_content(ui_instance)
 
             # Handle the action (state change) only if there's an action function
             if action:
@@ -119,7 +119,6 @@ class TimeLineEditorScreen(SessionScreen):
 
         except ValueError as e:
             logging.error(f"Error: {e}")
-
     def update_ui_after_session_load(self):
         try:
             dynamic_container = self.query_one("#center-dynamic-container-timeline-editor", DynamicContainer)
@@ -133,6 +132,7 @@ class TimeLineEditorScreen(SessionScreen):
 
             self.query_one(StateInfo).update_state_info(self.state_machine, "")
             self.query_one(StateButtonGrid).update_buttons()
+            self.update_header()
         except NoMatches:
             logging.warning("Dynamic container not found; scheduling UI update later.")
             self.call_later(self.update_ui_after_session_load)
