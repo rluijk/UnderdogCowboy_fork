@@ -31,3 +31,5 @@ tests/__pycache__/tracing_config.cpython-311.pyc
 /state_machine_visualizations
 /venv
 /.uccli_sessions
+*.log
+*.log
