@@ -1,81 +1,60 @@
-
-
 import logging
 
 from textual import on
-from textual.app import ComposeResult   
+from textual.app import ComposeResult
 from textual.screen import Screen
 from textual.containers import Vertical, Horizontal
-from textual.widgets import  (  Label, Header, Footer, Collapsible )
+from textual.widgets import Label, Header, Footer, Collapsible
+from textual.css.query import NoMatches
 
-from uccli import StateMachine, StorageManager
+from uccli import StateMachine
 
-""" imports clarity sytem """
-# utils
-from agent_llm_handler import send_agent_data_to_llm
-
-# Storage
+# Storage Interface and SessionManager
+from state_management.storage_interface import StorageInterface
 from session_manager import SessionManager
+from state_management.json_storage_manager import JSONStorageManager
 
-# Configs
-from llm_manager import LLMManager
-
-# UI
+# UI Components
 from ui_factory import UIFactory
-from ui_components.system_message_ui import SystemMessageUI
 from ui_components.dynamic_container import DynamicContainer
-from ui_components.analyze_ui import AnalyzeUI 
-from ui_components.feedback_input_ui import FeedbackInputUI
-from ui_components.feedback_output_ui import FeedbackOutputUI
-from ui_components.feedback_rules_ui import FeedbackRulesUI
-from ui_components.feedback_constraints_ui import FeedbackConstraintsUI
-from ui_components.load_agent_ui import LoadAgentUI
-from ui_components.state_button_grid_ui import StateButtonGrid 
+from ui_components.state_button_grid_ui import StateButtonGrid
 from ui_components.state_info_ui import StateInfo
-from ui_components.center_content_ui import CenterContent
 from ui_components.left_side_ui import LeftSideContainer
-from ui_components.load_session_ui import LoadSessionUI
-from ui_components.new_session_ui import NewSessionUI
 
 # Events
 from events.button_events import UIButtonPressed
-from events.agent_events import AgentSelected
-from events.session_events import SessionSelected, NewSessionCreated
-from events.action_events import ActionSelected
+from events.session_events import SessionSelected, NewSessionCreated, SessionSyncStopped
 
-# State Machines for each screen
-from state_machines.agent_assessment_state_machine import create_agent_assessment_state_machine
-from state_machines.clarity_state_machine import create_clarity_state_machine
+# Screens
+from screens.session_screen import SessionScreen
+
+
+# State Machines
 from state_machines.timeline_editor_state_machine import create_timeline_editor_state_machine
 
-""" imports clarity sytem """
-# utils
-from agent_llm_handler import send_agent_data_to_llm
-
-# Storage
-from session_manager import SessionManager
-
-# Configs
-from llm_manager import LLMManager
-
-class TimeLineEditorScreen(Screen):
+class TimeLineEditorScreen(SessionScreen):
     """A screen for the timeline editor."""
-    
 
-    def __init__(self, storage_manager: StorageManager, state_machine: StateMachine = None, *args, **kwargs):
+    CSS_PATH = "../state_machine_app.css"
+
+    def __init__(self, storage_interface: StorageInterface = None, 
+                 state_machine: StateMachine = None,
+                 session_manager: SessionManager = None,
+                 *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.title = "Timeline Editor"
         self.state_machine = state_machine or create_timeline_editor_state_machine()
-        self.session_manager = SessionManager(storage_manager)  # Pass storage manager
-        self.storage_manager = storage_manager
-
-        self.ui_factory = UIFactory(self) 
+        self.storage_interface = storage_interface or JSONStorageManager()
+        self.session_manager = session_manager or SessionManager(self.storage_interface) 
+        self.ui_factory = UIFactory(self)
+        self.screen_name = "TimeLineEditorScreen"
+        self._pending_session_manager = None
 
     def compose(self) -> ComposeResult:
         yield Header()
         with Horizontal(id="agent-centre", classes="dynamic-spacer"):
             yield LeftSideContainer(classes="left-dynamic-spacer")
-            yield DynamicContainer(id="center-dynamic-container", classes="center-dynamic-spacer")
+            yield DynamicContainer(id="center-dynamic-container-timeline-editor", classes="center-dynamic-spacer")
 
         with Vertical(id="app-layout"):
             with Collapsible(title="Task Panel", id="state-info-collapsible", collapsed=False):
@@ -84,33 +63,52 @@ class TimeLineEditorScreen(Screen):
 
         yield Footer(id="footer", name="footer")
 
-
-
     def on_mount(self) -> None:
         logging.info("TimeLineEditorScreen on_mount called")
-        # Ensure the `StateInfo` widget exists before querying it
-        state_info = self.query_one("#state-info")
+        state_info = self.query_one("#state-info", StateInfo)
         state_info.update_state_info(self.state_machine, "")
-        self.update_header()     
+        self.update_header()
+
+        # Apply pending session manager after widgets are ready
+        if self._pending_session_manager:
+            session_manager = self._pending_session_manager
+            self._pending_session_manager = None
+            self.call_later(self.set_session_manager, session_manager)
+
+    def set_session_manager(self, new_session_manager: SessionManager):
+        self.session_manager = new_session_manager
+        if self.is_mounted:
+            self.call_later(self.update_ui_after_session_load)
+        else:
+            self._pending_session_manager = new_session_manager
 
 
     def update_header(self, session_name=None, agent_name=None):
-        self.sub_title = "Timeline Editor"
+        if not session_name:
+            session_name = self.session_manager.current_session_name
+        if not agent_name:
+            agent_name = "Timeline Editor"
+        self.sub_title = f"{agent_name}"
+        if session_name:
+            self.sub_title += f" - Active Session: {session_name}"
         self.refresh(layout=True)
 
     @on(UIButtonPressed)
     def handle_ui_button_pressed(self, event: UIButtonPressed) -> None:
         logging.debug(f"Handler 'handle_ui_button_pressed' invoked with button_id: {event.button_id}")
-        dynamic_container = self.query_one(DynamicContainer)
+        # dynamic_container = self.query_one(DynamicContainer)
+        # dynamic_container.clear_content()
+        dynamic_container = self.query_one("#center-dynamic-container-timeline-editor", DynamicContainer)
         dynamic_container.clear_content()
+
 
         try:
             # Use the UI factory to get the corresponding UI and action
             ui_class, action = self.ui_factory.ui_factory(event.button_id)
-            
+
             # Load the UI component if it exists (for "load-session")
             if ui_class:
-                if event.button_id == "load-session" and not self.storage_manager.list_sessions():
+                if event.button_id == "load-session" and not self.session_manager.list_sessions():
                     self.notify("No sessions available. Create a new session first.", severity="warning")
                 else:
                     dynamic_container.load_content(ui_class())
@@ -121,3 +119,34 @@ class TimeLineEditorScreen(Screen):
 
         except ValueError as e:
             logging.error(f"Error: {e}")
+
+    def update_ui_after_session_load(self):
+        try:
+            dynamic_container = self.query_one("#center-dynamic-container-timeline-editor", DynamicContainer)
+            dynamic_container.clear_content()
+
+            stored_state = self.session_manager.get_data("current_state", screen_name=self.screen_name)
+            if stored_state and stored_state in self.state_machine.states:
+                self.state_machine.current_state = self.state_machine.states[stored_state]
+            else:
+                self.state_machine.current_state = self.state_machine.states["initial"]
+
+            self.query_one(StateInfo).update_state_info(self.state_machine, "")
+            self.query_one(StateButtonGrid).update_buttons()
+        except NoMatches:
+            logging.warning("Dynamic container not found; scheduling UI update later.")
+            self.call_later(self.update_ui_after_session_load)
+
+
+    def transition_to_initial_state(self):
+        initial_state = self.state_machine.states.get("initial")
+        if initial_state:
+            self.state_machine.current_state = initial_state
+            logging.info(f"Set state to initial")
+            self.query_one(StateInfo).update_state_info(self.state_machine, "")
+            self.query_one(StateButtonGrid).update_buttons()
+            # Store the current state in the session data
+            self.session_manager.update_data("current_state", "initial", screen_name=self.screen_name)
+        else:
+            logging.error(f"Failed to set state to initial_state: State not found")
+

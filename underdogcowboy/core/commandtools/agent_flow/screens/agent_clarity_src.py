@@ -1,16 +1,15 @@
 from typing import Dict, List, Set
 import logging
 
-
 from textual import on
 from textual.screen import Screen
 from textual.app import App, ComposeResult
 from textual.containers import Vertical, Horizontal
 from textual.widgets import  (  Label, Header, Footer, Collapsible )
+from textual.css.query import NoMatches
 
-from uccli import StateMachine, StorageManager
+from uccli import StateMachine  # Removed StorageManager import
 from underdogcowboy.core.config_manager import LLMConfigManager 
-# from underdogcowboy.core.llm_response_markdown import LLMResponseRenderer
 
 """ imports clarity sytem """
 # utils
@@ -36,53 +35,56 @@ from ui_components.state_button_grid_ui import StateButtonGrid
 from ui_components.state_info_ui import StateInfo
 from ui_components.center_content_ui import CenterContent
 from ui_components.left_side_ui import LeftSideContainer
-from ui_components.load_session_ui import LoadSessionUI
-from ui_components.new_session_ui import NewSessionUI
 
 # Events
 from events.button_events import UIButtonPressed
 from events.agent_events import AgentSelected
-from events.session_events import SessionSelected, NewSessionCreated
+from events.session_events import SessionSelected, NewSessionCreated, SessionSyncStopped
 from events.action_events import ActionSelected
 
-# State Machines for each screen
-from state_machines.agent_assessment_state_machine import create_agent_assessment_state_machine
-from state_machines.clarity_state_machine import create_clarity_state_machine
-from state_machines.timeline_editor_state_machine import create_timeline_editor_state_machine
+# Screens
+from screens.session_screen import SessionScreen
 
-class ClarityScreen(Screen):
+# State Machines for each screen
+from state_machines.clarity_state_machine import create_clarity_state_machine
+
+from state_management.json_storage_manager import JSONStorageManager
+from state_management.storage_interface import StorageInterface
+
+class ClarityScreen(SessionScreen):
 
     CSS_PATH = "../state_machine_app.css"
 
-    DEFAULT_PROVIDER = 'anthropic'  
-    DEFAULT_MODEL_ID = 'claude-3-5-sonnet-20240620'
-    DEFAULT_MODEL_NAME = 'Claude 3.5 Sonnet'
-
-    def __init__(self, storage_manager: StorageManager, state_machine: StateMachine = None, *args, **kwargs):
+    def __init__(self, storage_interface: StorageInterface = None, 
+                 state_machine: StateMachine = None, 
+                 session_manager: SessionManager = None,
+                 *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.state_machine = state_machine or create_clarity_state_machine()
-        self.session_manager = SessionManager(storage_manager)  # Use SessionManager for session handling
-        self.ui_factory = UIFactory(self) 
-
-        self.storage_manager = storage_manager
-        self.current_storage = None
-        self.current_agent= None
-      
+        self.storage_interface = storage_interface or JSONStorageManager()
+        self.session_manager = session_manager or SessionManager(self.storage_interface)  
+        self.ui_factory = UIFactory(self)
+        
+        self.current_agent = None
         self.agent_name_plain = None
         self.title = "Agent Clarity"
-
-         # Initialize LLMManager
+        
+        # Initialize LLMManager
         self.llm_manager = LLMManager(
             config_manager=LLMConfigManager(),
             default_provider='anthropic',
             default_model_id='claude-3-5-sonnet-20240620',
             default_model_name='Claude 3.5 Sonnet'
         )
-
+        
         # Set the default LLM during initialization
         self.llm_manager.set_default_llm()
+            
+        # Define the screen name for namespacing
+        self.screen_name = "ClarityScreen"
 
-    
+        self._pending_session_manager = None
+
     def configure_default_llm(self):
         """Trigger the configuration process for the default LLM."""
         try:
@@ -98,7 +100,7 @@ class ClarityScreen(Screen):
         yield Header()
         with Horizontal(id="agent-centre", classes="dynamic-spacer"):
             yield LeftSideContainer(classes="left-dynamic-spacer")
-            yield DynamicContainer(id="center-dynamic-container", classes="center-dynamic-spacer")
+            yield DynamicContainer(id="center-dynamic-container-clarity", classes="center-dynamic-spacer")
 
         with Vertical(id="app-layout"):
             with Collapsible(title="Task Panel", id="state-info-collapsible", collapsed=False):
@@ -107,12 +109,34 @@ class ClarityScreen(Screen):
         
         yield Footer(id="footer", name="footer")
 
+
     def on_mount(self) -> None:
-        logging.info("MainApp on_mount called")
-        self.query_one(StateInfo).update_state_info(self.state_machine, "")
-        self.update_header()  
+        logging.info("ClarityScreen on_mount called")
+        state_info = self.query_one("#state-info", StateInfo)
+        state_info.update_state_info(self.state_machine, "")
+        self.update_header()
+
+        # Apply pending session manager after widgets are ready
+        if self._pending_session_manager:
+            session_manager = self._pending_session_manager
+            self._pending_session_manager = None
+            self.call_later(self.set_session_manager, session_manager)
+
+    def set_session_manager(self, new_session_manager: SessionManager):
+        self.session_manager = new_session_manager
+        if self.is_mounted:
+            self.call_later(self.update_ui_after_session_load)
+        else:
+            self._pending_session_manager = new_session_manager
+
+
 
     def update_header(self, session_name=None, agent_name=None):
+        if not session_name:
+            session_name = self.session_manager.current_session_name
+        if not agent_name:
+            agent_name = self.agent_name_plain
+        
         if session_name and agent_name:
             self.sub_title = f"Active Session: {session_name} - Current Agent: {agent_name}"
             logging.info(f"Updated app sub_title with session name: {session_name} and agent: {agent_name}")
@@ -129,61 +153,44 @@ class ClarityScreen(Screen):
         # Force a refresh of the entire app
         self.refresh(layout=True)
 
-    def on_session_selected(self, event: SessionSelected):
+    def clear_session(self):
+        self.session_manager.current_session_data = None
+        self.session_manager.current_session_name = None
+        self.update_header()
+        
+
+    def update_ui_after_session_load(self):
         try:
-            self.session_manager.load_session(event.session_name)
-            self.notify(f"Session '{event.session_name}' loaded successfully")
-            self.update_header(session_name=event.session_name, agent_name=self.agent_name_plain)
-            self.update_ui_after_session_load()
-        except ValueError as e:
-            self.notify(f"Error loading session: {str(e)}", severity="error")
+            dynamic_container = self.query_one("#center-dynamic-container-clarity", DynamicContainer)
+            dynamic_container.clear_content()
+
+            stored_state = self.session_manager.get_data("current_state", screen_name=self.screen_name)
+            if stored_state and stored_state in self.state_machine.states:
+                self.state_machine.current_state = self.state_machine.states[stored_state]
+            else:
+                self.state_machine.current_state = self.state_machine.states["initial"]
+
+            self.query_one(StateInfo).update_state_info(self.state_machine, "")
+            self.query_one(StateButtonGrid).update_buttons()
+        except NoMatches:
+            logging.warning("Dynamic container not found; scheduling UI update later.")
+            self.call_later(self.update_ui_after_session_load)
+
+
 
     def on_agent_selected(self, event: AgentSelected):
-        self.current_agent = AgentSelected
+        self.current_agent = event.agent_name.plain
         self.agent_name_plain = event.agent_name.plain
         self.notify(f"Loaded Agent: {event.agent_name.plain}")
-        self.query_one(DynamicContainer).clear_content()
-
-
-         # Check if a session is loaded, if not, pass None for session_name
-        session_name = None
-        if self.current_storage:
-            session_name = self.current_storage.get_data("session_name")
-
+        # self.query_one(DynamicContainer).clear_content()
+        dynamic_container = self.query_one("#center-dynamic-container-clarity", DynamicContainer)
+        dynamic_container.clear_content()
+        
         # Update header with current agent and session (if available)
-        self.update_header(session_name=session_name, agent_name=event.agent_name.plain)
-
-    def __bck__ui_factory(self, button_id: str):
-        ui_class, action = self.get_ui_and_action(button_id)
-        return ui_class, action
-
-    def ___bck__get_ui_and_action(self, button_id: str):
-        # Map button ID to UI class and action function
-        if button_id == "load-session":
-            ui_class_name = "LoadSessionUI"
-            action_func_name = None
-        elif button_id == "new-button":
-            ui_class_name = "NewSessionUI"
-            action_func_name = None
-        elif button_id == "system-message":  # Handling system message button
-            ui_class_name = "SystemMessageUI"
-            action_func_name = None    
-        elif button_id == "confirm-session-load":
-            ui_class_name = None
-            action_func_name = "transition_to_analysis_ready"
-        else:
-            raise ValueError(f"Unknown button ID: {button_id}. Hint: Ensure that this button ID is mapped correctly in 'get_ui_and_action'.")
-
-        logging.info(f"Resolving UI class: {ui_class_name}, Action function: {action_func_name}")
-
-        # Get the UI class and action function
-        ui_class = globals().get(ui_class_name) if ui_class_name else None
-        action_func = getattr(self, action_func_name, None) if action_func_name else None
-
-        if not action_func and not ui_class:
-            raise ValueError(f"No UI or action found for button ID: {button_id}")
-
-        return ui_class, action_func
+        self.update_header(agent_name=event.agent_name.plain)
+        
+        # Store the current agent in the session data
+        self.session_manager.update_data("current_agent", self.current_agent, screen_name=self.screen_name)
 
     def transition_to_agent_loaded(self) -> None:
         agent_loaded_state = self.state_machine.states.get("agent_loaded")
@@ -192,8 +199,11 @@ class ClarityScreen(Screen):
             logging.info(f"Set state to agent_loaded")
             self.query_one(StateInfo).update_state_info(self.state_machine, "")
             self.query_one(StateButtonGrid).update_buttons()
+            # Store the current state in the session (per-screen data)
+            self.session_manager.update_data("current_state", "agent_loaded", screen_name=self.screen_name)
         else:
             logging.error(f"Failed to set state to agent_loaded: State not found")
+
     def transition_to_analyse_state(self) -> None:
         analyse_state = self.state_machine.states.get("analysis_ready")
         if analyse_state:
@@ -201,9 +211,24 @@ class ClarityScreen(Screen):
             logging.info(f"Set state to analysis_ready")
             self.query_one(StateInfo).update_state_info(self.state_machine, "")
             self.query_one(StateButtonGrid).update_buttons()
+            
+            # Store the current state in the session (per-screen data)
+            self.session_manager.update_data("current_state", "analysis_ready", screen_name=self.screen_name)
+
         else:
             logging.error(f"Failed to set state to analysis_ready: State not found")
+
     def transition_to_analysis_ready(self) -> None:
+        logging.info("Entering transition_to_analysis_ready method")
+        
+        if not self.session_manager.current_session_data:
+            logging.error("No active session. Cannot transition to analysis_ready state.")
+            self.notify("No active session. Please create or load a session first.", severity="error")
+            return
+
+        logging.info(f"Current session name: {self.session_manager.current_session_name}")
+        logging.info(f"Current session data: {self.session_manager.current_session_data}")
+
         analysis_ready_state = self.state_machine.states.get("analysis_ready")
         if analysis_ready_state:
             self.state_machine.current_state = analysis_ready_state
@@ -211,41 +236,31 @@ class ClarityScreen(Screen):
             self.query_one(StateInfo).update_state_info(self.state_machine, "")
             self.query_one(StateButtonGrid).update_buttons()
             
-            # Store the current state in the session
-            if self.current_storage:
-                self.storage_manager.save_current_session(self.current_storage)
+            try:
+                # Store the current state in the session (per-screen data)
+                logging.info(f"Attempting to update session data. Screen name: {self.screen_name}")
+                self.session_manager.update_data("current_state", "analysis_ready", screen_name=self.screen_name)
+                logging.info("Successfully updated session data with new state")
+            except Exception as e:
+                logging.error(f"Failed to update session data: {str(e)}")
+                logging.error(f"Exception type: {type(e)}")
+                logging.error(f"Exception args: {e.args}")
+                self.notify(f"Error updating session data: {str(e)}", severity="error")
         else:
             logging.error(f"Failed to set state to analysis_ready: State not found")
+            self.notify("Failed to transition to analysis ready state", severity="error")
 
-    def clear_session(self):
-        self.current_storage = None
-        self.update_header()
-        
-    def on_new_session_created(self, event: NewSessionCreated):
-        try:
-            self.session_manager.create_session(event.session_name)
-            self.notify(f"New session '{event.session_name}' created successfully")
-            self.update_header(session_name=event.session_name)
-            self.transition_to_analysis_ready()
-        except ValueError as e:
-            self.notify(f"Error creating session: {str(e)}", severity="error")
+        logging.info("Exiting transition_to_analysis_ready method")
 
-    def update_ui_after_session_load(self):
-        self.query_one(DynamicContainer).clear_content()
-        stored_state = self.session_manager.get_current_state()
-        if stored_state and stored_state in self.state_machine.states:
-            self.state_machine.current_state = self.state_machine.states[stored_state]
-        else:
-            self.state_machine.current_state = self.state_machine.states["analysis_ready"]
-
-        self.query_one(StateInfo).update_state_info(self.state_machine, "")
-        self.query_one(StateButtonGrid).update_buttons()
 
     @on(UIButtonPressed)
     def handle_ui_button_pressed(self, event: UIButtonPressed) -> None:
         logging.debug(f"Handler 'handle_ui_button_pressed' invoked with button_id: {event.button_id}")
-        dynamic_container = self.query_one(DynamicContainer)
+        # dynamic_container = self.query_one(DynamicContainer)
+        # dynamic_container.clear_content()
+        dynamic_container = self.query_one("#center-dynamic-container-clarity", DynamicContainer)
         dynamic_container.clear_content()
+
 
         try:
             # Use the UI factory to get the corresponding UI and action
@@ -253,8 +268,9 @@ class ClarityScreen(Screen):
             
             # Load the UI component if it exists (for "load-session")
             if ui_class:
-                if event.button_id == "load-session" and not self.storage_manager.list_sessions():
+                if event.button_id == "load-session" and not self.session_manager.list_sessions():
                     self.notify("No sessions available. Create a new session first.", severity="warning")
+    
                 else:
                     dynamic_container.load_content(ui_class())
 
@@ -269,8 +285,12 @@ class ClarityScreen(Screen):
         if event.action == "reset":
             self.clear_session()
 
-        dynamic_container = self.query_one(DynamicContainer)
+        # dynamic_container = self.query_one(DynamicContainer)
+        # dynamic_container.clear_content()
+        dynamic_container = self.query_one("#center-dynamic-container-clarity", DynamicContainer)
         dynamic_container.clear_content()
+
+
 
         if event.action == "system_message":
             # Load SystemMessageUI instead of just displaying a label

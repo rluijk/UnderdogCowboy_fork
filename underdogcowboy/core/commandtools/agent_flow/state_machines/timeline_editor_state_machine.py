@@ -2,7 +2,7 @@ from uccli import State, StateMachine
 
 def create_timeline_editor_state_machine() -> StateMachine:
     """Create and return the state machine for the timeline editor."""
-    initial_state = State("start_editing")
+    initial_state = State("initial")
     editing_in_progress_state = State("editing_in_progress")
     editing_completed_state = State("editing_completed")
 

@@ -2,7 +2,7 @@ from uccli import State, StateMachine
 
 def create_agent_assessment_state_machine() -> StateMachine:
     """Create and return the state machine for agent assessment."""
-    initial_state = State("start_assessment")
+    initial_state = State("initial")
     assessment_in_progress_state = State("assessment_in_progress")
     assessment_completed_state = State("assessment_completed")
 

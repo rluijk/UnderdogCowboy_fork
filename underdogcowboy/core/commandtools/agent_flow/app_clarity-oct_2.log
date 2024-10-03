@@ -1,0 +1,40 @@
+2024-10-02 15:57:52,505 - DEBUG - Using selector: KqueueSelector
+2024-10-02 15:57:52,510 - INFO - Default LLM set to Claude 3.5 Sonnet (claude-3-5-sonnet-20240620)
+2024-10-02 15:57:52,529 - INFO - ClarityScreen on_mount called
+2024-10-02 15:57:52,529 - INFO - Cleared app sub_title
+2024-10-02 15:57:54,708 - INFO - TimeLineEditorScreen on_mount called
+2024-10-02 15:57:55,898 - INFO - AgentAssessmentBuilderScreen on_mount called
+2024-10-02 15:58:06,293 - DEBUG - Handler 'handle_ui_button_pressed' invoked with button_id: load-session
+2024-10-02 15:58:06,294 - INFO - Resolving UI class: LoadSessionUI, Action function: None
+2024-10-02 16:10:46,836 - DEBUG - Using selector: KqueueSelector
+2024-10-02 16:10:46,841 - INFO - Default LLM set to Claude 3.5 Sonnet (claude-3-5-sonnet-20240620)
+2024-10-02 16:10:46,860 - INFO - ClarityScreen on_mount called
+2024-10-02 16:10:46,860 - INFO - Cleared app sub_title
+2024-10-02 16:10:59,391 - DEBUG - Handler 'handle_ui_button_pressed' invoked with button_id: new-button
+2024-10-02 16:10:59,393 - INFO - Resolving UI class: NewSessionUI, Action function: None
+2024-10-02 16:11:03,913 - DEBUG - Handler 'handle_ui_button_pressed' invoked with button_id: cancel-new-session
+2024-10-02 16:11:03,914 - ERROR - Error: Unknown button ID: cancel-new-session. Make sure the ID is mapped in 'get_ui_and_action'.
+2024-10-02 16:11:05,598 - DEBUG - Handler 'handle_ui_button_pressed' invoked with button_id: new-button
+2024-10-02 16:11:05,599 - INFO - Resolving UI class: NewSessionUI, Action function: None
+2024-10-02 16:11:11,938 - INFO - Session 't' created successfully.
+2024-10-02 16:11:11,939 - INFO - Updated app sub_title with session name: t
+2024-10-02 16:11:11,943 - INFO - Entering transition_to_analysis_ready method
+2024-10-02 16:11:11,943 - INFO - Current session name: t
+2024-10-02 16:11:11,943 - INFO - Current session data: SessionData(shared_data=SharedData(version='1.0.0', data={}, command_history=[]), screens={})
+2024-10-02 16:11:11,943 - INFO - Set state to analysis_ready
+2024-10-02 16:11:11,943 - INFO - Attempting to update session data. Screen name: ClarityScreen
+2024-10-02 16:11:11,943 - INFO - Entering update_data method. Key: current_state, Value: analysis_ready, Screen name: ClarityScreen
+2024-10-02 16:11:11,943 - INFO - Current session data: SessionData(shared_data=SharedData(version='1.0.0', data={}, command_history=[]), screens={})
+2024-10-02 16:11:11,943 - INFO - Updating screen-specific data for screen: ClarityScreen
+2024-10-02 16:11:11,943 - INFO - Creating new ScreenData for screen: ClarityScreen
+2024-10-02 16:11:11,943 - INFO - Updated screen-specific data. New value: analysis_ready
+2024-10-02 16:11:11,943 - INFO - Current session saved successfully.
+2024-10-02 16:11:11,943 - INFO - Current session saved successfully.
+2024-10-02 16:11:11,943 - INFO - Session saved after updating data
+2024-10-02 16:11:11,944 - INFO - Exiting update_data method
+2024-10-02 16:11:11,944 - INFO - Successfully updated session data with new state
+2024-10-02 16:11:11,944 - INFO - Exiting transition_to_analysis_ready method
+2024-10-02 16:11:17,165 - DEBUG - Handler 'handle_ui_button_pressed' invoked with button_id: load-session
+2024-10-02 16:11:17,167 - INFO - Resolving UI class: LoadSessionUI, Action function: None
+2024-10-02 16:11:41,818 - INFO - TimeLineEditorScreen on_mount called
+2024-10-02 16:11:45,483 - INFO - AgentAssessmentBuilderScreen on_mount called
