@@ -1,197 +1,168 @@
-# main_app.py
+from concurrent.futures import ThreadPoolExecutor
+import asyncio
+from textual.app import App, ComposeResult
+from textual.widgets import Input, Button, Label
+from textual.containers import Horizontal
+from textual.screen import Screen
 
-import logging #commit
-from typing import Dict, Set
 
-from textual import on
-from textual.app import App
-from textual.events import Event
-from textual.reactive import Reactive
+class SessionManager:
+    def __init__(self):
+        self.data = {}
 
-from underdogcowboy.core.config_manager import LLMConfigManager 
+    def update_data(self, key, value):
+        self.data[key] = value
 
-""" imports clarity sytem """
-from state_management.json_storage_manager import JSONStorageManager
-from state_management.storage_interface import StorageInterface
+    def get_data(self, key):
+        return self.data.get(key, None)
 
-# State Machines for each screen
-from state_machines.agent_assessment_state_machine import create_agent_assessment_state_machine
-from state_machines.clarity_state_machine import create_clarity_state_machine
-from state_machines.timeline_editor_state_machine import create_timeline_editor_state_machine
 
-# Screens
-from screens.agent_assessment_builder_scr import AgentAssessmentBuilderScreen
-from screens.timeline_editor_src import TimeLineEditorScreen    
-from screens.agent_clarity_src import ClarityScreen
+class InputBoxScreen(Screen):
+    def __init__(self, session_manager):
+        super().__init__()
+        self.session_manager = session_manager
+        self.executor = ThreadPoolExecutor(max_workers=5)  # Allow multiple LLM calls
+        self.input_boxes = []  # Store the input box widgets to manage their state
 
-# Session Initializer
-from session_initializer import initialize_shared_session_manager
-from session_manager import SessionManager
+    def compose(self) -> ComposeResult:
+        yield Label("Input Box Screen")
+        for i in range(1, 6):  # Create 5 input boxes with buttons
+            input_id = f"input-{i}"
+            input_box = Input(placeholder=f"Input {i}", id=input_id)
+            button = Button(f"Fetch {i}", id=f"button-{i}")
+            self.input_boxes.append(input_box)
+            yield Horizontal(input_box, button)
+        yield Button("Go to Other Screen", id="switch-screen")
 
-# Configs
-from llm_manager import LLMManager
+    def on_mount(self):
+        """Handle what happens when the screen is displayed or re-displayed."""
+        # Reset the input boxes and buttons to their initial states
+        for input_box in self.input_boxes:
+            stored_value = self.session_manager.get_data(input_box.id)
+            if stored_value:
+                input_box.value = stored_value
+            input_box.disabled = False  # Ensure input boxes are editable
 
-# Custom events
-from events.session_events import SessionSyncStopped
+        # Reset buttons
+        for button in self.query("Button"):
+            button.disabled = False  # Make sure buttons are not disabled
+            label_text = str(button.label)  # Convert the label to string for checking
+            if label_text.startswith("Loading"):
+                button.label = f"Fetch {button.id[-1]}"  # Reset to original label
 
-logging.basicConfig(
-    filename='app_clarity-oct_2.log', 
-    level=logging.DEBUG, 
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+    async def on_button_pressed(self, event: Button.Pressed):
+        button_id = event.button.id
+        if button_id.startswith("button-"):
+            input_id = button_id.replace("button-", "input-")
+            input_box = self.query_one(f"#{input_id}", Input)
+            button = event.button
+
+            # Update button state to show it's processing (await ensures immediate visual feedback)
+            await self.set_button_loading(button)
+
+            # Run LLM simulation
+            asyncio.create_task(self.run_llm_simulation(input_box, button))
+
+        elif button_id == "switch-screen":
+            await self.app.push_screen("OtherScreen")
+
+    async def set_button_loading(self, button: Button):
+        """Sets the button to 'Loading...' state."""
+        button.label = "Loading..."
+        button.disabled = True
+        await asyncio.sleep(0)  # Yield control to event loop to reflect UI changes
+
+    async def run_llm_simulation(self, input_box: Input, button: Button) -> None:
+        """Method to simulate an LLM call using the working approach from perform_analysis"""
+        try:
+            # Simulating LLM configuration and agent name
+            llm_config = "Mock LLM Config"
+            current_agent = "Mock Agent"
+
+            # Simulate the LLM processing in a background thread
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                result = await asyncio.get_event_loop().run_in_executor(
+                    executor, self.simulate_llm_call, input_box
+                )
+
+            if result.startswith("Error:"):
+                raise ValueError(result)
+
+            # Once complete, update the UI with the result
+            self.update_and_show_result(input_box, result)
+
+        except Exception as e:
+            print(f"Error during LLM simulation: {e}")
+
+        finally:
+            # Reset button state after processing
+            button.label = f"Fetch {input_box.id[-1]}"
+            button.disabled = False
+
+    def simulate_llm_call(self, input_box: Input) -> str:
+        """Simulate the LLM call with a delay, as in the working example."""
+        import time
+        time.sleep(2)  # Simulate network delay
+        result = f"LLM Response for {input_box.id}"
+        self.session_manager.update_data(input_box.id, result)
+        return result
+
+    def update_and_show_result(self, input_box: Input, result: str) -> None:
+        """Update the input box with the result."""
+        input_box.value = result
+
+
+class OtherScreen(Screen):
+    def __init__(self, session_manager):
+        super().__init__()
+        self.session_manager = session_manager
+
+    def compose(self) -> ComposeResult:
+        yield Label("This is another screen.")
+        yield Button("Go Back to Input Screen", id="back-button")
+
+    async def on_button_pressed(self, event: Button.Pressed):
+        if event.button.id == "back-button":
+            await self.app.push_screen("InputBoxScreen")
+
 
 class MultiScreenApp(App):
-    """Main application managing multiple screens and session synchronization."""
+    """Main application managing multiple screens."""
 
-    BINDINGS = [
-        ("t", "return_to_timeline", "TimeLine Editor"), 
-        ("c", "return_to_clarity", "Agent Clarity"),
-        ("a", "return_to_agent_assessment_builder", "Agent Assessment Builder"),
-        ("s", "sink_sessions", "Sink Sessions to Current Screen"),  # Key binding for synchronization
-    ]
+    CSS = """
+    Horizontal { margin-bottom: 1; }
+    Input {
+        width: 60%;
+        margin-right: 2;
+    }
+    Button {
+        background: #5A9BD5;
+        color: white;
+        padding: 1;
+        border: none;
+        width: 20%;
+        text-align: center;
+    }
+    Button:disabled {
+        background: gray;
+        color: lightgray;
+    }
+    """
 
-    sync_active: Reactive[bool] = Reactive(False)
-    shared_session_manager: SessionManager = None  # Shared SessionManager
-
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.storage_manager: StorageInterface = JSONStorageManager(base_dir="~/.tui_agent_clarity_03")
-        self.screen_session_managers: Dict[str, SessionManager] = {}
-        self.session_screens: Set['SessionScreen'] = set()
-
-       # Initialize LLMManager (TODO: we do this current on app and all session screens)
-        self.llm_manager = LLMManager(
-            config_manager=LLMConfigManager(),
-            default_provider='anthropic',
-            default_model_id='claude-3-5-sonnet-20240620',
-            default_model_name='Claude 3.5 Sonnet'
-        )
-        
-        # Set the default LLM during initialization
-        self.llm_manager.set_default_llm()
-
-    def get_current_llm_config(self):
-        """Fetch the current LLM config from LLMManager."""
-        return self.llm_manager.get_current_llm_config()
-
+    def __init__(self):
+        super().__init__()
+        self.session_manager = SessionManager()
 
     def on_mount(self) -> None:
         """Mount screens when the app starts."""
-        # Initialize individual SessionManagers for each screen by default
-        self.screen_session_managers = {
-            "TimeLine Editor": SessionManager(self.storage_manager),
-            "Clarity": SessionManager(self.storage_manager),
-            "Agent Assessment Builder": SessionManager(self.storage_manager),
-        }
+        # Install screens using install_screen
+        self.install_screen(lambda: InputBoxScreen(self.session_manager), name="InputBoxScreen")
+        self.install_screen(lambda: OtherScreen(self.session_manager), name="OtherScreen")
 
-        # Create screen instances
-        timeline_editor_screen = TimeLineEditorScreen(
-            storage_interface=self.storage_manager, 
-            state_machine=create_timeline_editor_state_machine(),
-            session_manager=self.screen_session_managers["TimeLine Editor"]
-        )
-        clarity_screen = ClarityScreen(
-            storage_interface=self.storage_manager, 
-            state_machine=create_clarity_state_machine(), 
-            session_manager=self.screen_session_managers["Clarity"]
-        )
-        agent_assessment_builder_screen = AgentAssessmentBuilderScreen(
-            storage_interface=self.storage_manager, 
-            state_machine=create_agent_assessment_state_machine(), 
-            session_manager=self.screen_session_managers["Agent Assessment Builder"]
-        )
+        # Start with the Input Box screen
+        self.push_screen("InputBoxScreen")
 
-        # Add session-related screens to the set
-        self.session_screens.update({
-            timeline_editor_screen,
-            clarity_screen,
-            agent_assessment_builder_screen,
-        })
-
-        # Install screens
-        self.install_screen(lambda: timeline_editor_screen, name="TimeLine Editor")
-        self.install_screen(lambda: clarity_screen, name="Clarity")
-        self.install_screen(lambda: agent_assessment_builder_screen, name="Agent Assessment Builder")
-        
-        # Start with the main app screen
-        self.push_screen("Clarity")
-
-   
-    @on(SessionSyncStopped)
-    def on_session_sync_stopped(self, event: SessionSyncStopped) -> None:
-        """Handle session synchronization stop triggered by any screen."""
-        if not self.sync_active:
-            return
-
-        # Revert all screens to their individual SessionManagers
-        for screen in self.session_screens:
-            individual_session_manager = self.screen_session_managers.get(screen.screen_name)
-            if individual_session_manager:
-                screen.set_session_manager(individual_session_manager)
-                # Do not call update_ui_after_session_load() directly
-
-        # Disable synchronization entirely
-        self.shared_session_manager = None
-        self.sync_active = False
-        logging.info("Session synchronization is now disabled.")
-        self.notify("Session synchronization is now disabled.", severity="info")
-
-
-    def action_return_to_clarity(self) -> None:
-        """Action to return to the Clarity screen."""
-        self.push_screen("Clarity")
-
-    def action_return_to_timeline(self) -> None:
-        """Action to navigate to the Timeline Editor screen."""
-        self.push_screen("TimeLine Editor")
-
-    def action_return_to_agent_assessment_builder(self) -> None:
-        """Action to navigate to the Agent Assessment Builder screen."""
-        self.push_screen("Agent Assessment Builder")
-    def action_sink_sessions(self) -> None:
-        """Sink all sessions to the currently active screen's SessionManager."""
-        if self.sync_active:
-            self.notify("Sessions are already synchronized.", severity="info")
-            return
-
-        # Find the active session screen
-        active_screen = self.get_active_session_screen()
-        if not active_screen:
-            self.notify("No active session screen to sink sessions from.", severity="warning")
-            return
-
-        # **New Code: Check if the active screen has a session loaded**
-        if active_screen.session_manager.current_session_data is None:
-            self.notify("No session loaded on the active screen. Cannot synchronize sessions.", severity="warning")
-            return
-
-        # Proceed with synchronization
-        active_session_manager = active_screen.session_manager
-        self.shared_session_manager = active_session_manager
-
-        for screen in self.session_screens:
-            if screen != active_screen:
-                screen.set_session_manager(active_session_manager)
-                # Do not call update_ui_after_session_load() directly
-
-        self.sync_active = True
-        self.notify("Session synchronization enabled. All screens now share the active session.", severity="info")
-        logging.info("Session synchronization enabled.")
-
-
-
-    def get_active_session_screen(self) -> 'SessionScreen':
-        """Get the currently active session-related screen."""
-        # Iterate over session_screens and find the one with is_current == True
-        for screen in self.session_screens:
-            if screen.is_current:
-                return screen
-        return None
-
-def main():
-    """Initialize and run the multi-screen app."""
-    app = MultiScreenApp()
-    app.run()
 
 if __name__ == "__main__":
-    main()
+    app = MultiScreenApp()
+    app.run()

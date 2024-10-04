@@ -8,14 +8,17 @@ from textual.widgets import  (  Button, Static, Label, TextArea )
 # Clarity System 
 # UI
 from ui_components.dynamic_container import  DynamicContainer
+from ui_components.session_dependent import SessionDependentUI
 
+# Events
+from events.button_events import UIButtonPressed
 
-class SystemMessageUI(Static):
+class SystemMessageUI(SessionDependentUI):
     """A UI for creating and submitting a system message."""
         
     def compose(self) -> ComposeResult:
         # Retrieve any existing system message from the storage manager
-        stored_message = self.app.storage_manager.get_data("system_message")
+        stored_message = self.session_manager.get_data("system_message")
         if stored_message is None:
             stored_message = ""  # Set to empty if no message is found
         
@@ -32,7 +35,7 @@ class SystemMessageUI(Static):
             system_message = self.query_one("#system-message-input").text
             # Log and store the system message
             logging.info(f"System message submitted: {system_message}")
-            self.app.storage_manager.update_data("system_message", system_message)
+            self.session_manager.update_data("system_message", system_message)
             
             # Clear the UI after submission by posting a message
             self.app.query_one(DynamicContainer).clear_content()

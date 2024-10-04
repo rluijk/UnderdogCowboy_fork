@@ -10,20 +10,16 @@ from events.analysis_events import AnalysisComplete, AnalysisError
 from agent_llm_handler import run_analysis
 from session_manager import SessionManager
 
+from ui_components.session_dependent import SessionDependentUI
 
 #  Clear existing handlers and set up logging to a file
 for handler in logging.root.handlers[:]:
     logging.root.removeHandler(handler)
 
 
-class AnalyzeUI(Static):
+class AnalyzeUI(SessionDependentUI):
     """A UI for displaying and running analysis on an agent definition"""
     
-    def __init__(self, session_manager: SessionManager, screen_name: str, agent_name_plain: str, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.session_manager = session_manager
-        self.screen_name = screen_name
-        self.agent_name_plain = agent_name_plain
 
     def compose(self) -> ComposeResult:
         yield Static("Analysis Result:", id="result-label", classes="hidden")

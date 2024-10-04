@@ -2,13 +2,12 @@ from typing import Dict, List, Set
 import logging
 
 from textual import on
-from textual.screen import Screen
-from textual.app import App, ComposeResult
+from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
 from textual.widgets import  (  Label, Header, Footer, Collapsible )
 from textual.css.query import NoMatches
 
-from uccli import StateMachine  # Removed StorageManager import
+from uccli import StateMachine  
 from underdogcowboy.core.config_manager import LLMConfigManager 
 
 """ imports clarity sytem """
@@ -22,6 +21,7 @@ from session_manager import SessionManager
 from llm_manager import LLMManager
 
 # UI
+from ui_components.session_dependent import SessionDependentUI
 from ui_factory import UIFactory
 from ui_components.system_message_ui import SystemMessageUI
 from ui_components.dynamic_container import DynamicContainer
@@ -39,7 +39,6 @@ from ui_components.left_side_ui import LeftSideContainer
 # Events
 from events.button_events import UIButtonPressed
 from events.agent_events import AgentSelected
-from events.session_events import SessionSelected, NewSessionCreated, SessionSyncStopped
 from events.action_events import ActionSelected
 
 # Screens
@@ -48,21 +47,19 @@ from screens.session_screen import SessionScreen
 # State Machines for each screen
 from state_machines.clarity_state_machine import create_clarity_state_machine
 
-from state_management.json_storage_manager import JSONStorageManager
-from state_management.storage_interface import StorageInterface
 
 class ClarityScreen(SessionScreen):
 
     CSS_PATH = "../state_machine_app.css"
 
-    def __init__(self, storage_interface: StorageInterface = None, 
+    def __init__(self, 
                  state_machine: StateMachine = None, 
                  session_manager: SessionManager = None,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
+
         self.state_machine = state_machine or create_clarity_state_machine()
-        self.storage_interface = storage_interface or JSONStorageManager()
-        self.session_manager = session_manager or SessionManager(self.storage_interface)  
+        self.session_manager = session_manager  
         self.ui_factory = UIFactory(self)
         
         self.current_agent = None
@@ -108,7 +105,6 @@ class ClarityScreen(SessionScreen):
                 yield StateButtonGrid(self.state_machine, id="button-grid")
         
         yield Footer(id="footer", name="footer")
-
 
     def on_mount(self) -> None:
         logging.info("ClarityScreen on_mount called")
@@ -228,8 +224,7 @@ class ClarityScreen(SessionScreen):
             self.notify("No active session. Please create or load a session first.", severity="error")
             return
 
-        logging.info(f"Current session name: {self.session_manager.current_session_name}")
-        logging.info(f"Current session data: {self.session_manager.current_session_data}")
+        # logging.info(f"Current session data: {self.session_manager.current_session_data}")
 
         analysis_ready_state = self.state_machine.states.get("analysis_ready")
         if analysis_ready_state:
@@ -269,13 +264,14 @@ class ClarityScreen(SessionScreen):
                 if event.button_id == "load-session" and not self.session_manager.list_sessions():
                     self.notify("No sessions available. Create a new session first.", severity="warning")
                 else:
-                    # Pass session_manager and screen_name to AnalyzeUI
-                    if ui_class == AnalyzeUI:
+                    # Check if ui_class is a subclass of SessionDependentUI
+                    if issubclass(ui_class, SessionDependentUI):
                         ui_instance = ui_class(session_manager=self.session_manager, 
-                                               screen_name=self.screen_name,
-                                               agent_name_plain=self.agent_name_plain)
+                                            screen_name=self.screen_name,
+                                            agent_name_plain=self.agent_name_plain)
                     else:
                         ui_instance = ui_class()
+
                     dynamic_container.load_content(ui_instance)
 
             # Handle the action (state change) only if there's an action function
@@ -286,30 +282,40 @@ class ClarityScreen(SessionScreen):
             logging.error(f"Error: {e}")
 
 
+
     def on_action_selected(self, event: ActionSelected) -> None:
-        if event.action == "reset":
+        action = event.action
+
+        if action == "reset":
             self.clear_session()
 
         dynamic_container = self.query_one("#center-dynamic-container-clarity", DynamicContainer)
         dynamic_container.clear_content()
 
-        if event.action == "system_message":
-            # Load SystemMessageUI instead of just displaying a label
-            dynamic_container.mount(SystemMessageUI())
-        elif event.action == "load_agent":
-            dynamic_container.mount(LoadAgentUI())
-        elif event.action == "analyze":
-            dynamic_container.mount(AnalyzeUI(session_manager=self.session_manager, 
-                                              screen_name=self.screen_name, 
-                                              agent_name_plain=self.agent_name_plain))
-        elif event.action == "feedback_input":
-            dynamic_container.mount(FeedbackInputUI())
-        elif event.action == "feedback_output":
-            dynamic_container.mount(FeedbackOutputUI())
-        elif event.action == "feedback_rules":
-            dynamic_container.mount(FeedbackRulesUI())
-        elif event.action == "feedback_constraints":
-            dynamic_container.mount(FeedbackConstraintsUI())
+        # Mapping actions to their respective UI classes
+        ui_class = {
+            "analyze": AnalyzeUI,
+            "feedback_input": FeedbackInputUI,
+            "feedback_output": FeedbackOutputUI,
+            "feedback_rules": FeedbackRulesUI,
+            "feedback_constraints": FeedbackConstraintsUI,
+            "system_message": SystemMessageUI,
+            "load_agent": LoadAgentUI
+        }.get(action)
+
+        if ui_class:
+            # Instantiate with parameters if it's a subclass of SessionDependentUI
+            if issubclass(ui_class, SessionDependentUI):
+                dynamic_container.mount(ui_class(
+                    session_manager=self.session_manager,
+                    screen_name=self.screen_name,
+                    agent_name_plain=self.agent_name_plain
+                ))
+            else:
+                dynamic_container.mount(ui_class())
         else:
             # For other actions, load generic content as before
-            dynamic_container.mount(CenterContent(event.action))
+            dynamic_container.mount(CenterContent(action))
+
+
+

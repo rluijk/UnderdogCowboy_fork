@@ -6,9 +6,12 @@ import json
 from textual.app import ComposeResult
 from textual.widgets import Static, Button, LoadingIndicator, Label
 from events.feedback_events import FeedbackOutputComplete, FeedbackOutputError
-from agent_llm_handler import send_agent_data_to_llm  # Reuse this function to send data to the agent
 
-class FeedbackOutputUI(Static):
+from agent_llm_handler import send_agent_data_to_llm  # Reuse this function to send data to the agent
+from session_manager import SessionManager
+from ui_components.session_dependent import SessionDependentUI
+
+class FeedbackOutputUI(SessionDependentUI):
     """A UI for getting feedback from the underlying agent on how it understands the structure of the output it produces."""
     
     def compose(self) -> ComposeResult:
@@ -22,7 +25,7 @@ class FeedbackOutputUI(Static):
         self.check_existing_feedback()
     
     def check_existing_feedback(self) -> None:
-        existing_feedback = self.app.storage_manager.get_data("last_feedback_output")
+        existing_feedback = self.session_manager.get_data("last_feedback_output")
         if existing_feedback:
             self.show_feedback(existing_feedback)
             self.query_one("#rerun-feedback-output-button").remove_class("hidden")
@@ -48,7 +51,7 @@ class FeedbackOutputUI(Static):
             if not llm_config:
                 raise ValueError("No LLM configuration available.")
             
-            current_agent = self.app.agent_name_plain
+            current_agent = self.agent_name_plain
             if not current_agent:
                 raise ValueError("No agent currently loaded. Please load an agent first.")
             
@@ -65,7 +68,7 @@ class FeedbackOutputUI(Static):
 
             self.post_message(FeedbackOutputComplete(result))
         except Exception as e:
-            logging.error(f"Feedback error: {str(e)}")
+            logging.error(f"Feedback output error: {str(e)}")
             self.post_message(FeedbackOutputError(str(e)))
 
     def on_feedback_output_complete(self, message: FeedbackOutputComplete) -> None:
@@ -77,7 +80,7 @@ class FeedbackOutputUI(Static):
         self.query_one("#loading-feedback-output").add_class("hidden")
 
     def update_and_show_feedback(self, result: str) -> None:
-        self.app.storage_manager.update_data("last_feedback_output", result)
+        self.session_manager.update_data("last_feedback_output", result)
         self.show_feedback(result)
 
     def show_feedback(self, result: str) -> None:

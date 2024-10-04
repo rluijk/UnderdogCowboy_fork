@@ -8,7 +8,10 @@ from textual.widgets import Static, Button, LoadingIndicator, Label
 from events.feedback_events import FeedbackConstraintsComplete, FeedbackConstraintsError
 from agent_llm_handler import send_agent_data_to_llm  
 
-class FeedbackConstraintsUI(Static):
+from session_manager import SessionManager
+from ui_components.session_dependent import SessionDependentUI
+
+class FeedbackConstraintsUI(SessionDependentUI):
     """A UI for getting feedback from the underlying agent on how the agent understands the constraints it has to operate within."""
     
     def compose(self) -> ComposeResult:
@@ -22,7 +25,7 @@ class FeedbackConstraintsUI(Static):
         self.check_existing_feedback()
     
     def check_existing_feedback(self) -> None:
-        existing_feedback = self.app.storage_manager.get_data("last_feedback_constraints")
+        existing_feedback = self.session_manager.get_data("last_feedback_constraints")
         if existing_feedback:
             self.show_feedback(existing_feedback)
             self.query_one("#rerun-feedback-constraints-button").remove_class("hidden")
@@ -48,7 +51,7 @@ class FeedbackConstraintsUI(Static):
             if not llm_config:
                 raise ValueError("No LLM configuration available.")
             
-            current_agent = self.app.agent_name_plain
+            current_agent = self.agent_name_plain
             if not current_agent:
                 raise ValueError("No agent currently loaded. Please load an agent first.")
             
@@ -77,7 +80,7 @@ class FeedbackConstraintsUI(Static):
         self.query_one("#loading-feedback-constraints").add_class("hidden")
 
     def update_and_show_feedback(self, result: str) -> None:
-        self.app.storage_manager.update_data("last_feedback_constraints", result)
+        self.session_manager.update_data("last_feedback_constraints", result)
         self.show_feedback(result)
 
     def show_feedback(self, result: str) -> None:

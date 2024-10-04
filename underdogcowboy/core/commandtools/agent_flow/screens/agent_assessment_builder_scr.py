@@ -11,9 +11,7 @@ from textual.css.query import NoMatches
 from uccli import StateMachine
 
 # Storage Interface and SessionManager
-from state_management.storage_interface import StorageInterface
 from session_manager import SessionManager
-from state_management.json_storage_manager import JSONStorageManager
 
 # UI Components
 from ui_factory import UIFactory
@@ -23,14 +21,11 @@ from ui_components.state_info_ui import StateInfo
 from ui_components.left_side_ui import LeftSideContainer
 from ui_components.analyze_ui import AnalyzeUI 
 
-
 # Events
 from events.button_events import UIButtonPressed
-from events.session_events import SessionSelected, NewSessionCreated, SessionSyncStopped
 
 # Screens
 from screens.session_screen import SessionScreen
-
 
 # State Machines
 from state_machines.agent_assessment_state_machine import create_agent_assessment_state_machine
@@ -40,15 +35,14 @@ class AgentAssessmentBuilderScreen(SessionScreen):
 
     CSS_PATH = "../state_machine_app.css"
 
-    def __init__(self, storage_interface: StorageInterface = None, 
+    def __init__(self, 
                  state_machine: StateMachine = None,
                  session_manager: SessionManager = None,
                  *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.title = "Agent Assessment Builder"
         self.state_machine = state_machine or create_agent_assessment_state_machine()
-        self.storage_interface = storage_interface or JSONStorageManager()
-        self.session_manager = session_manager or SessionManager(self.storage_interface)
+        self.session_manager = session_manager
         self.ui_factory = UIFactory(self)
         self.screen_name = "AgentAssessmentBuilderScreen"
         self._pending_session_manager = None

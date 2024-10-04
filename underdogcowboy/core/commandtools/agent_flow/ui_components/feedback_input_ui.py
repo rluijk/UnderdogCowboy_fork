@@ -8,7 +8,10 @@ from textual.widgets import Static, Button, Label, LoadingIndicator
 from events.feedback_events import FeedbackInputComplete, FeedbackInputError
 from agent_llm_handler import send_agent_data_to_llm  
 
-class FeedbackInputUI(Static):
+from session_manager import SessionManager
+from ui_components.session_dependent import SessionDependentUI
+
+class FeedbackInputUI(SessionDependentUI):
     """A UI for getting feedback from the underlying agent on how it understands the structure of the input it receives."""
     
     def compose(self) -> ComposeResult:
@@ -22,7 +25,7 @@ class FeedbackInputUI(Static):
         self.check_existing_feedback()
     
     def check_existing_feedback(self) -> None:
-        existing_feedback = self.app.storage_manager.get_data("last_feedback_input")
+        existing_feedback = self.session_manager.get_data("last_feedback_input")
         if existing_feedback:
             self.show_feedback(existing_feedback)
             self.query_one("#rerun-feedback-input-button").remove_class("hidden")
@@ -48,7 +51,7 @@ class FeedbackInputUI(Static):
             if not llm_config:
                 raise ValueError("No LLM configuration available.")
             
-            current_agent = self.app.agent_name_plain
+            current_agent = self.agent_name_plain
             if not current_agent:
                 raise ValueError("No agent currently loaded. Please load an agent first.")
             
@@ -77,7 +80,7 @@ class FeedbackInputUI(Static):
         self.query_one("#loading-feedback-input").add_class("hidden")
 
     def update_and_show_feedback(self, result: str) -> None:
-        self.app.storage_manager.update_data("last_feedback_input", result)
+        self.app.session_manager.update_data("last_feedback_input", result)
         self.show_feedback(result)
 
     def show_feedback(self, result: str) -> None:

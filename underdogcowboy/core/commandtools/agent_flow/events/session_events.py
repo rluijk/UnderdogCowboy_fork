@@ -16,14 +16,6 @@ class NewSessionCreated(Message):
 
 class SessionSyncStopped(Event):
     """Event indicating that session synchronization should stop."""
-    
-    def __init__(self, screen: 'SessionScreen'):
-        super().__init__()
-        self.screen = screen
-
-class SessionSyncStopped(Event):
-    """Event indicating that session synchronization should stop."""
-    
     def __init__(self, screen: 'SessionScreen'):
         super().__init__()
         self.screen = screen
