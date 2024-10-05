@@ -11,8 +11,9 @@ from agent_llm_handler import run_analysis
 from session_manager import SessionManager
 
 from ui_components.session_dependent import SessionDependentUI
+from exceptions import ApplicationError, SessionNotLoadedError, InvalidSessionDataError, AnalysisError
 
-#  Clear existing handlers and set up logging to a file
+# Clear existing handlers and set up logging to a file
 for handler in logging.root.handlers[:]:
     logging.root.removeHandler(handler)
 
@@ -50,8 +51,15 @@ class AnalyzeUI(SessionDependentUI):
         self.query_one("#analysis-result").add_class("hidden")
         self.query_one("#loading-indicator").remove_class("hidden")
 
-        # Create a task to run the analysis
-        asyncio.create_task(self.perform_analysis())
+        # Create a task to run the analysis with a timeout
+        asyncio.create_task(self.perform_analysis_with_timeout())
+
+    async def perform_analysis_with_timeout(self) -> None:
+        try:
+            await asyncio.wait_for(self.perform_analysis(), timeout=60)
+        except asyncio.TimeoutError:
+            logging.error("Analysis timed out.")
+            self.show_error("Analysis timed out. Please try again.")
 
     async def perform_analysis(self) -> None:
         try:
@@ -59,11 +67,11 @@ class AnalyzeUI(SessionDependentUI):
             
             llm_config = self.app.get_current_llm_config()
             if not llm_config:
-                raise ValueError("No LLM configuration available.")
+                raise InvalidSessionDataError("No LLM configuration available.")
 
             current_agent = self.agent_name_plain
             if not current_agent:
-                raise ValueError("No agent currently loaded. Please load an agent first.")
+                raise SessionNotLoadedError("No agent currently loaded. Please load an agent first.")
 
             # Run the analysis in a separate thread pool
             with ThreadPoolExecutor(max_workers=1) as executor:
@@ -72,13 +80,13 @@ class AnalyzeUI(SessionDependentUI):
                 )
 
             if result.startswith("Error:"):
-                raise ValueError(result)
+                raise AnalysisError(result)
 
             logging.info("Analysis completed")
             self.post_message(AnalysisComplete(result))
-        except Exception as e:
+        except ApplicationError as e:
             logging.error(f"Analysis error: {str(e)}")
-            self.post_message(AnalysisError(str(e)))
+            raise e
 
     def on_analysis_complete(self, message: AnalysisComplete) -> None:
         self.update_and_show_result(message.result)
@@ -104,4 +112,3 @@ class AnalyzeUI(SessionDependentUI):
         self.query_one("#loading-indicator").add_class("hidden")
         self.query_one("#start-analysis-button").remove_class("hidden")
         self.app.notify(f"Error: {error_message}", severity="error")
-

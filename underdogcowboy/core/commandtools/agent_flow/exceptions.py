@@ -2,6 +2,12 @@ class ApplicationError(Exception):
     """Base class for all custom exceptions in the application."""
     pass
 
+
+class AnalysisError(ApplicationError):
+    """Base class for analysis-related errors."""
+    pass
+
+
 """ Session related """
 class SessionError(ApplicationError):
     """Base class for session-related errors."""
