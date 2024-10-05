@@ -1,9 +1,12 @@
-from uccli import State, StateMachine
+
+from uccli import StateMachine
+from .state_ui import UIState
+
 
 def create_clarity_state_machine() -> StateMachine:
-    initial_state = State("initial")
-    agent_loaded_state = State("agent_loaded")
-    analysis_ready_state = State("analysis_ready")
+    initial_state = UIState("initial")
+    agent_loaded_state = UIState("agent_loaded")
+    analysis_ready_state = UIState("analysis_ready")
 
     # Define transitions
     initial_state.add_transition("load_agent", agent_loaded_state)

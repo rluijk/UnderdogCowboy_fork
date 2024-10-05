@@ -5,6 +5,7 @@ from textual.app import ComposeResult
 from textual.widgets import Static, Button
 from textual.containers import Grid
 from uccli import StateMachine
+from state_machines.state_ui import UIState
 
 """ Clarity System """
 # UI
@@ -22,7 +23,10 @@ class StateButtonGrid(Static):
     def get_ordered_actions(self) -> List[str]:
         all_actions = set()
         for state in self.state_machine.states.values():
-            all_actions.update(state.transitions.keys())
+            if isinstance(state, UIState):
+                all_actions.update(state.get_visible_transitions())  # Only include visible transitions
+            else:
+                all_actions.update(state.transitions.keys())  # Fallback in case of base State
 
         ordered_actions = []
         visited_states = set()
@@ -34,7 +38,11 @@ class StateButtonGrid(Static):
                 continue
             visited_states.add(current_state.name)
 
-            state_actions = list(current_state.transitions.keys())
+            if isinstance(current_state, UIState):
+                state_actions = list(current_state.get_visible_transitions())  # Only consider visible actions
+            else:
+                state_actions = list(current_state.transitions.keys())  # Fallback in case of base State
+
             ordered_actions.extend([action for action in state_actions if action not in ordered_actions])
 
             for action, next_state in current_state.transitions.items():

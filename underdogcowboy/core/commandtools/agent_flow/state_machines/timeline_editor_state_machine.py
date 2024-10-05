@@ -1,10 +1,12 @@
-from uccli import State, StateMachine
+from uccli import StateMachine
+from .state_ui import UIState
+
 
 def create_timeline_editor_state_machine() -> StateMachine:
     """Create and return the state machine for the timeline editor."""
-    initial_state = State("initial")
-    editing_in_progress_state = State("editing_in_progress")
-    editing_completed_state = State("editing_completed")
+    initial_state = UIState("initial")
+    editing_in_progress_state = UIState("editing_in_progress")
+    editing_completed_state = UIState("editing_completed")
 
     # Define transitions for this state machine
     initial_state.add_transition("edit", editing_in_progress_state)
