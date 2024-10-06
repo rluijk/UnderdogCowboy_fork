@@ -4,6 +4,12 @@ from typing import Any, List, Dict
 from state_management.storage_interface import StorageInterface
 from state_management.shared_data import SessionData, ScreenData
 
+# Events / Mixins
+from events.message_mixin import MessageEmitterMixin
+
+# Sessions
+from events.session_events import SessionStateChanged
+
 from exceptions import (
     SessionNotLoadedError,
     ScreenDataError,
@@ -11,19 +17,23 @@ from exceptions import (
     SessionDoesNotExistError
 )
 
-class SessionManager:
+class SessionManager(MessageEmitterMixin):
     """Handles loading, creating, and saving sessions using the storage abstraction layer."""
     
     def __init__(self, storage: StorageInterface):
+        super().__init__()  # Initialize the mixin
         self.storage = storage
         self.current_session_name: str = None
         self.current_session_data: SessionData = None  # Holds the current session data
+
         
     def create_session(self, session_name: str):
         try:
             self.current_session_data = self.storage.create_session(session_name)
             self.current_session_name = session_name
             logging.info(f"Session '{session_name}' created successfully.")
+            self.post_message(SessionStateChanged(self, session_active=True, session_name=session_name))
+
         except ValueError as e:
             logging.error(f"Error creating session '{session_name}': {str(e)}")
             raise
@@ -34,6 +44,8 @@ class SessionManager:
             self.current_session_data = self.storage.load_session(session_name)
             self.current_session_name = session_name
             logging.info(f"Session '{session_name}' loaded successfully.")
+            self.post_message(SessionStateChanged(self, session_active=True, session_name=session_name))
+
         except SessionDoesNotExistError as e:
             logging.error(str(e))
             raise

@@ -83,10 +83,6 @@ class MultiScreenApp(App):
         # Set the default LLM during initialization
         self.llm_manager.set_default_llm()
 
-    def get_current_llm_config(self):
-        """Fetch the current LLM config from LLMManager."""
-        return self.llm_manager.get_current_llm_config()
-
     def on_mount(self) -> None:
         """Mount screens when the app starts."""
         # Initialize individual SessionManagers for each screen by default
@@ -95,6 +91,10 @@ class MultiScreenApp(App):
             "Clarity": SessionManager(self.storage_manager),
             "Agent Assessment Builder": SessionManager(self.storage_manager),
         }
+
+        # Register each SessionManager to post messages to this app
+        for session_manager in self.screen_session_managers.values():
+            session_manager.set_message_post_target(self)  # Register with the app to post messages
 
         # Create screen instances with appropriate state machines and session managers
         timeline_editor_screen = TimeLineEditorScreen(
@@ -130,6 +130,15 @@ class MultiScreenApp(App):
         
         # Start with the Clarity screen as the main app screen
         self.push_screen("Clarity")
+
+
+
+
+
+    def get_current_llm_config(self):
+        """Fetch the current LLM config from LLMManager."""
+        return self.llm_manager.get_current_llm_config()
+
 
     @on(SessionSyncStopped)
     def on_session_sync_stopped(self, event: SessionSyncStopped) -> None:
