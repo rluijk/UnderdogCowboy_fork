@@ -1,18 +1,20 @@
 import logging
 from typing import List
 
+from textual import on
 from textual.app import ComposeResult
 from textual.widgets import Static, Button
 from textual.containers import Grid
 from uccli import StateMachine
 from state_machines.state_ui import UIState
 
-""" Clarity System """
 # UI
 from ui_components.state_info_ui import StateInfo
 
 # Events
 from events.action_events import ActionSelected
+from events.session_events import SessionStateChanged
+
 
 class StateButtonGrid(Static):
     def __init__(self, state_machine: StateMachine, *args, **kwargs):
@@ -59,7 +61,9 @@ class StateButtonGrid(Static):
                 yield Button(str(action), id=f"btn-{action}", classes="action-button")
 
     def on_mount(self) -> None:
-        self.update_buttons()
+        """Disable all buttons initially until session state changes."""
+        for button in self.query("Button"):
+            button.disabled = True
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         action = str(event.button.label)
@@ -73,7 +77,19 @@ class StateButtonGrid(Static):
         self.parent.query_one(StateInfo).update_state_info(self.state_machine, action)
 
     def update_buttons(self) -> None:
+        """Update the buttons based on allowed actions from the state machine."""
         allowed_actions = self.state_machine.get_available_commands()
         for button in self.query("Button"):
             action = str(button.label)
             button.disabled = action not in allowed_actions
+
+    @on(SessionStateChanged)
+    def on_session_state_changed(self, event: SessionStateChanged) -> None:
+        """Enable or disable all buttons based on session state."""
+        if event.session_active:
+            # Enable buttons based on state machine logic
+            self.update_buttons()
+        else:
+            # No active session, disable all buttons
+            for button in self.query("Button"):
+                button.disabled = True
