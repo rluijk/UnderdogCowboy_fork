@@ -64,7 +64,7 @@ class InputBoxScreen(Screen):
             asyncio.create_task(self.run_llm_simulation(input_box, button))
 
         elif button_id == "switch-screen":
-            await self.app.push_screen(OtherScreen(self.session_manager))
+            await self.app.push_screen("OtherScreen")
 
     async def set_button_loading(self, button: Button):
         """Sets the button to 'Loading...' state."""
@@ -123,10 +123,12 @@ class OtherScreen(Screen):
 
     async def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "back-button":
-            await self.app.pop_screen()
+            await self.app.push_screen("InputBoxScreen")
 
 
-class MultipleInputApp(App):
+class MultiScreenApp(App):
+    """Main application managing multiple screens."""
+
     CSS = """
     Horizontal { margin-bottom: 1; }
     Input {
@@ -151,11 +153,16 @@ class MultipleInputApp(App):
         super().__init__()
         self.session_manager = SessionManager()
 
-    def on_mount(self):
-        # Start with the input box screen
-        self.push_screen(InputBoxScreen(self.session_manager))
+    def on_mount(self) -> None:
+        """Mount screens when the app starts."""
+        # Install screens using install_screen
+        self.install_screen(lambda: InputBoxScreen(self.session_manager), name="InputBoxScreen")
+        self.install_screen(lambda: OtherScreen(self.session_manager), name="OtherScreen")
+
+        # Start with the Input Box screen
+        self.push_screen("InputBoxScreen")
 
 
 if __name__ == "__main__":
-    app = MultipleInputApp()
+    app = MultiScreenApp()
     app.run()

@@ -1,0 +1,31 @@
+Screen {
+    align: center middle;
+}
+
+InputButtonWidget {
+    width: 50;
+    height: auto;
+}
+
+InputButtonWidget Grid {
+    grid-size: 2;
+    grid-columns: 1fr auto;  /* Make the button smaller compared to the input */
+    column-span: 1;  /* Gap between input and button */
+}
+
+InputButtonWidget Input {
+    width: 1fr;
+    height: auto;
+    margin-right: 1;
+    border: grey;
+    background: whitesmoke;
+}
+
+InputButtonWidget Button {
+    width: 3;
+    height: 3;
+    padding: 0;
+    text-align: center;
+    border: whitesmoke;
+    background: whitesmoke;
+}
