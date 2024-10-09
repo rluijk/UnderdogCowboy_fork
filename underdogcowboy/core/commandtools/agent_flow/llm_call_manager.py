@@ -1,9 +1,9 @@
 
-
+import asyncio
 from typing import Any, Callable, Optional
 import logging
 
-import asyncio
+
 from concurrent.futures import ThreadPoolExecutor
 
 from events.message_mixin import MessageEmitterMixin
@@ -25,28 +25,64 @@ class LLMCallManager(MessageEmitterMixin):
         asyncio.create_task(self._process_queue())
 
     async def _process_queue(self):
-        """Continuously processes tasks from the queue."""
         while True:
-            llm_function, input_value, pre_prompt, post_prompt, input_id = await self._task_queue.get()
-            # Submit the task to the thread pool and handle completion with a callback
-            asyncio.create_task(self._handle_task(llm_function, input_value, pre_prompt, post_prompt, input_id))
+            task = await self._task_queue.get()
+            
+            if len(task) == 6:
+                llm_function, llm_config, agent_name, pre_prompt, post_prompt, input_id = task
+                asyncio.create_task(self._handle_analysis_task(llm_function, llm_config, agent_name, pre_prompt, post_prompt, input_id))
+            elif len(task) == 5:
+                llm_function, input_value, pre_prompt, post_prompt, input_id = task
+                asyncio.create_task(self._handle_task(llm_function, input_value, pre_prompt, post_prompt, input_id))
+            else:
+                llm_function, input_value, pre_prompt, input_id = task
+                asyncio.create_task(self._handle_task(llm_function, input_value, pre_prompt, None, input_id))
+            
             self._task_queue.task_done()
+
+    async def _handle_analysis_task(self, llm_function, llm_config, agent_name, pre_prompt, post_prompt, input_id):
+        loop = asyncio.get_event_loop()
+        try:
+            result = await loop.run_in_executor(
+                self.executor,
+                llm_function,
+                llm_config,
+                agent_name,
+                pre_prompt,
+                post_prompt
+            )
+            self.post_message(LLMCallComplete(input_id=input_id, result=result))
+        except Exception as e:
+            self.post_message(LLMCallError(input_id=input_id, error=str(e)))
+
 
     async def _handle_task(self, llm_function, input_value, pre_prompt, post_prompt, input_id):
         """Handles individual LLM call tasks."""
         loop = asyncio.get_event_loop()
         try:
-            # Run the LLM call in the background using a thread pool
-            result = await loop.run_in_executor(
-                self.executor, 
-                llm_function, input_value, pre_prompt, post_prompt
-            )
+            # Determine if the function is an analysis call or a regular LLM call
+            if llm_function.__name__ == 'run_analysis':
+                # Handle analysis-specific logic if the function is run_analysis
+                result = await loop.run_in_executor(
+                    self.executor,
+                    llm_function,  # Pass the llm_function (e.g., run_analysis)
+                    input_value,   # This is llm_config in case of analysis
+                    pre_prompt     # agent_name passed as pre_prompt for run_analysis
+                )
+            else:
+                # Handle generic LLM calls
+                result = await loop.run_in_executor(
+                    self.executor, 
+                    llm_function, input_value, pre_prompt, post_prompt
+                )
+            
             logging.info(f"LLMCallManager -> handled llm task, sending LLMCallComplete event {result}")
             # Post a completion message to the event system when done
             self.post_message(LLMCallComplete(input_id=input_id, result=result))
         except Exception as e:
             # If any error occurs, post an error message to the event system
             self.post_message(LLMCallError(input_id=input_id, error=str(e)))
+
 
     async def submit_llm_call(self, llm_function, input_value, input_id, pre_prompt=None, post_prompt=None):
         """Submits an LLM call to the task queue."""
@@ -66,11 +102,12 @@ class LLMCallManager(MessageEmitterMixin):
         
         # Pass the analysis_function as the llm_function argument
         await self._task_queue.put((
-            llm_function,       # Pass the provided analysis function as the llm_function
-            llm_config,         # Input value (llm_config)
-            agent_name,         # Input value (agent_name)
-            pre_prompt,         # Pre prompt argument
-            post_prompt,        # Post prompt argument
-            input_id            # Task identifier
+            llm_function,       
+            llm_config,         
+            agent_name,         
+            pre_prompt,         
+            post_prompt,        
+            input_id            
         ))
+
         logging.info(f"Analysis call for input_id {input_id} has been queued")

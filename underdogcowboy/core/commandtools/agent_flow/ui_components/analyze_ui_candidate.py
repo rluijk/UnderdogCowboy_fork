@@ -6,7 +6,7 @@ from textual.widgets import Static, Button, LoadingIndicator
 from textual.app import ComposeResult
 
 from ui_components.session_dependent import SessionDependentUI
-from agent_llm_handler import submit_analysis_call
+from agent_llm_handler import run_analysis
 from llm_call_manager import LLMCallManager
 
 from events.llm_events import LLMCallComplete, LLMCallError
@@ -69,9 +69,10 @@ class AnalyzeUI(SessionDependentUI):
 
         logging.info("sending from ui candidate to the LLMCallManager.")
 
-        asyncio.create_task(self.llm_call_manager.submit_llm_call(
-            llm_function=submit_analysis_call,
+        asyncio.create_task(self.llm_call_manager.submit_analysis_call(
+            llm_function=run_analysis,
             llm_config=llm_config,
+            agent_name= current_agent,
             input_id="analysis",
             pre_prompt="Analyze this agent definition:",
             post_prompt=None
