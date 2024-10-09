@@ -8,14 +8,13 @@ from textual.app import ComposeResult
 
 from events.analysis_events import AnalysisComplete, AnalysisError  
 from agent_llm_handler import run_analysis
-from session_manager import SessionManager
 
 from ui_components.session_dependent import SessionDependentUI
 from exceptions import ApplicationError, SessionNotLoadedError, InvalidSessionDataError, AnalysisError
 
 # Clear existing handlers and set up logging to a file
-for handler in logging.root.handlers[:]:
-    logging.root.removeHandler(handler)
+#for handler in logging.root.handlers[:]:
+#    logging.root.removeHandler(handler)
 
 
 class AnalyzeUI(SessionDependentUI):

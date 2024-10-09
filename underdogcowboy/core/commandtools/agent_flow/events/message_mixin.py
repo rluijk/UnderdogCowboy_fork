@@ -1,3 +1,4 @@
+import logging
 from textual.message import Message
 
 class MessageEmitterMixin:
@@ -7,6 +8,7 @@ class MessageEmitterMixin:
     def set_message_post_target(self, post_target):
         """Set the target widget that will handle message posting."""
         self._message_post_target = post_target
+        logging.info(f"post target message set to: {self._message_post_target}")
 
     def post_message(self, message: Message):
         """Post a message if a target is set."""

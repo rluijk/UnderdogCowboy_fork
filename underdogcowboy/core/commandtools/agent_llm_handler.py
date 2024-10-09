@@ -1,14 +1,25 @@
 # agent_llm_handler.py
+
+""" DUPLICATE 
+
+FOR NOW COMMENTED OUT, BUT THE WORKING AND USED VERSION
+HAS THE WRAPPER: run_analysis. 
+
+If this file (which i believe is the duplicate) is needed, please
+look how to properly integrate with the correct one. 
+
+IF THIS FILE IS STILL THERE AFTER THE COMMIT, IT CAN BE DELETED
+
+"""
+
+
+
+"""
 import os 
 import json
-"""
-This module provides functions for dynamically selecting agents and sending
-agent data (like agent history) to the selected agent for processing via LLM.
 
-AGENT_REGISTRY is a mapping of agent names (or types) to their respective classes or objects.
-The agents process or evaluate agent data, typically sent as JSON, and return
-a response based on the agent's specific logic (such as 'clarity' for agent assessment).
-"""
+
+
 
 # Mapping agent names to agent classes (or objects)
 AGENT_REGISTRY = {
@@ -17,24 +28,7 @@ AGENT_REGISTRY = {
 }
 
 def send_agent_data_to_llm(llm_config, agent_name, agent_type, pre_prompt=None, post_prompt=None):
-    """
-    Calls the LLM via a dynamically selected agent with the agent's data included in the prompt.
 
-    This function takes the LLM configuration, agent name, and the agent type (from the registry),
-    then constructs a prompt by combining any pre-prompt, the agent's data (loaded from a file),
-    and an optional post-prompt. It sends this information to the selected agent for evaluation
-    or feedback, depending on the nature of the agent.
-
-    Parameters:
-    - llm_config: Configuration for the LLM, including model details.
-    - agent_name: The name of the agent whose data will be loaded and sent.
-    - agent_type: The type of agent to handle the evaluation (e.g., 'clarity').
-    - pre_prompt: Optional text to prepend to the agent data in the prompt.
-    - post_prompt: Optional text to append to the agent data in the prompt.
-    
-    Returns:
-    - The response text from the agent (via LLM), or an error message.
-    """
     
     from underdogcowboy import AgentDialogManager
 
@@ -78,3 +72,4 @@ def send_agent_data_to_llm(llm_config, agent_name, agent_type, pre_prompt=None, 
 
     except Exception as e:
         return f"Error: {str(e)}"
+"""

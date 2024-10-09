@@ -1,5 +1,6 @@
 # agent_llm_handler.py
 import os 
+import logging
 import json
 """
 This module provides functions for dynamically selecting agents and sending
@@ -80,12 +81,73 @@ def send_agent_data_to_llm(llm_config, agent_name, agent_type, pre_prompt=None, 
         return f"Error: {str(e)}"
 
 
-def run_analysis(llm_config, agent_name, pre_prompt=None):
+def __bck__run_analysis(llm_config, agent_name, pre_prompt=None):
     """Legacy function for running analysis. Now wraps around send_agent_data_to_llm."""
-    
+    logging.info("run analysis in the llm handler")
     # Use the passed pre_prompt if provided, otherwise default to the hardcoded value
     if pre_prompt is None:
         pre_prompt = "Analyze this agent definition:"
     
     # Call the reusable function to send data to the 'clarity' agent
     return send_agent_data_to_llm(llm_config, agent_name, 'clarity', pre_prompt=pre_prompt)
+
+def run_analysis(llm_config, agent_name, pre_prompt=None, post_prompt=None):
+    """
+    Calls the LLM via a dynamically selected agent with the agent's data included in the prompt.
+
+    This function takes the LLM configuration, agent name, and the agent type (from the registry),
+    then constructs a prompt by combining any pre-prompt, the agent's data (loaded from a file),
+    and an optional post-prompt. It sends this information to the selected agent for evaluation
+    or feedback, depending on the nature of the agent.
+
+    Parameters:
+    - llm_config: Configuration for the LLM, including model details.
+    - agent_name: The name of the agent whose data will be loaded and sent.
+    - pre_prompt: Optional text to prepend to the agent data in the prompt.
+    - post_prompt: Optional text to append to the agent data in the prompt.
+    
+    Returns:
+    - The response text from the agent (via LLM), or an error message.
+    """
+    
+    from underdogcowboy import AgentDialogManager
+
+    logging.info("run_analysis -> running analysis for agent")
+    
+    # Ensure the agent_type exists in the registry
+    agent_type = 'clarity'  # Set directly since this is specific to clarity
+    if agent_type not in AGENT_REGISTRY:
+        return f"Error: Invalid agent type '{agent_type}' specified."
+
+    # Dynamically import the correct agent from the registry
+    try:
+        agent_module = __import__('underdogcowboy', fromlist=[AGENT_REGISTRY[agent_type]])
+        agent = getattr(agent_module, AGENT_REGISTRY[agent_type])
+    except ImportError as e:
+        return f"Error: Could not import the specified agent '{agent_type}'. {str(e)}"
+    
+    try:
+        model_id = llm_config['model_id']
+        adm = AgentDialogManager([agent], model_name=model_id)
+        
+        agents_dir = os.path.expanduser("~/.underdogcowboy/agents")
+        agent_file = os.path.join(agents_dir, f"{agent_name}.json")
+        
+        if not os.path.exists(agent_file):
+            return f"Error: Agent file for '{agent_name}' not found."
+
+        with open(agent_file, 'r') as f:
+            agent_data = json.load(f)
+
+        # Construct the prompt dynamically using the optional arguments
+        prompt = pre_prompt or "Analyze this agent definition: "
+        prompt += json.dumps(agent_data)
+        if post_prompt:
+            prompt += f" {post_prompt}"
+
+        # Send the constructed prompt to the LLM via the selected agent
+        response = agent >> prompt
+        return response.text
+
+    except Exception as e:
+        return f"Error: {str(e)}"
