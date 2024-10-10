@@ -1,19 +1,35 @@
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import logging
-import os
-import json
-from textual.app import ComposeResult
-from textual.widgets import Static, Button, LoadingIndicator, Label
-from events.feedback_events import FeedbackRulesComplete, FeedbackRulesError
-from agent_llm_handler import send_agent_data_to_llm  
 
-from session_manager import SessionManager
+from textual import on
+from textual.app import ComposeResult
+from textual.widgets import Static, Button, Label, LoadingIndicator
+
+# LLM
+from agent_llm_handler import send_agent_data_to_llm  
+from llm_call_manager import LLMCallManager
+
+# Events
+from events.llm_events import LLMCallComplete, LLMCallError
+
+# UI / Session
 from ui_components.session_dependent import SessionDependentUI
 
 class FeedbackRulesUI(SessionDependentUI):
-    """A UI for getting feedback from the underlying agent on how the agent understands the rules it is under or needs to follow."""
+    """A UI for getting feedback from the underlying agent on how the agent understands
+       the rules it is under or needs to follow."""
     
+    def __init__(self, session_manager, screen_name,
+                    agent_name_plain):
+        super().__init__(session_manager, screen_name, agent_name_plain)
+        self.session_manager = session_manager
+
+        self.llm_call_manager = LLMCallManager()
+        self.llm_call_manager.set_message_post_target(self)
+        logging.info(f"post target message set to: {self.llm_call_manager._message_post_target}")
+
+
     def compose(self) -> ComposeResult:
         yield Label("Feedback on Rules Understanding:", id="feedback-rules-label", classes="hidden")
         yield Static(id="feedback-rules-result", classes="feedback-result hidden")
@@ -42,45 +58,46 @@ class FeedbackRulesUI(SessionDependentUI):
         self.query_one("#feedback-rules-result").add_class("hidden")
         self.query_one("#loading-feedback-rules").remove_class("hidden")
 
-        # Use asyncio to manage the feedback task asynchronously
-        asyncio.create_task(self.perform_feedback())
+        llm_config = self.app.get_current_llm_config()
+        if not llm_config:
+            self.show_error("No LLM configuration available.")
+            return
 
-    async def perform_feedback(self) -> None:
-        try:
-            llm_config = self.app.get_current_llm_config()
-            if not llm_config:
-                raise ValueError("No LLM configuration available.")
+        current_agent = self.agent_name_plain
+        if not current_agent:
+            self.show_error("No agent currently loaded. Please load an agent first.")
+            return
+
+        logging.info("sending from feedback_input_ui to the LLMCallManager.")
+
+        pre_prompt = "Provide feedback on how the following agent understands the rules it is under or needs to follow."
+        
+        asyncio.create_task(self.llm_call_manager.submit_llm_call( 
             
-            current_agent = self.agent_name_plain
-            if not current_agent:
-                raise ValueError("No agent currently loaded. Please load an agent first.")
-            
-            # Use ThreadPoolExecutor to run feedback in the background
-            with ThreadPoolExecutor(max_workers=1) as executor:
-                # Use send_agent_data_to_llm to request feedback from the LLM via the 'clarity' agent
-                pre_prompt = "Provide feedback on how the following agent understands the rules it is under or needs to follow."
-                result = await asyncio.get_event_loop().run_in_executor(
-                    executor, send_agent_data_to_llm, llm_config, current_agent, 'clarity', pre_prompt
-                )
+            llm_function = send_agent_data_to_llm,
+            llm_config = llm_config,
+            agent_name = current_agent,
+            agent_type = "clarity",
+            input_id = "feedback-rules",
+            pre_prompt = pre_prompt,    
+            post_prompt = None
+             
+         ))      
+  
+    @on(LLMCallComplete)
+    async def on_feedback_input_complete(self, event: LLMCallComplete) -> None:
+        if event.input_id == "feedback-rules":
+            self.update_and_show_feedback(event.result)
+            self.query_one("#loading-feedback-rules").add_class("hidden")
 
-            if result.startswith("Error:"):
-                raise ValueError(result)
-
-            self.post_message(FeedbackRulesComplete(result))
-        except Exception as e:
-            logging.error(f"Feedback error: {str(e)}")
-            self.post_message(FeedbackRulesError(str(e)))
-
-    def on_feedback_rules_complete(self, message: FeedbackRulesComplete) -> None:
-        self.update_and_show_feedback(message.result)
-        self.query_one("#loading-feedback-rules").add_class("hidden")
-
-    def on_feedback_rules_error(self, message: FeedbackRulesError) -> None:
-        self.show_error(message.error)
-        self.query_one("#loading-feedback-rules").add_class("hidden")
+    @on(LLMCallError)
+    async def on_feedback_input_error(self, event: LLMCallError) -> None:
+        if event.input_id == "feedback-rules":    
+            self.show_error(event.error)
+            self.query_one("#loading-feedback-rules").add_class("hidden")
 
     def update_and_show_feedback(self, result: str) -> None:
-        self.session_managerstorage_manager.update_data("last_feedback_rules", result)
+        self.session_manager.update_data("last_feedback_rules", result)
         self.show_feedback(result)
 
     def show_feedback(self, result: str) -> None:

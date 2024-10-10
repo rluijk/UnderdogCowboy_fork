@@ -130,6 +130,7 @@ def run_analysis(llm_config, agent_name, pre_prompt=None, post_prompt=None):
         model_id = llm_config['model_id']
         adm = AgentDialogManager([agent], model_name=model_id)
         
+        # the agent under analysis 
         agents_dir = os.path.expanduser("~/.underdogcowboy/agents")
         agent_file = os.path.join(agents_dir, f"{agent_name}.json")
         
