@@ -9,11 +9,7 @@ from concurrent.futures import ThreadPoolExecutor
 from events.message_mixin import MessageEmitterMixin
 from events.llm_events import LLMCallComplete, LLMCallError
 
-
-class MessagePostTargetNotSetError(Exception):
-    """Exception raised when message post target is not set."""
-    pass
-
+from exceptions import MessagePostTargetNotSetError
 
 class LLMCallManager(MessageEmitterMixin):
     """Manages asynchronous LLM (Large Language Model) calls with a task queue and thread pool executor."""

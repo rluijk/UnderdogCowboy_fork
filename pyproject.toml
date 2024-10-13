@@ -20,6 +20,8 @@ dependencies = [
     "rich",
     "mdformat",
     "textual",
+    "pyyaml",
+    "pyperclip",
     "uccli @ file:///Users/reneluijk/projects/uccli"   
 ]
 

@@ -17,10 +17,11 @@ from events.session_events import SessionStateChanged
 
 
 class StateButtonGrid(Static):
-    def __init__(self, state_machine: StateMachine, *args, **kwargs):
+    def __init__(self, state_machine: StateMachine, *args, state_machine_active_on_mount=False, **kwargs):
         super().__init__(*args, **kwargs)
         self.state_machine = state_machine
         self.all_actions = self.get_ordered_actions()
+        self.state_machine_active_on_mount = state_machine_active_on_mount
 
     def get_ordered_actions(self) -> List[str]:
         all_actions = set()
@@ -61,9 +62,16 @@ class StateButtonGrid(Static):
                 yield Button(str(action), id=f"btn-{action}", classes="action-button")
 
     def on_mount(self) -> None:
-        """Disable all buttons initially until session state changes."""
-        for button in self.query("Button"):
-            button.disabled = True
+        """Disable or update buttons based on state_machine_active_on_mount flag."""
+        self.disable_buttons_initially()
+
+    def disable_buttons_initially(self) -> None:
+        """Disable all buttons initially unless the state machine is active."""
+        if not self.state_machine_active_on_mount:
+            for button in self.query("Button"):
+                button.disabled = True
+        else:
+            self.update_buttons() 
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         action = str(event.button.label)

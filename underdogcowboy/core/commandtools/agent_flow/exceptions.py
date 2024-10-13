@@ -29,6 +29,14 @@ class InvalidSessionDataError(SessionError):
     """Raised when the session data is invalid or corrupted."""
     pass
 
+""" Event related """
+
+# related exception for connecting code (ours) to the Textual Libraries even driven system.
+class MessagePostTargetNotSetError(Exception):
+    """Exception raised when message post target is not set."""
+    pass
+
+
 
 """ Storage related """
 class StorageError(ApplicationError):

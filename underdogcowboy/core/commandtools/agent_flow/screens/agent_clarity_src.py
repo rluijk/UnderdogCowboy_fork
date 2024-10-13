@@ -25,7 +25,9 @@ from ui_components.session_dependent import SessionDependentUI
 from ui_factory import UIFactory
 from ui_components.system_message_ui import SystemMessageUI
 from ui_components.dynamic_container import DynamicContainer
-from ui_components.analyze_ui import AnalyzeUI 
+from ui_components.analyze_ui_candidate import AnalyzeUI # integration test
+# from ui_components.analyze_ui import AnalyzeUI # integration test
+
 from ui_components.feedback_input_ui import FeedbackInputUI
 from ui_components.feedback_output_ui import FeedbackOutputUI
 from ui_components.feedback_rules_ui import FeedbackRulesUI
@@ -50,7 +52,7 @@ from state_machines.clarity_state_machine import create_clarity_state_machine
 
 class ClarityScreen(SessionScreen):
 
-    CSS_PATH = "../state_machine_app.css"
+    # CSS_PATH = "../state_machine_app_candidate_missing.css"
 
     def __init__(self, 
                  state_machine: StateMachine = None, 
@@ -82,6 +84,9 @@ class ClarityScreen(SessionScreen):
 
         self._pending_session_manager = None
 
+        logging.info(f"CSS path set to: {self.CSS_PATH}. Able to read CSS as textual.")
+
+
     def configure_default_llm(self):
         """Trigger the configuration process for the default LLM."""
         try:
@@ -95,8 +100,8 @@ class ClarityScreen(SessionScreen):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        with Horizontal(id="agent-centre", classes="dynamic-spacer"):
-            yield LeftSideContainer(classes="left-dynamic-spacer")
+        with Horizontal(id="agent-centre", classes="dynamic-spacer agent-clarity-base"):
+            yield LeftSideContainer(classes="left-dynamic-spacer agent-clarity-left")
             yield DynamicContainer(id="center-dynamic-container-clarity", classes="center-dynamic-spacer")
 
         with Vertical(id="app-layout"):
@@ -124,8 +129,6 @@ class ClarityScreen(SessionScreen):
             self.call_later(self.update_ui_after_session_load)
         else:
             self._pending_session_manager = new_session_manager
-
-
 
     def update_header(self, session_name=None, agent_name=None):
         if not session_name:
@@ -173,8 +176,6 @@ class ClarityScreen(SessionScreen):
         except NoMatches:
             logging.warning("Dynamic container not found; scheduling UI update later.")
             self.call_later(self.update_ui_after_session_load)
-
-
 
     def on_agent_selected(self, event: AgentSelected):
         self.current_agent = event.agent_name.plain
@@ -280,8 +281,6 @@ class ClarityScreen(SessionScreen):
 
         except ValueError as e:
             logging.error(f"Error: {e}")
-
-
 
     def on_action_selected(self, event: ActionSelected) -> None:
         action = event.action

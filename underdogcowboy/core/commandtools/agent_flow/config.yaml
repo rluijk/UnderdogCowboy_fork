@@ -10,6 +10,6 @@ llm:
   default_model_name: "Claude 3.5 Sonnet"  # Default model name for the LLM
 
 logging:
-  filename: "app_clarity-oct_2.log"  # Filename for logging output
-  level: "DEBUG"  # Logging level (e.g., DEBUG, INFO, WARNING, ERROR)
+  filename: "app_oct_9.log"  # Filename for logging output
+  level: "INFO"  # Logging level (e.g., DEBUG, INFO, WARNING, ERROR)
   format: "%(asctime)s - %(levelname)s - %(message)s"  # Format for log messages

@@ -6,6 +6,25 @@ Screen {
     background: #2c2c2c;
 }
 
+#analyze-box {
+    layout: vertical; /* Stack the label and button vertically */
+    align: center middle; /* Center horizontally and vertically */
+    width: 100%;
+    height: auto;
+    padding: 1;
+    border: lightgrey;
+    margin-top: 0;
+}
+
+#start-analysis-button, #rerun-analysis-button {
+    height: 3;
+    align: center middle;
+    dock: bottom;
+    margin-top: 1;
+}
+
+
+
 Header {
     height: auto;
     min-height: 3;
@@ -136,7 +155,7 @@ Collapsible > .collapsible--content {
 .action-button {
     width: 100%;
     height: 3;
-    background: #3498db;
+    background: #3498db; 
     color: #ffffff;
 }
 
@@ -162,3 +181,81 @@ Collapsible > .collapsible--content {
     background: #7f8c8d;
     color: #ecf0f1;
 }
+
+/*** ***/
+
+
+/* General Section Styling */
+.compact-section {
+    padding: 0;
+    margin: 0;
+} 
+
+/* Button Styling */
+.compact-button {
+    width: 4;
+    height: 5;
+    padding: 1 2; /* Adjust padding to fit tighter */
+    margin: 0;    /* Remove extra margin */
+}
+
+
+/* Label Styling */
+.compact-label {
+    padding: 0 1; /* Compact padding */
+    margin: 0;      /* Remove unnecessary margins */
+}
+
+/* Checkbox Styling */
+.compact-checkbox {
+    margin: 0;
+    padding: 1 2;
+}
+
+/* Large Buttons */
+.large-button {
+    padding: 2 4; /* Reduce padding for large buttons */
+}
+
+/* ListItem Styling for compact rows */
+ListItem {
+    padding: 0;             /* Remove padding around ListItem */
+    margin: 0;              /* Remove extra margins */
+    height: auto;           /* Let height adjust based on content */
+    border-bottom: none;    /* Remove borders unless required */
+}
+
+/* Button Styling */
+.compact-button {
+    height: 3;              /* Set a fixed height */
+    width: 1;
+    padding: 0 1;           /* Reduce padding to make it more compact */
+    margin: 0;              /* Remove margin */
+    background: #2980b9;    /* Keep background color consistent */
+}
+
+/* Input Field Styling */
+.compact-input {
+    padding: 1 1;           /* Reduce padding inside input fields */
+    margin: 0;              /* Remove margins */
+    height: 2;              /* Match the height of the button */
+    width: 30%;            /* Set to full width within the ListItem */
+
+}
+
+
+/* Label Styling */
+.compact-label {
+    padding: 1 1;           /* Reduce padding for labels */
+    margin: 0;              /* Remove margins */
+    height: 3;              /* Match height with input fields and buttons */
+}
+
+/* Checkbox Styling */
+.compact-checkbox {
+    height: 3;              /* Set checkbox height to match other elements */
+    margin: 0 1;            /* Remove extra margin */
+    padding: 0;             /* Remove padding */
+}
+
+

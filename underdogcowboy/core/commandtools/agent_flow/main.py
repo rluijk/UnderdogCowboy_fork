@@ -1,5 +1,6 @@
 import logging
 import yaml
+import os
 from typing import Dict, Set
 
 from textual import on
@@ -33,19 +34,19 @@ from llm_manager import LLMManager
 # Custom events
 from events.session_events import SessionSyncStopped
 
-logging.basicConfig(
-    filename='app_clarity-oct_2.log',
-    level=logging.DEBUG,
-    format='%(asctime)s - %(levelname)s - %(message)s'
-)
+from copy_paste import ClipBoardCopy
 
 # Load configuration from YAML file
 def load_config(config_path: str) -> dict:
     with open(config_path, 'r') as file:
         return yaml.safe_load(file)
 
+
 class MultiScreenApp(App):
     """Main application managing multiple screens and session synchronization."""
+
+    CSS_PATH = "./state_machine_app_candidate.tcss"
+
 
     # Key bindings for user interactions to switch between screens or sync sessions
     BINDINGS = [
@@ -82,6 +83,9 @@ class MultiScreenApp(App):
         
         # Set the default LLM during initialization
         self.llm_manager.set_default_llm()
+        # Set copy and paste 
+        self.clipboard_content = ClipBoardCopy()
+        self.clipboard_content.set_message_post_target(self)
 
     def on_mount(self) -> None:
         """Mount screens when the app starts."""
@@ -130,9 +134,6 @@ class MultiScreenApp(App):
         
         # Start with the Clarity screen as the main app screen
         self.push_screen("Clarity")
-
-
-
 
 
     def get_current_llm_config(self):
@@ -213,6 +214,30 @@ class MultiScreenApp(App):
 def main():
     import os
     config_path = os.path.join(os.path.dirname(__file__), 'config.yaml')
+
+    config = load_config(config_path)
+
+    try:
+        log_filename = config['logging']['filename']
+        log_filepath = os.path.abspath(log_filename)
+
+        # Clear all existing handlers to avoid interference
+        for handler in logging.root.handlers[:]:
+            logging.root.removeHandler(handler)
+
+        logging.basicConfig(
+            filename=log_filepath,
+            level=config['logging']['level'],
+            format=config['logging']['format']
+        )
+        logging.info("Logging initialized successfully")
+        print(f"Logging initialized. Log file: {log_filepath}")
+        print(f"To view the log file, use the command: tail -f {log_filepath}")
+    except Exception as e:
+        print(f"Error initializing logging: {e}")
+
+    logging.info("Starting the app...")
+
     app = MultiScreenApp(config_path=config_path)
     app.run()
 
