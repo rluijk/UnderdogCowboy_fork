@@ -3,7 +3,7 @@ from textual.app import ComposeResult
 from textual.widgets import Label, Static
 
 class CenterContent(Static):
-    def __init__(self, action: str, *args, **kwargs):
+    def __init__(self, action: str = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.action = action
 

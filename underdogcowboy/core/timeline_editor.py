@@ -240,7 +240,7 @@ class Timeline:
         # Writing to file
         with open(full_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
-        print(f"Timeline saved to {filename} with name '{name}' and description: '{description}'")
+        # print(f"Timeline saved to {filename} with name '{name}' and description: '{description}'")
 
     def load(self, source, path=None):
         """

@@ -1,7 +1,7 @@
 import logging
 import yaml
 import os
-from typing import Dict, Set
+from typing import Dict, Set, Union
 
 from textual import on
 from textual.app import App
@@ -33,8 +33,15 @@ from llm_manager import LLMManager
 
 # Custom events
 from events.session_events import SessionSyncStopped
+from events.agent_events import AgentLoaded
+from events.dialog_events import DialogLoaded
+from events.app_state_events import AppReadyProcessor
 
 from copy_paste import ClipBoardCopy
+
+# uc
+from underdogcowboy.core.timeline_editor import CommandProcessor
+
 
 # Load configuration from YAML file
 def load_config(config_path: str) -> dict:
@@ -87,6 +94,7 @@ class MultiScreenApp(App):
         self.clipboard_content = ClipBoardCopy()
         self.clipboard_content.set_message_post_target(self)
 
+
     def on_mount(self) -> None:
         """Mount screens when the app starts."""
         # Initialize individual SessionManagers for each screen by default
@@ -134,7 +142,6 @@ class MultiScreenApp(App):
         
         # Start with the Clarity screen as the main app screen
         self.push_screen("Clarity")
-
 
     def get_current_llm_config(self):
         """Fetch the current LLM config from LLMManager."""

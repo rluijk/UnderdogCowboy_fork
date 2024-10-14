@@ -11,6 +11,10 @@ from rich.text import Text
 from events.dialog_events import DialogSelected
 from events.button_events import UIButtonPressed
 
+# uc
+from underdogcowboy.core.config_manager import LLMConfigManager 
+
+
 class LoadDialogUI(Static):
     """A UI for getting an dialog selected """
     def compose(self):
@@ -34,7 +38,9 @@ class LoadDialogUI(Static):
     def load_dialogs(self):
         # get dialogss from file system
         
-        dialogs_dir = os.path.expanduser("~/.underdogcowboy/agents")
+        config_manager: LLMConfigManager = LLMConfigManager()
+        dialogs_dir: str = config_manager.get_general_config().get('dialog_save_path', '')
+      
         dialogs = [f.replace('.json', '') for f in os.listdir(dialogs_dir) if f.endswith('.json')]
 
         list_view = self.query_one("#dialog-list")
