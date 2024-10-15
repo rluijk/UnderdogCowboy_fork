@@ -2,7 +2,7 @@ import logging
 import os
 import json
 
-from typing import Tuple, Union
+from typing import Tuple
 
 from textual import on
 from textual.app import ComposeResult
@@ -61,8 +61,11 @@ class TimeLineEditorScreen(SessionScreen):
     def __init__(self,
                  state_machine: StateMachine = None,
                  session_manager: SessionManager = None,
-                 *args, **kwargs):
+                 *args, **kwargs
+                 ):
+        
         super().__init__(*args, **kwargs)
+
         self.title = "Timeline Editor"
         self.state_machine = state_machine or create_timeline_editor_state_machine()
         self.session_manager = session_manager
@@ -122,7 +125,6 @@ class TimeLineEditorScreen(SessionScreen):
         dynamic_container = self.query_one("#center-dynamic-container-timeline-editor", DynamicContainer)
         dynamic_container.clear_content()
         self.load_chat_ui(self.current_dialog,"dailog")
-        #self.post_message(LoadDialog(self.current_dialog))
     
     on(AgentSelected)
     def on_agent_selected(self, event: AgentSelected):
@@ -132,7 +134,6 @@ class TimeLineEditorScreen(SessionScreen):
         dynamic_container = self.query_one("#center-dynamic-container-timeline-editor", DynamicContainer)
         dynamic_container.clear_content()
         
-        #self.post_message(LoadAgent( self.agent_name_plain))
         # Update header with current agent and session (if available)
         self.update_header(agent_name=event.agent_name.plain)
         self.load_chat_ui(self.agent_name_plain, "agent")
@@ -184,7 +185,8 @@ class TimeLineEditorScreen(SessionScreen):
         except ValueError as e:
             logging.error(f"Error: {e}")
 
-
+    # I think can be removed is SessionManager is not user in the timeline editor
+    # which seems to be a close decision to be made. 
     def update_ui_after_session_load(self):
         try:
             dynamic_container = self.query_one("#center-dynamic-container-timeline-editor", DynamicContainer)
@@ -203,57 +205,12 @@ class TimeLineEditorScreen(SessionScreen):
             logging.warning("Dynamic container not found; scheduling UI update later.")
             self.call_later(self.update_ui_after_session_load)
 
-    def transition_to_initial_state(self):
-        initial_state = self.state_machine.states.get("initial")
-        if initial_state:
-            self.state_machine.current_state = initial_state
-            logging.info(f"Set state to initial")
-            self.query_one(StateInfo).update_state_info(self.state_machine, "")
-            self.query_one(StateButtonGrid).update_buttons()
-            # Store the current state in the session data
-            self.session_manager.update_data("current_state", "initial", screen_name=self.screen_name)
-        else:
-            logging.error(f"Failed to set state to initial_state: State not found")
-
-
-
     @on(NewAgentCreated)
     def create_new_agent(self, event: NewAgentCreated):
         # Create agent in file system. 
         self._save_new_agent(event.agent_name)        
         dynamic_container: DynamicContainer = self.query_one("#center-dynamic-container-timeline-editor", DynamicContainer)
         dynamic_container.clear_content()
-
-    def _get_model_and_timeline(self) -> Tuple[ConfigurableModel, Timeline]:        
-       
-        self.model_id = self.app.get_current_llm_config()["model_id"]
-
-        # TODO: Hard Coded default provider. 
-        model = ModelManager.initialize_model_with_id("anthropic",self.model_id)
-        
-        timeline = Timeline()
-        return model, timeline    
-
-    def _load_processor(self, file_name: str, path: str) -> None:
-        """General method to load a timeline and initialize the command processor."""
-        try:
-            self.model, self.timeline = self._get_model_and_timeline()
-            self.timeline.load(file_name, path=path)
-            self.processor = CommandProcessor(self.timeline, self.model)
-        except FileNotFoundError:
-            logging.error(f"File {file_name} not found in {path}.")
-        except Exception as e:
-            logging.error(f"Failed to load processor: {str(e)}")
-
-    
-    @on(LoadDialog)
-    def load_dialog(self, event: LoadDialog):
-        # Dialog specific
-        config_manager: LLMConfigManager = LLMConfigManager()
-        dialog_path: str = config_manager.get_general_config().get('dialog_save_path', '')
-
-        self._load_processor(event.dialog_name, dialog_path)
-        self.post_message(DialogLoaded(processor=self.processor))
 
     @on(NewDialogCreated)
     def create_new_dialog(self, event: NewDialogCreated):

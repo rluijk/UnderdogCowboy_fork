@@ -35,7 +35,6 @@ from llm_manager import LLMManager
 from events.session_events import SessionSyncStopped
 from events.agent_events import AgentLoaded
 from events.dialog_events import DialogLoaded
-from events.app_state_events import AppReadyProcessor
 
 from copy_paste import ClipBoardCopy
 
@@ -146,7 +145,6 @@ class MultiScreenApp(App):
     def get_current_llm_config(self):
         """Fetch the current LLM config from LLMManager."""
         return self.llm_manager.get_current_llm_config()
-
 
     @on(SessionSyncStopped)
     def on_session_sync_stopped(self, event: SessionSyncStopped) -> None:

@@ -60,6 +60,16 @@ Collapsible > .collapsible--content {
 
 /* --- Specific IDs --- */
 
+#chat-history{
+    margin: 1;
+    padding: 1;
+}
+
+#chat-textarea{
+    border: lightgrey;
+    height: 20%;
+}
+
 #analyze-box {
     layout: vertical; /* Stack the label and button vertically */
     align: center middle; /* Center horizontally and vertically */
