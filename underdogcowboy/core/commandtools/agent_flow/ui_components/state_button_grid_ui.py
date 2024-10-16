@@ -78,6 +78,7 @@ class StateButtonGrid(Static):
         if self.state_machine.transition(action):
             logging.info(f"Action '{action}' executed. New state: {self.state_machine.current_state.name}")
             self.post_message(ActionSelected(action))  # Emit custom event
+            #self.app.post_message(ActionSelected(action, sender=self))
         else:
             logging.warning(f"Action '{action}' is not allowed in current state: {self.state_machine.current_state.name}")
 

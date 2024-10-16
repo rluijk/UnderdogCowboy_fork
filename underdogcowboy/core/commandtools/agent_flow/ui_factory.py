@@ -29,6 +29,7 @@ class UIFactory:
             ui_class = NewSessionUI
             action_func = None
         elif id =="chat-gui":
+            #from ui_components.chat_ui_candidate import ChatUI
             from ui_components.chat_ui import ChatUI
             ui_class = ChatUI    
             action_func = None

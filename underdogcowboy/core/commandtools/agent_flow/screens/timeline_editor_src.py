@@ -1,6 +1,7 @@
 import logging
 import os
 import json
+import re
 
 from typing import Tuple
 
@@ -23,6 +24,8 @@ from ui_components.state_button_grid_ui import StateButtonGrid
 from ui_components.state_info_ui import StateInfo
 from ui_components.center_content_ui import CenterContent
 from ui_components.chat_ui import ChatUI
+# from ui_components.chat_ui_candidate import ChatUI
+
 # from ui_components.left_side_ui import LeftSideContainer
 
 from ui_components.load_agent_ui import LoadAgentUI
@@ -46,6 +49,9 @@ from state_machines.timeline_editor_state_machine import create_timeline_editor_
 from underdogcowboy.core.config_manager import LLMConfigManager 
 from underdogcowboy.core.timeline_editor import Timeline, CommandProcessor
 from underdogcowboy.core.model import ModelManager, ConfigurableModel
+
+# uc exceptions
+from underdogcowboy.core.exceptions import InvalidAgentNameError
 
 """"
 Under development, the use and none use of SessionScreen.
@@ -124,7 +130,7 @@ class TimeLineEditorScreen(SessionScreen):
         self.notify(f"Loaded Dialog: {event.dialog_name}")
         dynamic_container = self.query_one("#center-dynamic-container-timeline-editor", DynamicContainer)
         dynamic_container.clear_content()
-        self.load_chat_ui(self.current_dialog,"dailog")
+        self.load_chat_ui(self.current_dialog,"dialog")
     
     on(AgentSelected)
     def on_agent_selected(self, event: AgentSelected):
@@ -249,19 +255,28 @@ class TimeLineEditorScreen(SessionScreen):
     def _save_new_agent(self, agent_name):
         """Saves the current dialog as a user-defined agent."""
     
+
+        # Remove extension if present
+        filename_no_ext, ext = os.path.splitext(agent_name)
+
+        # Python module name validation
+        if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", filename_no_ext):
+            raise InvalidAgentNameError(filename_no_ext)
+
+
         # File path construction
         agents_dir = os.path.expanduser("~/.underdogcowboy/agents")
     
         # Create the directory if it doesn't exist
         os.makedirs(agents_dir, exist_ok=True)
-        file_path = os.path.join(agents_dir, f"{agent_name}.json")
+        file_path = os.path.join(agents_dir, f"{filename_no_ext}.json")
         
 
         # Metadata now includes name and description
         metadata = {
             "frozenSegments": [],
             "startMode": 'interactive',
-            "name": agent_name,
+            "name": filename_no_ext,
             "description": ""
         }
 
@@ -280,11 +295,33 @@ class TimeLineEditorScreen(SessionScreen):
         # from underdogcowboy import _reload_agents
         #_reload_agents() 
 
+    def save_dialog(self):
+        try:
+            chat_ui = self.query_one(ChatUI)
+            # Call the save_dialog method directly
+            chat_ui.save_dialog()
+        except NoMatches:
+            logging.warning("ChatUI not found; cannot save dialog.")
+
+    def save_agent(self):
+        try:
+            chat_ui = self.query_one(ChatUI)
+            # Call the save_agent method directly
+            chat_ui.save_agent()
+        except NoMatches:
+            logging.warning("ChatUI not found; cannot save agent.")
+
+
     def on_action_selected(self, event: ActionSelected) -> None:
         action = event.action
 
-        #if action == "reset":
-            #self.clear_session()
+        if action == "save_dialog":
+            self.save_dialog()
+            return
+
+        if action == "save_agent":
+            self.save_agent()
+            return
 
         dynamic_container = self.query_one("#center-dynamic-container-timeline-editor", DynamicContainer)
         dynamic_container.clear_content()

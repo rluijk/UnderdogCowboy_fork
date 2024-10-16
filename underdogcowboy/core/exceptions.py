@@ -18,3 +18,12 @@ class DialogNotFoundError(Exception):
 
 class InvalidProcessorError(Exception):
     """Raised when an invalid CommandProcessor is provided."""
+
+class InvalidAgentNameError(Exception):
+    """Exception raised when the agent name is invalid."""
+    def __init__(self, agent_name, message=None):
+        if message is None:
+            message = f"Invalid agent name '{agent_name}'. Please use only letters, numbers, and underscores. The name must start with a letter or underscore."
+        super().__init__(message)
+        self.agent_name = agent_name
+

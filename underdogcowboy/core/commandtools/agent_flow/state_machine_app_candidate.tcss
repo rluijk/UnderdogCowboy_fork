@@ -58,6 +58,23 @@ Collapsible > .collapsible--content {
     padding: 1;
 }
 
+
+/* CSS styling for chat messages and buttons */
+
+.message-text {
+    padding: 1;
+    background: #f0f0f0;
+}
+
+.message-buttons {
+    margin-top: 1;
+}
+
+.message-button {
+    margin-right: 1;
+}
+
+
 /* --- Specific IDs --- */
 
 #chat-history{
@@ -111,7 +128,7 @@ Collapsible > .collapsible--content {
     grid-size: 3;
     grid-gutter: 1 1;
     padding: 0;
-    background: #333333;
+    background: #2c2c2c;
     border: red;
 
 }
