@@ -148,7 +148,9 @@ def run_analysis(llm_config, agent_name, pre_prompt=None, post_prompt=None):
 
         # Send the constructed prompt to the LLM via the selected agent
         response = agent >> prompt
-        return response.text
+
+         # Return both the response text and the AgentDialogManager instance
+        return response.text, adm
 
     except Exception as e:
         return f"Error: {str(e)}"

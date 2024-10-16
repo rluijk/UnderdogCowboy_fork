@@ -27,6 +27,7 @@ from ui_components.system_message_ui import SystemMessageUI
 from ui_components.dynamic_container import DynamicContainer
 from ui_components.analyze_ui_candidate import AnalyzeUI # integration test
 # from ui_components.analyze_ui import AnalyzeUI # integration test
+from ui_components.chat_ui import ChatUI
 
 from ui_components.feedback_input_ui import FeedbackInputUI
 from ui_components.feedback_output_ui import FeedbackOutputUI
@@ -42,6 +43,7 @@ from ui_components.left_side_ui import LeftSideContainer
 from events.button_events import UIButtonPressed
 from events.agent_events import AgentSelected
 from events.action_events import ActionSelected
+from events.analysis_events import AnalysisCompleteEvent
 
 # Screens
 from screens.session_screen import SessionScreen
@@ -249,6 +251,16 @@ class ClarityScreen(SessionScreen):
             self.notify("Failed to transition to analysis ready state", severity="error")
 
         logging.info("Exiting transition_to_analysis_ready method")
+
+    @on(AnalysisCompleteEvent)
+    def handle_analysis_complete(self, event: AnalysisCompleteEvent):
+        adm = event.adm
+        # Load the ChatUI with the adm
+        dynamic_container = self.query_one("#center-dynamic-container-clarity", DynamicContainer)
+        dynamic_container.clear_content()
+        chat_ui = ChatUI(name="analysis_chat", type="analysis", processor=adm)
+        dynamic_container.load_content(chat_ui)
+        logging.info("ChatUI loaded with AgentDialogManager after analysis.")
 
     @on(UIButtonPressed)
     def handle_ui_button_pressed(self, event: UIButtonPressed) -> None:

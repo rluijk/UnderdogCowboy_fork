@@ -1,6 +1,6 @@
 import logging
 import os
-from typing import Tuple
+from typing import Tuple, Optional, Union
 
 from rich.markdown import Markdown
 
@@ -23,7 +23,8 @@ from events.action_events import ActionSelected
 
 # uc
 from underdogcowboy.core.config_manager import LLMConfigManager
-from underdogcowboy.core.timeline_editor import Timeline, CommandProcessor, Message
+from underdogcowboy.core.timeline_editor import Timeline, CommandProcessor
+from underdogcowboy.core.dialog_manager import AgentDialogManager
 from underdogcowboy.core.model import ModelManager, ConfigurableModel
 
 renderer = LLMResponseRenderer(
@@ -45,25 +46,29 @@ class ChatTextArea(TextArea):
 
 class ChatUI(Static):
 
-    def __init__(self, name: str, type: str):
+    def __init__(self, name: str, type: str, processor: Optional[Union[AgentDialogManager, CommandProcessor]] = None):
         super().__init__()
         
-        self.processor = None
+        self.processor: Optional[Union[AgentDialogManager, CommandProcessor]] = processor
         self.da_name = name
-        self.loading_message_id = None  # Track the loading indicator
-        self.is_scroll_at_bottom = True  # Track if the scroll is at the bottom
+        self.loading_message_id = None  
+        self.is_scroll_at_bottom = True 
         self.chat_history_text = ""  
 
         logging.info(f"Init of ChatUI")
         
-        if type == "dialog":
-            self.load_dialog(self.da_name)
-        if type == "agent":
-            self.load_agent(self.da_name)
-
+        if self.processor is None:
+            if type == "dialog":
+                self.load_dialog(self.da_name)
+            elif type == "agent":
+                self.load_agent(self.da_name)
+            else:
+                raise ValueError(f"Unknown type: {type}")
+            
         self.llm_call_manager = LLMCallManager()
         self.llm_call_manager.set_message_post_target(self) 
-
+            
+        
 
     def compose(self) -> ComposeResult:
         with VerticalScroll(id="chat-scroll", disabled=False):
@@ -109,20 +114,29 @@ class ChatUI(Static):
         except Exception as e:
             logging.error(f"Failed to load processor: {str(e)}")
 
-    def format_messages_to_markdown(self, messages: list) -> str:
-        """Unpacks an array of Message objects and returns a markdown-formatted string."""
+    def format_messages_to_markdown(self) -> str:
+        """Unpacks the messages and returns a markdown-formatted string."""
         markdown_output = ""
-
-        for message in messages:
-            markdown_output += f"#### {message.role.capitalize()}:\n{message.text}\n\n"
-
+        if isinstance(self.processor, CommandProcessor):
+            messages = self.processor.timeline.history 
+            for message in messages:
+                markdown_output += f"#### {message.role.capitalize()}:\n{message.text}\n\n"
+        elif isinstance(self.processor, AgentDialogManager):
+            # Get the active agent's CommandProcessor
+            agent = self.processor.active_agent
+            command_processor = self.processor.processors[agent]  # CommandProcessor instance
+            # Now, use command_processor to access the history
+            messages = command_processor.timeline.history
+            for message in messages:
+                markdown_output += f"#### {message.role.capitalize()}:\n{message.text}\n\n"
+        else:
+            logging.error("Unsupported processor type in ChatUI.")
         return markdown_output
-
 
     def render_chat(self):
         """Render chat history in the UI when available."""
         # Update the chat history from the processor's history
-        self.chat_history_text = self.format_messages_to_markdown(self.processor.timeline.history)
+        self.chat_history_text = self.format_messages_to_markdown()
         chat_widget = self.query_one("#chat-history")
         chat_widget.update(Markdown(self.chat_history_text))
 
@@ -138,7 +152,7 @@ class ChatUI(Static):
     @on(TextSubmitted)
     async def handle_text_submission(self, event: TextSubmitted):
         """Handle the submission of the text."""
-        # Append the user message to the chat history
+        # Update the chat history
         self.chat_history_text += f"\n#### User:\n{event.text}"
         chat_widget = self.query_one("#chat-history", Static)
         chat_widget.update(Markdown(self.chat_history_text))
@@ -147,43 +161,48 @@ class ChatUI(Static):
         scroll_widget = self.query_one("#chat-scroll", VerticalScroll)
         scroll_widget.scroll_end(animate=False, force=True)
 
-        # Append a loading indicator to the chat history
+        # Append a loading indicator
         self.chat_history_text += f"\n#### Assistant:\n..."
         chat_widget.update(Markdown(self.chat_history_text))
         scroll_widget.scroll_end(animate=False, force=True)
 
-        # Store the length of the loading indicator for later removal
+        # Store the length of the loading indicator
         self.loading_indicator_length = len("\n#### Assistant:\n...")
 
-        # Prepare arguments for the LLM call
+        # Prepare arguments
         llm_config = self.app.get_current_llm_config()
-        agent_name = self.da_name
-        agent_type = "agent"  # or "dialog" depending on your use case
-        input_id = self.loading_indicator_length  # Unique identifier for the input
-        pre_prompt = event.text  # The user's message
-        post_prompt = None  # Provide if needed
+        input_id = self.loading_indicator_length
 
-        # Submit the LLM call asynchronously using LLMCallManager
+        # Submit the LLM call
         await self.llm_call_manager.submit_llm_call(
             self.llm_processing_function,
             llm_config,
-            agent_name,
-            agent_type,
-            input_id,      # Correctly include input_id here
-            pre_prompt,
-            post_prompt
+            self.processor,
+            input_id,
+            event.text
         )
 
-    def llm_processing_function(self, llm_config, agent_name, agent_type, pre_prompt, post_prompt):
+  
+
+    def llm_processing_function(self, llm_config, processor, message_text):
         """Function that processes the LLM call."""
         try:
-            # Use pre_prompt as the message text
-            message_text = pre_prompt
-            response = self.processor._process_message(message_text)
+            if isinstance(processor, AgentDialogManager):
+                agent = processor.active_agent
+                command_processor = processor.processors[agent]
+            elif isinstance(processor, CommandProcessor):
+                command_processor = processor
+            else:
+                logging.error("Unsupported processor type in llm_processing_function.")
+                raise ValueError("Unsupported processor type.")
+
+            # Process the message with the CommandProcessor
+            response = command_processor._process_message(message_text)
             return response
         except Exception as e:
             logging.error(f"Error processing LLM call: {e}")
             raise
+
 
     @on(LLMCallComplete)
     def handle_llm_call_complete(self, event: LLMCallComplete):
@@ -192,7 +211,7 @@ class ChatUI(Static):
         self.chat_history_text = self.chat_history_text[:-self.loading_indicator_length]
 
         # Append the assistant's response
-        self.chat_history_text += f"\n#### Assistant:\n{event.result[0]}"
+        self.chat_history_text += f"\n#### Assistant:\n{event.result}"
 
         # Update the widget with the new content
         chat_widget = self.query_one("#chat-history", Static)

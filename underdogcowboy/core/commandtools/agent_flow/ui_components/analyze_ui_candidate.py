@@ -11,6 +11,7 @@ from agent_llm_handler import run_analysis
 from llm_call_manager import LLMCallManager
 
 from events.llm_events import LLMCallComplete, LLMCallError
+from events.analysis_events import AnalysisCompleteEvent
 from events.copy_paste_events import LLMResultReceived
 
 # experimental
@@ -88,13 +89,17 @@ class AnalyzeUI(SessionDependentUI):
 
         logging.info("did send from ui candidate to the LLMCallManager.")
 
-        
     @on(LLMCallComplete)
     async def on_llm_call_complete(self, event: LLMCallComplete) -> None:
         if event.input_id == "analysis":
             self.post_message(LLMResultReceived(sender=self, result=event.result))
             self.update_and_show_result(event.result)
             self.query_one("#loading-indicator").add_class("hidden")
+            # Store the adm
+            self.adm = event.adm
+            # Post an event to the parent screen to load ChatUI with adm
+            if self.adm:
+                self.post_message(AnalysisCompleteEvent(sender=self, adm=self.adm))
 
     @on(LLMCallError)
     async def on_llm_call_error(self, event: LLMCallError) -> None:
