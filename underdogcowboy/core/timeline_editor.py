@@ -7,6 +7,7 @@ import json
 import sys
 import re
 
+# from rich import print
 from pathlib import Path
 
 from prompt_toolkit import prompt
@@ -14,7 +15,9 @@ from prompt_toolkit.completion import WordCompleter
 
 from .model import ModelManager, ModelRequestException
 from .config_manager import LLMConfigManager
+from .llm_response_markdown import LLMResponseRenderer
 
+from .exceptions import InvalidAgentNameError
 
 '''
 The Timeline and CommandProcessor classes work together to manage a conversational history and process user commands. 
@@ -26,6 +29,14 @@ operations on the conversation history stored in the Timeline. This separation o
 division of responsibilities: Timeline manages the data structure and persistence, while CommandProcessor handles
 user interaction and command execution.
 '''
+
+
+
+
+renderer = LLMResponseRenderer(
+    mdformat_config_path=None,  # Provide path if you have a custom config
+)
+
 
 
 class Message:
@@ -233,7 +244,7 @@ class Timeline:
         # Writing to file
         with open(full_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=4)
-        print(f"Timeline saved to {filename} with name '{name}' and description: '{description}'")
+        # print(f"Timeline saved to {filename} with name '{name}' and description: '{description}'")
 
     def load(self, source, path=None):
         """
@@ -739,6 +750,30 @@ class CommandProcessor:
         full_path = os.path.abspath(os.path.join(self.dialog_save_path, filename))
         self.timeline.load(full_path)
 
+    def save_timeline_without_prompt(self, filename, name=None, description=None):
+        """
+        Save the current timeline to a file without prompting for input.
+
+        :param filename: The filename to save the timeline to.
+        :param name: Optional name for the timeline session.
+        :param description: Optional description for the timeline session.
+        """
+        if not filename.endswith('.json'):
+            filename += '.json'
+
+        full_path = os.path.join(self.dialog_save_path, filename)
+
+        # Use provided name and description, or existing values
+        if not name:
+            name = getattr(self.timeline.metadata, 'name', 'Default Name')
+        if not description:
+            description = getattr(self.timeline.metadata, 'description', 'Default Description')
+
+        # Save with name and description
+        self.timeline.save(full_path, name=name, description=description)
+        print(f"Saved timeline to '{full_path}' with name '{name}' and description '{description}'.")
+
+
     def save_timeline(self):
         """
         Save the current timeline to a file.
@@ -764,6 +799,44 @@ class CommandProcessor:
         self.timeline.save(full_path, name=name, description=description)
         print(f"Saved timeline to '{full_path}' with name '{name}' and description '{description}'.")
 
+
+    def save_agent_without_prompt(self, filename, name=None, description=None):
+        """
+        Save the current timeline to a file without prompting for input.
+
+        :param filename: The filename to save the timeline to.
+        :param name: Optional name for the timeline session.
+        :param description: Optional description for the timeline session.
+        """
+
+        # Remove extension if present
+        filename_no_ext, ext = os.path.splitext(filename)
+
+        # Python module name validation
+        if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", filename_no_ext):
+            raise InvalidAgentNameError(filename_no_ext)
+
+        # File path construction
+        agents_dir = os.path.expanduser("~/.underdogcowboy/agents")    
+        # Create the directory if it doesn't exist
+        os.makedirs(agents_dir, exist_ok=True)
+
+        # Ensure the filename ends with '.json'
+        filename = filename_no_ext + '.json'
+
+        file_path = os.path.join(agents_dir, filename)
+
+        # Use provided name and description, or existing values
+        if not name:
+            name = getattr(self.timeline.metadata, 'name', 'Default Name')
+        if not description:
+            description = getattr(self.timeline.metadata, 'description', 'Default Description')
+
+        # Save with name and description
+        self.timeline.save(file_path, name=name, description=description)
+        # Logging or print statements as needed
+
+
     def save_agent(self):
         """Saves the current dialog as a user-defined agent."""
 
@@ -779,8 +852,7 @@ class CommandProcessor:
         if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", agent_name):
             print("Error: Invalid agent name. Please use only letters, numbers, and underscores. The name must start with a letter or underscore.")
             return
-
-    
+        
         # File path construction
         agents_dir = os.path.expanduser("~/.underdogcowboy/agents")
     
@@ -878,10 +950,9 @@ class CommandProcessor:
             if error_message:
                 print(error_message)
             else:
-                print("\n\n" + "-" * 30 + "\n")
-                print(f"{model_response}")
-                print("-" * 30 + "\n\n")
-
+                # print(f"[blue]{model_response}[/blue]")
+                renderer.process_and_render(model_response, title="LLM Response")
+                
     def _process_message(self, user_input):
         """
         Core logic for processing a message (including file inputs) and getting a model response.

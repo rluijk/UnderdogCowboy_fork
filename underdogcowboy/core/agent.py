@@ -123,3 +123,15 @@ class Agent:
 
     def assess(self,msg: str) -> bool:
         return True        
+    
+    def receive_update(self, update_data: dict):
+        """
+        Handle updates sent from the CLI.
+
+        Args:
+            update_data (dict): The data being sent as an update.
+        """
+        # For demonstration, we'll simply print the update.
+        # Replace this with actual logic to handle the update as needed.
+        print("Agent received update (in):")
+        print(json.dumps(update_data, indent=2))

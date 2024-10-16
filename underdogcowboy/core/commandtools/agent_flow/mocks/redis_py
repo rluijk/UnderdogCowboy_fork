@@ -1,0 +1,371 @@
+from concurrent.futures import ThreadPoolExecutor
+import asyncio
+import logging
+import json
+import redis.asyncio as aioredis  # Updated import
+
+import sqlite3
+from textual.app import App, ComposeResult
+from textual.widgets import Button, Input, Label
+from textual.message import Message
+from textual.containers import Horizontal
+from textual.screen import Screen
+from logging.handlers import RotatingFileHandler
+
+# Configure logging with rotation to prevent log file from growing indefinitely
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        RotatingFileHandler("app.log", maxBytes=5*1024*1024, backupCount=5)  # 5 MB per file, 5 backups
+    ]
+)
+
+class SessionManager:
+    """Manages session data for storing and retrieving information between screens."""
+    def __init__(self, db_name="session_data.db"):
+        self.db_name = db_name
+        self._initialize_db()
+
+    def _initialize_db(self):
+        """Initialize the SQLite database for session management."""
+        try:
+            with sqlite3.connect(self.db_name) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    CREATE TABLE IF NOT EXISTS session_data (
+                        key TEXT PRIMARY KEY,
+                        value TEXT
+                    )
+                ''')
+                conn.commit()
+            logging.debug("SQLite database initialized successfully.")
+        except sqlite3.Error as e:
+            logging.error(f"SQLite initialization error: {e}")
+
+    def update_data(self, key, value):
+        """Update or add data to the session."""
+        logging.debug(f"Updating session data: {key} = {value}")
+        try:
+            with sqlite3.connect(self.db_name) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO session_data (key, value) VALUES (?, ?)
+                    ON CONFLICT(key) DO UPDATE SET value=excluded.value
+                ''', (key, value))
+                conn.commit()
+            logging.debug(f"Session data updated: {key} = {value}")
+        except sqlite3.Error as e:
+            logging.error(f"Error updating session data for key {key}: {e}")
+
+    def get_data(self, key):
+        """Retrieve data from the session by key."""
+        logging.debug(f"Retrieving session data: {key}")
+        try:
+            with sqlite3.connect(self.db_name) as conn:
+                cursor = conn.cursor()
+                cursor.execute('''SELECT value FROM session_data WHERE key = ?''', (key,))
+                result = cursor.fetchone()
+            return result[0] if result else None
+        except sqlite3.Error as e:
+            logging.error(f"Error retrieving session data for key {key}: {e}")
+            return None
+
+class UpdateResult(Message):
+    """Custom message to update the UI with LLM results."""
+    def __init__(self, input_id: str, button_id: str, result: str):
+        super().__init__()
+        self.input_id = input_id
+        self.button_id = button_id
+        self.result = result
+
+class LLMCallManager:
+    """Manages LLM calls asynchronously, integrating Redis for distributed task management."""
+    
+    def __init__(self, app, max_workers=5, redis_host='localhost', redis_port=6379):
+        self.app = app  # Reference to the Textual App for event emission
+        self.executor = ThreadPoolExecutor(max_workers=max_workers)
+        self.task_queue = asyncio.Queue()  # Local queue to hold tasks temporarily
+        self.redis_host = redis_host
+        self.redis_port = redis_port
+        self.redis_client = None
+        self.redis_subscriber = None
+        logging.debug("Initialized LLMCallManager with ThreadPoolExecutor and task queue")
+        # Redis initialization moved to a separate async method
+        # Cannot await in __init__, so it's separated
+
+    async def initialize(self):
+        """Initialize Redis and other async components."""
+        await self.initialize_redis()  # Now properly awaited
+        asyncio.create_task(self.process_queue())
+        asyncio.create_task(self.listen_redis())
+        asyncio.create_task(self.handle_redis_messages())
+        logging.debug("LLMCallManager fully initialized.")
+
+    async def initialize_redis(self):
+        """Initialize Redis connections."""
+        try:
+            self.redis_client = aioredis.from_url(f"redis://{self.redis_host}:{self.redis_port}", 
+                                                  min_size=5, max_size=10)
+            self.redis_subscriber = aioredis.from_url(f"redis://{self.redis_host}:{self.redis_port}")
+            logging.debug("Redis connections established successfully.")
+        except Exception as e:
+            logging.error(f"Error initializing Redis: {e}")
+
+    async def run_llm_call(self, llm_function, *args):
+        """Run a generic LLM function asynchronously using a thread pool executor."""
+        logging.debug(f"Running LLM function {llm_function.__name__} with arguments: {args}")
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(self.executor, llm_function, *args)
+        return result
+
+    async def process_queue(self):
+        """Continuously process tasks from the local queue."""
+        while True:
+            llm_function, input_id, button_id = await self.task_queue.get()
+            asyncio.create_task(self.handle_task(llm_function, input_id, button_id))
+            self.task_queue.task_done()
+
+    async def handle_task(self, llm_function, input_id, button_id):
+        """Handle individual tasks by executing the LLM function and updating the UI."""
+        result = await self.run_llm_call(llm_function, input_id)
+        # Emit an event to update the UI
+        self.app.post_message(UpdateResult(input_id, button_id, result))
+        # Optionally publish the result to Redis
+        try:
+            await self.redis_client.publish("llm_results", json.dumps({
+                "input_id": input_id,
+                "button_id": button_id,
+                "result": result
+            }))
+            logging.debug(f"Published result to Redis: {input_id} - {result}")
+        except Exception as e:
+            logging.error(f"Error publishing result to Redis: {e}")
+        logging.info(f"LLM simulation completed for input {input_id} with result: {result}")
+
+    async def add_task_to_redis(self, llm_function, input_id, button_id, input_value):
+        """Add a task to the Redis queue for distributed processing."""
+        task_data = {
+            "function": llm_function.__name__,
+            "input_id": input_id,
+            "button_id": button_id,
+            "input_value": input_value
+        }
+        try:
+            await self.redis_client.lpush("task_queue", json.dumps(task_data))
+            logging.debug(f"Task added to Redis queue: {task_data}")
+        except Exception as e:
+            logging.error(f"Error adding task to Redis queue: {e}")
+
+    async def listen_redis(self):
+        """Listen for tasks on the Redis queue and process them."""
+        while True:
+            try:
+                task = await self.redis_client.brpop("task_queue")
+                _, serialized_task_data = task
+                task_data = json.loads(serialized_task_data)
+
+                function_name = task_data.get("function")
+                if function_name == "simulate_llm_call":
+                    llm_function = self.simulate_llm_call
+                else:
+                    logging.error(f"Unknown function: {function_name}")
+                    continue
+
+                input_id = task_data.get("input_id")
+                button_id = task_data.get("button_id")
+                input_value = task_data.get("input_value")
+
+                # Emit an event to add the task to the local queue
+                await self.task_queue.put((llm_function, input_id, button_id))
+            except json.JSONDecodeError as e:
+                logging.error(f"Error decoding task data: {e}")
+            except Exception as e:
+                logging.error(f"Error processing Redis task: {e}")
+                await asyncio.sleep(1)  # Prevent tight loop on errors
+
+    async def handle_redis_messages(self):
+        """Handle messages published to Redis channels."""
+        try:
+            pubsub = self.redis_subscriber.pubsub()
+            await pubsub.subscribe("llm_results")
+            async for message in pubsub.listen():
+                if message['type'] == 'message':
+                    data = json.loads(message['data'])
+                    input_id = data.get("input_id")
+                    button_id = data.get("button_id")
+                    result = data.get("result")
+                    self.app.post_message(UpdateResult(input_id, button_id, result))
+                    logging.debug(f"Received message from Redis: {data}")
+        except Exception as e:
+            logging.error(f"Error handling Redis messages: {e}")
+
+    def simulate_llm_call(self, input_id: str) -> str:
+        """Simulate the LLM call with a delay to mimic network latency."""
+        import time
+        logging.debug(f"Simulating LLM call for input ID {input_id}")
+        time.sleep(5)
+        return f"LLM Response for {input_id}"
+
+class InputBoxScreen(Screen):
+    """Concrete screen handling input boxes and buttons that trigger LLM calls."""
+    def __init__(self, session_manager, llm_call_manager):
+        super().__init__()
+        self.session_manager = session_manager
+        self.llm_call_manager = llm_call_manager
+        self.input_boxes = []  # Store the input box widgets to manage their state
+        logging.debug("InputBoxScreen initialized with LLMCallManager")
+
+    def compose(self) -> ComposeResult:
+        """Compose the UI elements for the screen."""
+        yield Label("Input Box Screen")
+        for i in range(1, 6):
+            input_id = f"input-{i}"
+            input_box = Input(placeholder=f"Input {i}", id=input_id)
+            button = Button(f"Fetch {i}", id=f"button-{i}")
+            self.input_boxes.append(input_box)
+            yield Horizontal(input_box, button)
+        yield Button("Go to Other Screen", id="switch-screen")
+        logging.debug("InputBoxScreen UI composed with input boxes and buttons")
+
+    def on_mount(self):
+        """Handle what happens when the screen is displayed or re-displayed."""
+        for input_box in self.input_boxes:
+            stored_value = self.session_manager.get_data(input_box.id)
+            if stored_value:
+                input_box.value = stored_value
+            input_box.disabled = False
+        logging.debug("InputBoxScreen mounted and input boxes restored from session data")
+
+        for button in self.query("Button"):
+            if button.id.startswith("button-"):
+                button.disabled = False
+                # Extract plain text from the Rich Text object
+                if str(button.label).startswith("Loading"):
+                    button.label = f"Fetch {button.id.split('-')[-1]}"
+        logging.debug("InputBoxScreen buttons reset to default state")
+
+
+    async def on_button_pressed(self, event: Button.Pressed):
+        """Handle button press events."""
+        button_id = event.button.id
+        logging.info(f"Button pressed: {button_id}")
+        if button_id.startswith("button-"):
+            input_id = button_id.replace("button-", "input-")
+            input_box = self.query_one(f"#{input_id}", Input)
+            button = event.button
+
+            await self.set_button_loading(button)
+            await self.llm_call_manager.task_queue.put((self.llm_call_manager.simulate_llm_call, input_id, button.id))
+            self.session_manager.update_data(input_id, input_box.value)
+
+        elif button_id == "switch-screen":
+            await self.app.push_screen("OtherScreen")
+
+    async def set_button_loading(self, button: Button):
+        """Sets the button to 'Loading...' state to indicate processing."""
+        logging.debug(f"Setting button {button.id} to loading state")
+        button.label = "Loading..."
+        button.disabled = True
+        await asyncio.sleep(0)  # Yield control to the event loop
+
+    async def on_update_result(self, message: UpdateResult):
+        """Handle the UpdateResult message to update the UI."""
+        input_box = self.query_one(f"#{message.input_id}", Input)
+        button = self.query_one(f"#{message.button_id}", Button)
+        input_box.value = message.result
+        button.label = f"Fetch {message.input_id.split('-')[-1]}"
+        button.disabled = False
+        self.session_manager.update_data(message.input_id, message.result)
+        logging.info(f"UI updated for {message.input_id} with result: {message.result}")
+
+    async def on_message(self, message: Message) -> None:
+        if isinstance(message, UpdateResult):
+            await self.on_update_result(message)
+
+class OtherScreen(Screen):
+    """A placeholder screen for navigation testing."""
+    def __init__(self, session_manager):
+        super().__init__()
+        self.session_manager = session_manager
+        logging.debug("OtherScreen initialized")
+
+    def compose(self) -> ComposeResult:
+        """Compose the UI elements for the other screen."""
+        yield Label("This is another screen.")
+        yield Button("Go Back to Input Screen", id="back-button")
+        logging.debug("OtherScreen UI composed with label and back button")
+
+    async def on_button_pressed(self, event: Button.Pressed):
+        """Handle button press events for navigation."""
+        if event.button.id == "back-button":
+            logging.info("Back button pressed, navigating back to InputBoxScreen")
+            await self.app.pop_screen()
+class MultiScreenApp(App):
+    """Main application managing multiple screens."""
+
+    CSS = """
+    Horizontal { margin-bottom: 1; }
+    Input {
+        width: 60%;
+        margin-right: 2;
+    }
+    Button {
+        background: #5A9BD5;
+        color: white;
+        padding: 1;
+        border: none;
+        width: 20%;
+        text-align: center;
+    }
+    Button:disabled {
+        background: gray;
+        color: lightgray;
+    }
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.session_manager = SessionManager()
+        self.llm_call_manager = LLMCallManager(app=self)
+
+        # Install screens with proper names during initialization
+        self.install_screen(InputBoxScreen(self.session_manager, self.llm_call_manager), name="input_box_screen")
+        self.install_screen(OtherScreen(self.session_manager), name="other_screen")
+        logging.debug("Screens installed: InputBoxScreen and OtherScreen")
+
+    async def on_mount(self) -> None:
+        """Mount the initial screen when the app starts."""
+        await self.llm_call_manager.initialize()  # Awaiting the Redis initialization
+        await self.push_screen("input_box_screen")  # Use the registered screen name
+        logging.info("Application started with InputBoxScreen")
+
+    async def handle_update_result(self, message: UpdateResult):
+        """Handle UpdateResult messages to update the UI."""
+        # This method can be used to handle global updates if necessary
+        pass
+
+    async def on_shutdown(self):
+        """Handle application shutdown."""
+        self.llm_call_manager.executor.shutdown(wait=True)
+        await self.llm_call_manager.redis_client.close()
+        await self.llm_call_manager.redis_subscriber.close()
+        logging.info("MultiScreenApp has terminated gracefully.")
+
+    async def on_message(self, message: Message) -> None:
+        """Handle incoming messages."""
+        if isinstance(message, UpdateResult):
+            for screen in self.screens:
+                if isinstance(screen, InputBoxScreen):
+                    await screen.on_update_result(message)
+
+
+if __name__ == "__main__":
+    logging.info("Starting MultiScreenApp")
+    try:
+        app = MultiScreenApp()
+        app.run()
+    except Exception as e:
+        logging.error(f"Application encountered an error: {e}")
+    finally:
+        logging.info("MultiScreenApp has terminated")

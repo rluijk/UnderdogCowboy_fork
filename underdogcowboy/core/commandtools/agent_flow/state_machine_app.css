@@ -1,0 +1,261 @@
+Screen {
+    layout: grid;
+    grid-size: 1;
+    grid-rows: auto 1fr auto auto;
+    height: 100%;
+    background: #2c2c2c;
+}
+
+#analyze-box {
+    layout: vertical; /* Stack the label and button vertically */
+    align: center middle; /* Center horizontally and vertically */
+    width: 100%;
+    height: auto;
+    padding: 1;
+    border: lightgrey;
+    margin-top: 0;
+}
+
+#start-analysis-button, #rerun-analysis-button {
+    height: 3;
+    align: center middle;
+    dock: bottom;
+    margin-top: 1;
+}
+
+
+
+Header {
+    height: auto;
+    min-height: 3;
+    background: #2c3e50;
+    color: #ecf0f1;
+    padding: 1;
+}
+
+Header > .header--title {
+    text-style: bold;
+}
+
+Header > .header--sub_title {
+    margin-top: 1;
+    color: #bdc3c7;
+}
+
+Footer {
+    height: auto;
+    background: #34495e;
+    color: #ecf0f1;
+    padding: 1;
+}
+
+Collapsible {
+    background: #2c2c2c;
+    border: solid #4a4a4a;
+    margin: 1 0;
+}
+
+Collapsible > .collapsible--header {
+    background: #3c3c3c;
+    color: #e0e0e0;
+    padding: 1;
+}
+
+Collapsible > .collapsible--content {
+    padding: 1;
+}
+
+.result-label {
+    margin: 1 5 2 3;
+}
+
+.result-compose {
+    margin: 1 5 2 3;
+}
+
+.feedback-result {
+    max-height: 50;
+    overflow: auto;
+}
+
+.hidden {
+    display: none;
+}
+
+.left-dynamic-spacer {
+    width: 1fr;
+    background: #252525;
+    layout: vertical;
+    align: center middle;
+}
+
+.left-side-buttons {
+    grid-size: 2 1;
+    grid-gutter: 1 1;
+    padding: 1;
+    width: 90%;
+    height: auto;
+    background: #252525;   
+    border-title-align: left; 
+}
+
+.left-side-button {
+    width: 100%;
+    height: 3;
+    background: #2980b9;
+    color: #ffffff;
+}
+
+.left-side-button:hover {
+    background: #3498db;
+}
+
+.dynamic-spacer {
+    height: 1fr;
+    min-height: 100%;
+}
+
+.center-dynamic-spacer {
+    width: 2fr;
+    background: #2f2f2f;
+}
+
+.right-dynamic-spacer {
+    width: 1fr;
+    background: #2f2f2f;
+}
+
+#center-placeholder {
+    padding: 1;
+}
+
+#app-layout {
+    layout: vertical;
+    height: auto;
+    dock: bottom;
+    border: #4a4a4a;
+}
+
+#state-info {
+    height: auto;
+    padding: 1;
+    background: #2c2c2c;
+    border-bottom: solid #4a4a4a;
+}
+
+#button-grid {
+    width: 100%;
+    height: auto;
+    grid-size: 3;  
+    grid-gutter: 1 1;
+    padding: 1;
+    background: #333333;
+}
+
+.action-button {
+    width: 100%;
+    height: 3;
+    background: #3498db; 
+    color: #ffffff;
+}
+
+.action-button:hover {
+    background: #5dade2;
+}
+
+.action-button:disabled {
+    background: #7f8c8d;
+    color: #ecf0f1;
+}
+
+.action-reset-button {
+    background: #2c3e50;
+    color: #ffffff;
+}
+
+.action-reset-button:hover {
+    background: #34495e;
+}
+
+.action-reset-button:disabled {
+    background: #7f8c8d;
+    color: #ecf0f1;
+}
+
+/*** ***/
+
+
+/* General Section Styling */
+.compact-section {
+    padding: 0;
+    margin: 0;
+} 
+
+/* Button Styling */
+.compact-button {
+    width: 4;
+    height: 5;
+    padding: 1 2; /* Adjust padding to fit tighter */
+    margin: 0;    /* Remove extra margin */
+}
+
+
+/* Label Styling */
+.compact-label {
+    padding: 0 1; /* Compact padding */
+    margin: 0;      /* Remove unnecessary margins */
+}
+
+/* Checkbox Styling */
+.compact-checkbox {
+    margin: 0;
+    padding: 1 2;
+}
+
+/* Large Buttons */
+.large-button {
+    padding: 2 4; /* Reduce padding for large buttons */
+}
+
+/* ListItem Styling for compact rows */
+ListItem {
+    padding: 0;             /* Remove padding around ListItem */
+    margin: 0;              /* Remove extra margins */
+    height: auto;           /* Let height adjust based on content */
+    border-bottom: none;    /* Remove borders unless required */
+}
+
+/* Button Styling */
+.compact-button {
+    height: 3;              /* Set a fixed height */
+    width: 1;
+    padding: 0 1;           /* Reduce padding to make it more compact */
+    margin: 0;              /* Remove margin */
+    background: #2980b9;    /* Keep background color consistent */
+}
+
+/* Input Field Styling */
+.compact-input {
+    padding: 1 1;           /* Reduce padding inside input fields */
+    margin: 0;              /* Remove margins */
+    height: 2;              /* Match the height of the button */
+    width: 30%;            /* Set to full width within the ListItem */
+
+}
+
+
+/* Label Styling */
+.compact-label {
+    padding: 1 1;           /* Reduce padding for labels */
+    margin: 0;              /* Remove margins */
+    height: 3;              /* Match height with input fields and buttons */
+}
+
+/* Checkbox Styling */
+.compact-checkbox {
+    height: 3;              /* Set checkbox height to match other elements */
+    margin: 0 1;            /* Remove extra margin */
+    padding: 0;             /* Remove padding */
+}
+
+

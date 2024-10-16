@@ -1,0 +1,68 @@
+Screen {
+    align: center top;
+}
+
+#main-container {
+    layout: vertical;
+    align: center top;
+    overflow: auto;
+}
+
+#edit_container{
+    border: grey
+}
+
+#button-container{ }
+
+#lbl_text{
+    margin: 0 0 0 1;
+}
+
+#refresh-title-button{
+    margin: 1;
+}
+
+#refresh-description-button{
+    margin: 1;
+}
+
+#refresh-both-button{
+    margin: 1;
+}
+
+
+#category-widget, #scale-widget {
+    width: 80%;
+    height: 60%;
+    overflow: auto;
+    border: solid gray;
+    margin: 1 0;
+}
+
+Select {
+    width: 100%;
+    margin: 1 0;
+    border: grey;
+}
+
+Input {
+    width: 100%;
+    margin: 0 0;
+    background: lightgrey;
+}
+
+TextArea {
+    width: 100%;
+    height: 15;
+    margin: 1 0;
+    background: lightslategray;
+}
+
+#loading-indicator, #scale-loading-indicator {
+    margin: 1 0;
+    visibility: hidden;
+}
+
+#loading-indicator.visible, #scale-loading-indicator.visible {
+    visibility: visible;
+}

@@ -1,0 +1,15 @@
+
+# Configuration file for MultiScreenApp
+
+storage:
+  base_dir: "~/.tui_agent_clarity_03"  # Base directory for storing session data
+
+llm:
+  default_provider: "anthropic"  # Default provider for LLM (e.g., OpenAI, Anthropic, etc.)
+  default_model_id: "claude-3-5-sonnet-20240620"  # Default model ID to use for LLM interactions
+  default_model_name: "Claude 3.5 Sonnet"  # Default model name for the LLM
+
+logging:
+  filename: "app_oct_9.log"  # Filename for logging output
+  level: "INFO"  # Logging level (e.g., DEBUG, INFO, WARNING, ERROR)
+  format: "%(asctime)s - %(levelname)s - %(message)s"  # Format for log messages
