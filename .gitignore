@@ -33,3 +33,5 @@ tests/__pycache__/tracing_config.cpython-311.pyc
 /.uccli_sessions
 *.log
 *.log
+session_data.db
+*.log
