@@ -535,9 +535,9 @@ class MainApp(App):
     def compose(self) -> ComposeResult:
         yield CategoryScaleWidget(self.llm_call_manager)
      
-if __name__ == "__main__":
-    logging.info("Starting MainApp")
-    app = MainApp()
-    app.run()
-    logging.info("MainApp has terminated")
+#if __name__ == "__main__":
+    #logging.info("Starting MainApp")
+    #app = MainApp()
+    #app.run()
+    #logging.info("MainApp has terminated")
 

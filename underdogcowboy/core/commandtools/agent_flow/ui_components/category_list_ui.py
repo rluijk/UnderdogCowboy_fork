@@ -1,22 +1,18 @@
 import logging
+
 from textual.containers import Vertical, Container
 from textual.widgets import Button, ListView, Label, Static, ListItem
 from textual.message import Message
+
 from events.button_events import UIButtonPressed
-
-class CategorySelected(Message):
-    """Message emitted when a category is selected."""
-    def __init__(self, category_name: str):
-        super().__init__()
-        self.category_name = category_name
-
+from events.category_events import CategorySelected
+ 
 
 class CategoryListUI(Static):
     """UI component for displaying a list of categories with action buttons."""
 
-    def __init__(self, session_manager):
+    def __init__(self):
         super().__init__()
-        self.session_manager = session_manager  # Store session manager for persistence
         self.categories = ["Functionality", "Usability", "Reliability", "Scalability", "Security"]  # Mock categories
 
     def compose(self):
@@ -65,9 +61,8 @@ class CategoryListUI(Static):
             if selected_item:
                 selected_category = selected_item.children[0].render()  # Get the text from the Label
                 # Post the CategorySelected message
-                self.post_message(CategorySelected(selected_category))
+                self.post_message(CategorySelected(selected_category.plain))
         elif event.button.id == "cancel-button":
             # Post a UIButtonPressed message for the cancel action
             self.post_message(UIButtonPressed("cancel-category-selection"))
-
 

@@ -6,24 +6,33 @@ from textual.widgets import Header, Footer, Collapsible
 from textual.css.query import NoMatches
 
 from uccli import StateMachine
+
 from session_manager import SessionManager
+
+
 from ui_factory import UIFactory
+from ui_components.session_dependent import SessionDependentUI
 from ui_components.dynamic_container import DynamicContainer
 from ui_components.state_button_grid_ui import StateButtonGrid
 from ui_components.state_info_ui import StateInfo
 from ui_components.left_side_ui import LeftSideContainer
-from ui_components.category_list_ui import CategoryListUI, CategorySelected
+from ui_components.category_list_ui import CategoryListUI
 from ui_components.category_editor_ui import CategoryEditorUI
 from ui_components.center_content_ui import CenterContent
+from ui_components.load_agent_ui import LoadAgentUI
+
 from events.button_events import UIButtonPressed
 from events.action_events import ActionSelected
+from events.category_events import CategorySelected, CategoryLoaded
+
+
 from screens.session_screen import SessionScreen
 from state_machines.agent_assessment_state_machine import create_agent_assessment_state_machine
 
 
 class AgentAssessmentBuilderScreen(SessionScreen):
     """A screen for the agent assessment builder."""
-    CSS_PATH = "../state_machine_app.css"
+    # CSS_PATH = "../state_machine_app.css"
 
     def __init__(self, state_machine: StateMachine = None, session_manager: SessionManager = None, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -133,23 +142,41 @@ class AgentAssessmentBuilderScreen(SessionScreen):
         else:
             logging.error(f"Failed to set state to initial: State not found")
 
-    @on(ActionSelected)
+    def clear_session(self):
+        self.session_manager.current_session_data = None
+        self.session_manager.current_session_name = None
+        self.update_header()
+        
+
     def on_action_selected(self, event: ActionSelected) -> None:
-        """Handle actions and dynamically load the UI based on the action."""
         action = event.action
+
+        if action == "reset":
+            self.clear_session()
+
         dynamic_container = self.query_one("#center-dynamic-container-agent-assessment-builder", DynamicContainer)
         dynamic_container.clear_content()
 
+        # Mapping actions to their respective UI classes
         ui_class = {
-            "list_categories": CategoryListUI,
-            "define_category": CategoryEditorUI
+            "load_agent": LoadAgentUI,
+            "list_categories" : CategoryListUI
         }.get(action)
 
         if ui_class:
-            ui_instance = ui_class(self.session_manager)
-            dynamic_container.mount(ui_instance)
+            # Instantiate with parameters if it's a subclass of SessionDependentUI
+            if issubclass(ui_class, SessionDependentUI):
+                dynamic_container.mount(ui_class(
+                    session_manager=self.session_manager,
+                    screen_name=self.screen_name,
+                    agent_name_plain=self.agent_name_plain
+                ))
+            else:
+                dynamic_container.mount(ui_class())
         else:
+            # For other actions, load generic content as before
             dynamic_container.mount(CenterContent(action))
+
 
     @on(CategorySelected)
     def on_category_selected(self, message: CategorySelected) -> None:
@@ -161,3 +188,8 @@ class AgentAssessmentBuilderScreen(SessionScreen):
 
         category_editor_ui = CategoryEditorUI(self.session_manager)
         dynamic_container.mount(category_editor_ui)
+
+        # we want to send message for the handler in the CategoryEditorUI
+        self.post_message(CategoryLoaded(message.category_name))
+
+

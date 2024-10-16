@@ -131,8 +131,8 @@ class EditableField(Vertical):
         fh.setFormatter(formatter)
 
         # Add handler to the logger if not already added
-        if not self.logger.handlers:
-            self.logger.addHandler(fh)
+        # if not self.logger.handlers:
+        #    self.logger.addHandler(fh)
 
     def compose(self):
         self.logger.debug("Composing EditableField widgets.")

@@ -8,17 +8,14 @@ from textual.app import ComposeResult
 
 from events.analysis_events import AnalysisComplete, AnalysisError  
 from agent_llm_handler import run_analysis
+from session_manager import SessionManager
 
 from ui_components.session_dependent import SessionDependentUI
-from exceptions import ApplicationError, SessionNotLoadedError, InvalidSessionDataError, AnalysisError
 
-# experimental
-from llm_response_markdown import LLMResponseRenderer
+#  Clear existing handlers and set up logging to a file
+for handler in logging.root.handlers[:]:
+    logging.root.removeHandler(handler)
 
-
-renderer = LLMResponseRenderer(
-    mdformat_config_path=None,  # Provide path if you have a custom config
-)
 
 class AnalyzeUI(SessionDependentUI):
     """A UI for displaying and running analysis on an agent definition"""
@@ -42,21 +39,19 @@ class AnalyzeUI(SessionDependentUI):
         else:
             self.query_one("#start-analysis-button").remove_class("hidden")
 
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        if event.button.id in ["start-analysis-button", "rerun-analysis-button"]:
+            self.run_analysis()
+
     def run_analysis(self) -> None:
         self.query_one("#start-analysis-button").add_class("hidden")
         self.query_one("#rerun-analysis-button").add_class("hidden")
         self.query_one("#analysis-result").add_class("hidden")
         self.query_one("#loading-indicator").remove_class("hidden")
 
-        # Create a task to run the analysis with a timeout
-        asyncio.create_task(self.perform_analysis_with_timeout())
-
-    async def perform_analysis_with_timeout(self) -> None:
-        try:
-            await asyncio.wait_for(self.perform_analysis(), timeout=60)
-        except asyncio.TimeoutError:
-            logging.error("Analysis timed out.")
-            self.show_error("Analysis timed out. Please try again.")
+        # Create a task to run the analysis
+        asyncio.create_task(self.perform_analysis())
 
     async def perform_analysis(self) -> None:
         try:
@@ -64,11 +59,11 @@ class AnalyzeUI(SessionDependentUI):
             
             llm_config = self.app.get_current_llm_config()
             if not llm_config:
-                raise InvalidSessionDataError("No LLM configuration available.")
+                raise ValueError("No LLM configuration available.")
 
             current_agent = self.agent_name_plain
             if not current_agent:
-                raise SessionNotLoadedError("No agent currently loaded. Please load an agent first.")
+                raise ValueError("No agent currently loaded. Please load an agent first.")
 
             # Run the analysis in a separate thread pool
             with ThreadPoolExecutor(max_workers=1) as executor:
@@ -77,13 +72,21 @@ class AnalyzeUI(SessionDependentUI):
                 )
 
             if result.startswith("Error:"):
-                raise AnalysisError(result)
+                raise ValueError(result)
 
             logging.info("Analysis completed")
             self.post_message(AnalysisComplete(result))
-        except ApplicationError as e:
+        except Exception as e:
             logging.error(f"Analysis error: {str(e)}")
-            raise e
+            self.post_message(AnalysisError(str(e)))
+
+    def on_analysis_complete(self, message: AnalysisComplete) -> None:
+        self.update_and_show_result(message.result)
+        self.query_one("#loading-indicator").add_class("hidden")
+
+    def on_analysis_error(self, message: AnalysisError) -> None:
+        self.show_error(message.error)
+        self.query_one("#loading-indicator").add_class("hidden")
 
     def update_and_show_result(self, result: str) -> None:
         self.session_manager.update_data("last_analysis", result)
@@ -93,7 +96,6 @@ class AnalyzeUI(SessionDependentUI):
         self.query_one("#loading-indicator").add_class("hidden")
         self.query_one("#result-label").remove_class("hidden")
         result_widget = self.query_one("#analysis-result")
-        result = renderer.process_and_render(result, title="LLM Response")
         result_widget.update(result)
         result_widget.remove_class("hidden")
         self.query_one("#rerun-analysis-button").remove_class("hidden")
@@ -103,14 +105,3 @@ class AnalyzeUI(SessionDependentUI):
         self.query_one("#start-analysis-button").remove_class("hidden")
         self.app.notify(f"Error: {error_message}", severity="error")
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id in ["start-analysis-button", "rerun-analysis-button"]:
-            self.run_analysis()
-
-    def on_analysis_complete(self, message: AnalysisComplete) -> None:
-        self.update_and_show_result(message.result)
-        self.query_one("#loading-indicator").add_class("hidden")
-
-    def on_analysis_error(self, message: AnalysisError) -> None:
-        self.show_error(message.error)
-        self.query_one("#loading-indicator").add_class("hidden")
