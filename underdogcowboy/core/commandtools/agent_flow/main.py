@@ -7,6 +7,7 @@ from textual import on
 from textual.app import App
 from textual.events import Event
 from textual.reactive import Reactive
+from textual.binding import Binding
 
 from underdogcowboy.core.config_manager import LLMConfigManager
 
@@ -56,10 +57,10 @@ class MultiScreenApp(App):
 
     # Key bindings for user interactions to switch between screens or sync sessions
     BINDINGS = [
-        ("t", "return_to_timeline", "TimeLine Editor"),
-        ("c", "return_to_clarity", "Agent Clarity"),
-        ("a", "return_to_agent_assessment_builder", "Agent Assessment Builder"),
-        ("s", "sink_sessions", "Sink Sessions to Current Screen"),  # Key binding for synchronization
+        Binding("t", "return_to_timeline", "TimeLine Editor", tooltip="Create new dialogs and agents"),
+        Binding("c", "return_to_clarity", "Agent Clarity"),
+        Binding("a", "return_to_agent_assessment_builder", "Agent Assessment Builder"),
+        Binding("s", "sink_sessions", "Sink Sessions to Current Screen"), 
     ]
 
     # Reactive property to track if session synchronization is active
@@ -92,6 +93,8 @@ class MultiScreenApp(App):
         # Set copy and paste 
         self.clipboard_content = ClipBoardCopy()
         self.clipboard_content.set_message_post_target(self)
+
+        self.clarity_processor = None
 
 
     def on_mount(self) -> None:
