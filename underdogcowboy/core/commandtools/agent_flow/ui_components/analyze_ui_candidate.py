@@ -17,6 +17,10 @@ from events.copy_paste_events import LLMResultReceived
 # experimental
 from llm_response_markdown_renderer import LLMResponseRenderer
 
+# uc 
+from underdogcowboy.core.dialog_manager import AgentDialogManager
+
+
 renderer = LLMResponseRenderer(
     mdformat_config_path=None,  # Provide path if you have a custom config
 )
@@ -76,18 +80,32 @@ class AnalyzeUI(SessionDependentUI):
             self.show_error("No agent currently loaded. Please load an agent first.")
             return
 
-        logging.info("sending from ui candidate to the LLMCallManager.")
+        logging.info("Sending analysis call to LLMCallManager.")
+
+        adm = None
+        pre_prompt="Analyze this agent definition:"
+
+        if isinstance(self.app.clarity_processor, AgentDialogManager):
+            adm = self.app.clarity_processor
+            pre_prompt= """ This is a small intervention, of the TUI that is 
+                            running your conversation with the user. 
+                            The user requested an new analysis, based on your initial given analysis
+                            and potentially some extra conversation after."""
+
+    
 
         asyncio.create_task(self.llm_call_manager.submit_analysis_call(
             llm_function=run_analysis,
             llm_config=llm_config,
-            agent_name= current_agent,
+            agent_name=current_agent,
             input_id="analysis",
-            pre_prompt="Analyze this agent definition:",
-            post_prompt=None
+            pre_prompt=pre_prompt,
+            post_prompt=None,
+            adm=adm  # Pass the existing adm if available
         ))
 
-        logging.info("did send from ui candidate to the LLMCallManager.")
+        logging.info("Analysis call submitted to LLMCallManager.")
+
 
     @on(LLMCallComplete)
     async def on_llm_call_complete(self, event: LLMCallComplete) -> None:
