@@ -80,40 +80,24 @@ def send_agent_data_to_llm(llm_config, agent_name, agent_type, pre_prompt=None, 
     except Exception as e:
         return f"Error: {str(e)}"
 
-
-def __bck__run_analysis(llm_config, agent_name, pre_prompt=None):
-    """Legacy function for running analysis. Now wraps around send_agent_data_to_llm."""
-    logging.info("run analysis in the llm handler")
-    # Use the passed pre_prompt if provided, otherwise default to the hardcoded value
-    if pre_prompt is None:
-        pre_prompt = "Analyze this agent definition:"
-    
-    # Call the reusable function to send data to the 'clarity' agent
-    return send_agent_data_to_llm(llm_config, agent_name, 'clarity', pre_prompt=pre_prompt)
-
-def run_analysis(llm_config, agent_name, pre_prompt=None, post_prompt=None):
+def run_analysis(llm_config, agent_name, pre_prompt=None, post_prompt=None, adm=None):
     """
     Calls the LLM via a dynamically selected agent with the agent's data included in the prompt.
-
-    This function takes the LLM configuration, agent name, and the agent type (from the registry),
-    then constructs a prompt by combining any pre-prompt, the agent's data (loaded from a file),
-    and an optional post-prompt. It sends this information to the selected agent for evaluation
-    or feedback, depending on the nature of the agent.
 
     Parameters:
     - llm_config: Configuration for the LLM, including model details.
     - agent_name: The name of the agent whose data will be loaded and sent.
     - pre_prompt: Optional text to prepend to the agent data in the prompt.
     - post_prompt: Optional text to append to the agent data in the prompt.
-    
+    - adm: Optional existing AgentDialogManager instance to reuse.
+
     Returns:
-    - The response text from the agent (via LLM), or an error message.
+    - The response text from the agent (via LLM), and the AgentDialogManager instance.
     """
-    
     from underdogcowboy import AgentDialogManager
 
     logging.info("run_analysis -> running analysis for agent")
-    
+
     # Ensure the agent_type exists in the registry
     agent_type = 'clarity'  # Set directly since this is specific to clarity
     if agent_type not in AGENT_REGISTRY:
@@ -125,15 +109,19 @@ def run_analysis(llm_config, agent_name, pre_prompt=None, post_prompt=None):
         agent = getattr(agent_module, AGENT_REGISTRY[agent_type])
     except ImportError as e:
         return f"Error: Could not import the specified agent '{agent_type}'. {str(e)}"
-    
+
     try:
-        model_id = llm_config['model_id']
-        adm = AgentDialogManager([agent], model_name=model_id)
-        
-        # the agent under analysis 
+        if adm is None:
+            model_id = llm_config['model_id']
+            adm = AgentDialogManager([agent], model_name=model_id)
+            logging.info("Created new AgentDialogManager instance.")
+        else:
+            logging.info("Using existing AgentDialogManager instance.")
+
+        # The agent under analysis
         agents_dir = os.path.expanduser("~/.underdogcowboy/agents")
         agent_file = os.path.join(agents_dir, f"{agent_name}.json")
-        
+
         if not os.path.exists(agent_file):
             return f"Error: Agent file for '{agent_name}' not found."
 
@@ -149,7 +137,7 @@ def run_analysis(llm_config, agent_name, pre_prompt=None, post_prompt=None):
         # Send the constructed prompt to the LLM via the selected agent
         response = agent >> prompt
 
-         # Return both the response text and the AgentDialogManager instance
+        # Return both the response text and the AgentDialogManager instance
         return response.text, adm
 
     except Exception as e:
