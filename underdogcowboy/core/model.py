@@ -267,7 +267,7 @@ class AnthropicModel(ConfigurableModel):
         data = {
             "model": self.model_id,
             "messages": formatted_conversation,
-            "max_tokens": 1500
+            "max_tokens": 4500
         }
 
         if system_message:
