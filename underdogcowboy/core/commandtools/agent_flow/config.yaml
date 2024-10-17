@@ -2,7 +2,7 @@
 # Configuration file for MultiScreenApp
 
 storage:
-  base_dir: "~/.tui_agent_clarity_03"  # Base directory for storing session data
+  base_dir: "~/.tui_oct_2024" # "~/.tui_agent_clarity_03"  # Base directory for storing session data
 
 llm:
   default_provider: "anthropic"  # Default provider for LLM (e.g., OpenAI, Anthropic, etc.)
