@@ -114,12 +114,12 @@ class TimeLineEditorScreen(SessionScreen):
             self._pending_session_manager = new_session_manager
 
 
-    def update_header(self, session_name=None, agent_name=None):
+    def update_header(self, session_name=None, name=None):
         if not session_name:
             session_name = self.session_manager.current_session_name
-        if not agent_name:
-            agent_name = "Timeline Editor"
-        self.sub_title = f"{agent_name}"
+        if not name:
+            name = ""
+        self.sub_title = f"{name}"
         if session_name:
             self.sub_title += f" - Active Session: {session_name}"
         self.refresh(layout=True)
@@ -130,6 +130,7 @@ class TimeLineEditorScreen(SessionScreen):
         self.notify(f"Loaded Dialog: {event.dialog_name}")
         dynamic_container = self.query_one("#center-dynamic-container-timeline-editor", DynamicContainer)
         dynamic_container.clear_content()
+        self.update_header(name=event.dialog_name.plain)
         self.load_chat_ui(self.current_dialog,"dialog")
     
     on(AgentSelected)
@@ -141,7 +142,7 @@ class TimeLineEditorScreen(SessionScreen):
         dynamic_container.clear_content()
         
         # Update header with current agent and session (if available)
-        self.update_header(agent_name=event.agent_name.plain)
+        self.update_header(name=event.agent_name.plain)
         self.load_chat_ui(self.agent_name_plain, "agent")
 
     def load_chat_ui(self, name: str, type: str):

@@ -29,7 +29,6 @@ class UIFactory:
             ui_class = NewSessionUI
             action_func = None
         elif id == "chat-gui":  
-            from ui_components.chat_ui import ChatUI, DialogChatUI, AgentChatUI  
             ui_class = self.create_chat_ui  
             action_func = None            
         elif id == "cancel-load-session":
@@ -64,4 +63,4 @@ class UIFactory:
             if type == "agent":
                 return AgentChatUI(name, type, processor)  
             else:  
-                return ChatUI(name, type, processor)
+                return ChatUI(name, type, processor) 

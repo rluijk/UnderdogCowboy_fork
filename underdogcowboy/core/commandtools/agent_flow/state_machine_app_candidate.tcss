@@ -16,14 +16,13 @@ Header {
     padding: 1;
 }
 
+
 Footer {
     height: auto;
     background: #34495e;
     color: #ecf0f1;
     padding: 1;
-    
 }
-
 
 Collapsible {
     background: #2c2c2c;
@@ -84,8 +83,16 @@ Collapsible > .collapsible--content {
 
 #chat-textarea{
     border: lightgrey;
-    height: 20%;
+    height: 25%;
 }
+
+#chat-textarea.-disabled{
+    border: lightgrey;
+    background: darkgrey;
+    height: 25%;
+}
+
+
 
 #analyze-box {
     layout: vertical; /* Stack the label and button vertically */
@@ -129,7 +136,7 @@ Collapsible > .collapsible--content {
     grid-gutter: 1 1;
     padding: 0;
     background: #2c2c2c;
-    border: red;
+    border: orange;
 
 }
 

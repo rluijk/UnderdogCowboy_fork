@@ -72,7 +72,7 @@ class FeedbackRulesUI(SessionDependentUI):
 
         pre_prompt = "Provide feedback on how the following agent understands the rules it is under or needs to follow."
         
-        asyncio.create_task(self.llm_call_manager.submit_llm_call( 
+        asyncio.create_task(self.llm_call_manager.submit_llm_call_with_agent( 
             
             llm_function = send_agent_data_to_llm,
             llm_config = llm_config,

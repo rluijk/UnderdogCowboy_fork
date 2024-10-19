@@ -1,18 +1,18 @@
 import logging
 import os
 import json
+import datetime
 from typing import Tuple, Optional, Union
 
 import re
 import urllib.parse
-
 
 from rich.markdown import Markdown
 
 from textual import on
 from textual.binding import Binding
   
-from textual.widgets import Static, TextArea, Button
+from textual.widgets import Static, TextArea
 from textual.app import ComposeResult
 from textual.containers import VerticalScroll
 from textual import events
@@ -22,9 +22,8 @@ from llm_response_markdown_renderer import LLMResponseRenderer
 from llm_call_manager import LLMCallManager
 
 # events
-from events.chat_events import TextSubmitted
+from events.chat_events import TextSubmitted, CommandSubmitted
 from events.llm_events import LLMCallComplete, LLMCallError
-from events.action_events import ActionSelected
 
 # uc
 from underdogcowboy.core.config_manager import LLMConfigManager
@@ -33,7 +32,7 @@ from underdogcowboy.core.dialog_manager import AgentDialogManager
 from underdogcowboy.core.model import ModelManager, ConfigurableModel
 
 renderer = LLMResponseRenderer(
-    mdformat_config_path=None,  # Provide path if you have a custom config
+    mdformat_config_path=None,  
 )
 
 class ChatTextArea(TextArea):
@@ -42,11 +41,16 @@ class ChatTextArea(TextArea):
     ]
 
     def action_submit(self) -> None:
-        """Handle the submit action when Shift+Enter is pressed."""
+        """Handle the submit action."""
         message = self.text
         logging.info(f"Submitting message: {message}")
         self.text = ""
-        self.post_message(TextSubmitted(message))
+        if message.startswith('/'):  
+            # This is a command  
+            self.post_message(CommandSubmitted(message))  
+        else:  
+            # This is a regular message  
+            self.post_message(TextSubmitted(message))
 
     def disable(self) -> None:
         self.disabled = True
@@ -141,6 +145,44 @@ class ChatUI(Static):
     def format_messages_to_markdown(self) -> str:
         """Unpacks the messages and returns a markdown-formatted string."""
         markdown_output = ""
+        file_message_pattern = re.compile(r'^File sent:\s*([^\n]+)')
+        model_response_count = 0
+
+        if isinstance(self.processor, CommandProcessor):
+            messages = self.processor.timeline.history 
+        elif isinstance(self.processor, AgentDialogManager):
+            agent = self.processor.active_agent
+            command_processor = self.processor.processors[agent]
+            messages = command_processor.timeline.history
+        else:
+            logging.error("Unsupported processor type in ChatUI.")
+            return markdown_output
+
+        # Ensure hide_message_counter is within bounds
+        if not hasattr(self, 'hide_message_counter'):
+            self.hide_message_counter = 0
+        self.hide_message_counter = max(0, min(self.hide_message_counter, len(messages)))
+
+        # Filter messages after hide_message_counter
+        filtered_messages = messages[self.hide_message_counter:]
+
+        for message in filtered_messages:
+            formatted_text = self._format_message_text(message.text, file_message_pattern)
+            
+            if message.role.lower() == 'model':
+                model_response_count += 1
+                offset = model_response_count - 1
+                markdown_output += f"#### Assistant (Offset: {offset}):\n{formatted_text}\n\n"
+            else:
+                markdown_output += f"#### {message.role.capitalize()}:\n{formatted_text}\n\n"
+
+        return markdown_output
+
+
+
+    def __bck__format_messages_to_markdown(self) -> str:
+        """Unpacks the messages and returns a markdown-formatted string."""
+        markdown_output = ""
         
         # Regular expression to detect file messages
         # file_message_pattern = re.compile(r'^File sent:\s*(.+)$')
@@ -231,37 +273,40 @@ class ChatUI(Static):
 
     @on(TextSubmitted)
     async def handle_text_submission(self, event: TextSubmitted):
-        """Handle the submission of the text."""
-        self.disable_input()
-        # Update the chat history
-        self.chat_history_text += f"\n#### User:\n{event.text}"
-        chat_widget = self.query_one("#chat-history", Static)
-        chat_widget.update(Markdown(self.chat_history_text))
 
-        # Scroll to the bottom
-        scroll_widget = self.query_one("#chat-scroll", VerticalScroll)
-        scroll_widget.scroll_end(animate=False, force=True)
+        if not event.text.startswith('/'):
+            """Handle the submission of the text."""
+            self.disable_input()
+        
+            # Update the chat history
+            self.chat_history_text += f"\n#### User:\n{event.text}"
+            chat_widget = self.query_one("#chat-history", Static)
+            chat_widget.update(Markdown(self.chat_history_text))
 
-        # Append a loading indicator
-        self.chat_history_text += f"\n#### Assistant:\n..."
-        chat_widget.update(Markdown(self.chat_history_text))
-        scroll_widget.scroll_end(animate=False, force=True)
+            # Scroll to the bottom
+            scroll_widget = self.query_one("#chat-scroll", VerticalScroll)
+            scroll_widget.scroll_end(animate=False, force=True)
 
-        # Store the length of the loading indicator
-        self.loading_indicator_length = len("\n#### Assistant:\n...")
+            # Append a loading indicator
+            self.chat_history_text += f"\n#### Assistant:\n..."
+            chat_widget.update(Markdown(self.chat_history_text))
+            scroll_widget.scroll_end(animate=False, force=True)
 
-        # Prepare arguments
-        llm_config = self.app.get_current_llm_config()
-        input_id = self.loading_indicator_length
+            # Store the length of the loading indicator
+            self.loading_indicator_length = len("\n#### Assistant:\n...")
 
-        # Submit the LLM call
-        await self.llm_call_manager.submit_llm_call(
-            self.llm_processing_function,
-            llm_config,
-            self.processor,
-            input_id,
-            event.text
-        )
+            # Prepare arguments
+            llm_config = self.app.get_current_llm_config()
+            input_id = self.loading_indicator_length
+
+            # Submit the LLM call
+            await self.llm_call_manager.submit_llm_call(
+                self.llm_processing_function,
+                llm_config,
+                self.processor,
+                input_id,
+                event.text
+            )
 
     def llm_processing_function(self, llm_config, processor, message_text):
         """Function that processes the LLM call."""
@@ -319,6 +364,57 @@ class ChatUI(Static):
         scroll_widget.scroll_end(animate=False, force=True)
         self.enable_input()
 
+    @on(CommandSubmitted)  
+    def handle_command_submission(self, event: CommandSubmitted):  
+
+        """Handle the submission of a command."""  
+        command_parts = event.command.lower().split()
+        base_command = command_parts[0]
+        
+        if base_command == '/markdown':
+            offset = 0
+            if len(command_parts) > 1:
+                try:
+                    offset = int(command_parts[1])
+                except ValueError:
+                    self.app.notify("Invalid offset. Using most recent response.")
+            self.save_response_to_markdown(offset)
+        else:
+            self.app.notify("Unknown command")
+
+    def save_response_to_markdown(self, offset=0):  
+        config_manager = LLMConfigManager()  
+        dialogs_dir = config_manager.get_general_config().get('message_export_path', '')
+        os.makedirs(dialogs_dir, exist_ok=True)
+        
+        if isinstance(self.processor, CommandProcessor):  
+            messages = self.processor.timeline.history  
+        elif isinstance(self.processor, AgentDialogManager):  
+            agent = self.processor.active_agent  
+            command_processor = self.processor.processors[agent]  
+            messages = command_processor.timeline.history  
+        else:  
+            self.app.notify("Error: Unsupported processor type")  
+            return
+        
+        model_responses = [msg for msg in reversed(messages) if msg.role.lower() == 'model']
+        
+        if offset < 0 or offset >= len(model_responses):
+            self.app.notify(f"Invalid offset. There are only {len(model_responses)} model responses.")
+            return
+        
+        response_to_save = model_responses[offset].text if model_responses else None
+        
+        if response_to_save:  
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")  
+            filename = f"llm_response_{timestamp}_offset_{offset}.md"  
+            file_path = os.path.join(dialogs_dir, filename)
+            with open(file_path, 'w', encoding='utf-8') as f:  
+                f.write(response_to_save)
+            self.app.notify(f"Response (offset: {offset}) saved to {file_path}")  
+        else:  
+            self.app.notify(f"No assistant response found at offset {offset}")             
+
     def append_to_chat(self, text: str, role: str, move_to_bottom: bool = False) -> int:
         """Append a new message to the chat."""
         # Update the chat history text
@@ -333,16 +429,16 @@ class ChatUI(Static):
             scroll_widget.scroll_end(animate=False, force=True)
 
         return len(self.chat_history_text)  # Return the length of the chat history as a simple ID
-
-    
+  
 class DialogChatUI(ChatUI):  
 
-    BINDINGS = ChatUI.BINDINGS + [  
+    BINDINGS =  [  
         Binding("ctrl+d", "save_dialog", "Save Dialog", key_display="Ctrl+D"),  
     ]
 
     def __init__(self, name: str, type: str, processor: Optional[Union[AgentDialogManager, CommandProcessor]] = None):
         super().__init__(name, type, processor)
+        # important do here, it loads the processor, essential for logic deeper for display of the chat messages
         self.load_dialog(name)
 
     def action_save_dialog(self) -> None:  
@@ -373,6 +469,7 @@ class AgentChatUI(ChatUI):
     
     def __init__(self, name: str, type: str, processor: Optional[Union[AgentDialogManager, CommandProcessor]] = None):
         super().__init__(name, type, processor)
+        # important do here, it loads the processor, essential for logic deeper for display of the chat messages
         self.load_agent(name)
 
     def load_agent(self, agent_name):
