@@ -76,6 +76,7 @@ class LLMConfigProcessor(cmd.Cmd):
         
         print(f"Updating properties for model: {self.current_model}")
         
+        provider, model_id = self.current_model.split(':', 1)
         config = self.config_manager.get_credentials(self.current_model)
         properties = list(config.keys())
         

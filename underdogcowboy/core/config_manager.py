@@ -339,7 +339,13 @@ class LLMConfigManager:
                 available_models.append(f"{provider}:{model['id']}")
         return sorted(available_models)
 
-    def update_model_property(self, provider: str, property_name: str, new_value: Any) -> None:
+    def update_model_property(self, provider_model: str, property_name: str, new_value: Any) -> None:
+        if ':' in provider_model:
+            provider, model_id = provider_model.split(':', 1)
+        else:
+            provider = provider_model
+            model_id = None
+
         if provider not in self.models:
             raise ValueError(f"Provider '{provider}' does not exist.")
         
@@ -358,7 +364,7 @@ class LLMConfigManager:
             self.config[provider][property_name] = new_value
         
         self.save_config()
-        print(f"Updated {property_name} for {provider}.")
+        print(f"Updated {property_name} for {provider_model}.")        
 
     def remove_provider_config(self, provider: str) -> None:
         if provider not in self.config:
