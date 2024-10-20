@@ -25,6 +25,8 @@ dependencies = [
     "pyyaml",
     "pyperclip",
     "uccli @ file:///Users/reneluijk/projects/uccli"   
+    # "uccli @ file:///C:/projects/guided-llm-cli"   
+    
 ]
 
 [project.scripts]
