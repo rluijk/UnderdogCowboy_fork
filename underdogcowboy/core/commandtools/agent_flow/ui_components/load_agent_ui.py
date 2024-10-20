@@ -37,6 +37,11 @@ class LoadAgentUI(Static):
         # get agents from file system
         
         agents_dir = os.path.expanduser("~/.underdogcowboy/agents")
+
+        # Check if the directory exists, if not, create it
+        if not os.path.exists(agents_dir):
+            os.makedirs(agents_dir)
+
         agents = [f.replace('.json', '') for f in os.listdir(agents_dir) if f.endswith('.json')]
 
         list_view = self.query_one("#agent-list")
