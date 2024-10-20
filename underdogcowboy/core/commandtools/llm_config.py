@@ -42,11 +42,24 @@ class LLMConfigProcessor(cmd.Cmd):
         self.prompt = f"(llm_config:{self.current_model}) "
         self.do_show_config("")
 
-    def do_show_config(self, arg):
+    def __back__do_show_config(self, arg):
         """Show configuration for the currently selected model."""
         if not self.current_model:
             print("No model selected. Please use 'select_model' first.")
             return
+        config = self.config_manager.get_credentials(self.current_model)
+        print(f"Configuration for {self.current_model}:")
+        for i, (key, value) in enumerate(config.items(), 1):
+            if key == 'api_key':
+                print(f"  {i}. {key}: ****")
+            else:
+                print(f"  {i}. {key}: {value}")
+
+    def do_show_config(self, arg):
+        if not self.current_model:
+            print("No model selected. Please use 'select_model' first.")
+            return
+        provider, model_id = self.current_model.split(':', 1)
         config = self.config_manager.get_credentials(self.current_model)
         print(f"Configuration for {self.current_model}:")
         for i, (key, value) in enumerate(config.items(), 1):

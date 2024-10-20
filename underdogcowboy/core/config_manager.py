@@ -66,7 +66,7 @@ class LLMConfigManager:
         }
         self.general_config: Dict[str, Dict[str, Any]] = {
             'dialog_save_path': {'question': 'Enter the path to save dialogs:', 'input_type': 'path', 'default': str(Path.home() / 'llm_dialogs')},
-            'message_export_path': {'question': 'Enter the path to export messages:', 'input_type': 'path', 'default': str(Path.home() / 'llm_exports')}
+            'message_export_path': {'question': 'Enter the path to export messages:', 'input_type': 'path', 'default': str(Path.home() / 'llm_exports')},
         }
         self.tracing_config: Dict[str, Dict[str, Any]] = {
             'use_langsmith': {'question': 'Use LangSmith for tracing? (yes/no):', 'input_type': 'boolean', 'default': 'no'},
@@ -144,6 +144,63 @@ class LLMConfigManager:
             json.dump(safe_config, f, indent=2)
     
     def get_credentials(self, provider: str) -> Dict[str, Any]:
+        if ':' in provider:
+            provider, model_id = provider.split(':', 1)
+        else:
+            model_id = None
+
+        if provider not in self.config or not self.config[provider].get('configured', False):
+            print(f"No stored credentials found for {provider}. Please enter them now.")
+            self.config[provider] = {}
+            for prop, details in self.models[provider].items():
+                if prop != 'models':
+                    if details['input_type'] == 'password':
+                        value = getpass(details['question'])
+                        keyring.set_password("underdogcowboy", f"{provider}_{prop}", value)
+                        self.config[provider][prop] = "KEYRING_STORED"
+                    else:
+                        value = input(f"{details['question']} (default: {details.get('default', 'N/A')}): ")
+                        if not value and 'default' in details:
+                            value = details['default']
+                        self.config[provider][prop] = value
+            
+            if not model_id:
+                # Model selection
+                print(f"Available models for {provider}:")
+                for i, model in enumerate(self.models[provider]['models'], 1):
+                    print(f"{i}. {model['name']} ({model['id']})")
+                while True:
+                    try:
+                        choice = int(input("Select a model (enter the number): "))
+                        if 1 <= choice <= len(self.models[provider]['models']):
+                            selected_model = self.models[provider]['models'][choice - 1]
+                            model_id = selected_model['id']
+                            break
+                        else:
+                            print("Invalid choice. Please try again.")
+                    except ValueError:
+                        print("Please enter a valid number.")
+            
+            self.config[provider]['selected_model'] = model_id
+            self.config[provider]['configured'] = True
+            self.save_config()
+
+        credentials = {}
+        for prop, details in self.models[provider].items():
+            if prop != 'models':
+                if details['input_type'] == 'password':
+                    value = keyring.get_password("underdogcowboy", f"{provider}_{prop}")
+                else:
+                    value = self.config[provider].get(prop)
+                if not value and 'default' in details:
+                    value = details['default']
+                credentials[prop] = value
+        
+        credentials['model_id'] = model_id or self.config[provider]['selected_model']
+        return credentials
+
+
+    def __bck__get_credentials(self, provider: str) -> Dict[str, Any]:
         if provider not in self.config or not self.config[provider].get('configured', False):
             print(f"No stored credentials found for {provider}. Please enter them now.")
             self.config[provider] = {}
@@ -268,12 +325,19 @@ class LLMConfigManager:
             except ValueError:
                 print("Please enter a valid number.")
 
-    def get_available_models(self) -> List[str]:
+    def __bck__get_available_models(self) -> List[str]:
         available_models = []
         for provider, details in self.models.items():
             for model in details['models']:
                 available_models.append(f"{provider}:{model['id']}")
         return sorted(available_models)        
+    
+    def get_available_models(self) -> List[str]:
+        available_models = []
+        for provider, details in self.models.items():
+            for model in details['models']:
+                available_models.append(f"{provider}:{model['id']}")
+        return sorted(available_models)
 
     def update_model_property(self, provider: str, property_name: str, new_value: Any) -> None:
         if provider not in self.models:
