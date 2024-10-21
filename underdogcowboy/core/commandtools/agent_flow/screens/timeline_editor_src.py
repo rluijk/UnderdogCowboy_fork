@@ -45,6 +45,7 @@ from state_machines.timeline_editor_state_machine import create_timeline_editor_
 
 # uc
 from underdogcowboy.core.config_manager import LLMConfigManager 
+from underdogcowboy.core.json_storage import TimelineStorage
 
 # uc exceptions
 from underdogcowboy.core.exceptions import InvalidAgentNameError
@@ -75,6 +76,7 @@ class TimeLineEditorScreen(SessionScreen):
         self._pending_session_manager = None
         self.timeline = None
         self.processor = None
+        self.storage = TimelineStorage()
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -226,8 +228,17 @@ class TimeLineEditorScreen(SessionScreen):
         self._save_new_dialog(dialog_path, event.dialog_name)
         dynamic_container: DynamicContainer = self.query_one("#center-dynamic-container-timeline-editor", DynamicContainer)
         dynamic_container.clear_content()
-      
-    def _save_new_dialog(self,dialog_path, name):
+
+    def _save_new_dialog(self, dialog_path, name):
+        self.storage.save_new_dialog(name, dialog_path)
+
+    def _save_new_agent(self, agent_name):
+        try:
+            self.storage.save_new_agent(agent_name)
+        except ValueError as e:
+            raise InvalidAgentNameError(agent_name) from e   
+
+    def __back___save_new_dialog(self,dialog_path, name):
         
         # Create the directory if it doesn't exist
         os.makedirs(dialog_path, exist_ok=True)
@@ -251,7 +262,7 @@ class TimeLineEditorScreen(SessionScreen):
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=4)    
 
-    def _save_new_agent(self, agent_name):
+    def __bck___save_new_agent(self, agent_name):
         """Saves the current dialog as a user-defined agent."""
     
 

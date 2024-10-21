@@ -19,6 +19,8 @@ from .llm_response_markdown import LLMResponseRenderer
 
 from .exceptions import InvalidAgentNameError
 
+from .json_storage import TimelineStorage
+
 '''
 The Timeline and CommandProcessor classes work together to manage a conversational history and process user commands. 
 The CommandProcessor acts as a controller, utilizing the Timeline to store and manipulate the conversation data.
@@ -57,6 +59,9 @@ class Timeline:
         self.start_mode = 'interactive'
         self.loaded_filename = None
         self.system_message = None
+        self.storage = TimelineStorage()
+
+        
 
     def set_system_message(self, message):
         """Set or update the system message."""
@@ -200,6 +205,27 @@ class Timeline:
             print(f"No item found at index {index}")
 
     def save(self, filename, name=None, description=None, path=None):
+        if not name:
+            name = input("Enter a name for this timeline session: ")
+        if not description:
+            description = input("Enter a description for this timeline session: ")
+
+        start_mode = 'frozen' if self.frozen_segments and self.frozen_segments[0]['start'] == 0 else 'interactive'
+
+        data = {
+            "history": [msg.__dict__ for msg in self.history],
+            "metadata": {
+                "frozenSegments": self.frozen_segments,
+                "startMode": start_mode,
+                "name": name,
+                "description": description
+            },
+            "system_message": self.system_message.__dict__ if self.system_message else None
+        }
+
+        self.storage.save_timeline(data, filename, path)
+
+    def __bck__save(self, filename, name=None, description=None, path=None):
         """
         Save the current timeline to a file.
         
