@@ -24,6 +24,7 @@ from ui_components.load_agent_ui import LoadAgentUI
 from events.button_events import UIButtonPressed
 from events.action_events import ActionSelected
 from events.category_events import CategorySelected, CategoryLoaded
+from events.agent_events import AgentSelected
 
 
 from screens.session_screen import SessionScreen
@@ -186,10 +187,20 @@ class AgentAssessmentBuilderScreen(SessionScreen):
         dynamic_container = self.query_one("#center-dynamic-container-agent-assessment-builder", DynamicContainer)
         dynamic_container.clear_content()
 
-        category_editor_ui = CategoryEditorUI(self.session_manager)
+        category_editor_ui = CategoryEditorUI(self.session_manager,self.screen_name,self.agent_name_plain)
         dynamic_container.mount(category_editor_ui)
 
         # we want to send message for the handler in the CategoryEditorUI
         self.post_message(CategoryLoaded(message.category_name))
 
 
+    on(AgentSelected)
+    def on_agent_selected(self, event: AgentSelected):
+        self.current_agent = event.agent_name.plain
+        self.agent_name_plain = event.agent_name.plain
+        self.notify(f"Loaded Agent: {event.agent_name.plain}")
+        dynamic_container = self.query_one("#center-dynamic-container-agent-assessment-builder", DynamicContainer)
+        dynamic_container.clear_content()
+        
+        self.update_header()
+        

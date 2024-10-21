@@ -27,6 +27,7 @@ class LLMCallManager(MessageEmitterMixin):
             self._task_queue.task_done()        
 
     async def _handle_task(self, llm_function, *args):
+        logging.info('Handling Task')
         input_id = args[-1]  # Assume input_id is always the last argument
         try:
             result = await asyncio.to_thread(llm_function, *args[:-1])

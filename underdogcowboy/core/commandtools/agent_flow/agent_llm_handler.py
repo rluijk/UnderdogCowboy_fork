@@ -14,6 +14,7 @@ a response based on the agent's specific logic (such as 'clarity' for agent asse
 # Mapping agent names to agent classes (or objects)
 AGENT_REGISTRY = {
     'clarity': 'agentclarity',
+    'assessment': 'assessmentbuilder'
     # Add other agents here as needed
 }
 
