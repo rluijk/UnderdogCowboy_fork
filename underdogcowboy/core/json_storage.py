@@ -37,5 +37,9 @@ class TimelineStorage:
                 "name": name,
                 "description": ""
             },
-            "system_message": ""
+            "system_message": {
+                "role": "system",
+                "content": ""
+            }
         }
+    

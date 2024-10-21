@@ -524,8 +524,8 @@ class CategoryScaleWidget(Static):
         self.scale_widget.update_scales(message.category_name)
 
 class MainApp(App):
-    CSS_PATH = "category_widgets.css"
-    
+    CSS_PATH = "../mocks/category_widgets.css"
+
     def __init__(self):
         super().__init__()
         self.llm_call_manager = LLMCallManager()
@@ -535,9 +535,8 @@ class MainApp(App):
     def compose(self) -> ComposeResult:
         yield CategoryScaleWidget(self.llm_call_manager)
      
-#if __name__ == "__main__":
-    #logging.info("Starting MainApp")
-    #app = MainApp()
-    #app.run()
-    #logging.info("MainApp has terminated")
+if __name__ == "__main__":
+    logging.info("Starting MainApp")
+    app = MainApp()
+    app.run()
 
