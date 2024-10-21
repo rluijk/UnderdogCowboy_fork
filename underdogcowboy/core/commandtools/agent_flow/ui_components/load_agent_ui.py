@@ -13,13 +13,15 @@ from events.agent_events import AgentSelected
 from events.button_events import UIButtonPressed
 
 
+from ui_components.autoselect_list_view_ui import AutoSelectListView
+
 class LoadAgentUI(Static):
     """A UI for getting an agent selected for the build-in agent to assess"""
     def compose(self):
         yield Container(
             Vertical(
                 Static("Select a agent to load:", id="agent-prompt", classes="agent-prompt"),
-                ListView(id="agent-list", classes="agent-list"),
+                AutoSelectListView(id="agent-list", classes="agent-list"),
                 Label("No agent available. Create a new agent first.", id="no-agents-label", classes="hidden"),
                 Button("Load Selected Agent", id="load-button", disabled=True, classes="action-button"),
                 Button("Cancel", id="cancel-button", classes="action-button")
@@ -30,37 +32,37 @@ class LoadAgentUI(Static):
     def on_mount(self):
         self.load_agents()
 
-    def on_list_view_selected(self, event: ListView.Selected):
+
+    def on_list_view_highlighted(self, event: AutoSelectListView.Highlighted):
         self.query_one("#load-button").disabled = False
 
+
     def load_agents(self):
-        # get agents from file system
-        
-        agents_dir = os.path.expanduser("~/.underdogcowboy/agents")
+            agents_dir = os.path.expanduser("~/.underdogcowboy/agents")
 
-        # Check if the directory exists, if not, create it
-        if not os.path.exists(agents_dir):
-            os.makedirs(agents_dir)
+            if not os.path.exists(agents_dir):
+                os.makedirs(agents_dir)
 
-        agents = [f.replace('.json', '') for f in os.listdir(agents_dir) if f.endswith('.json')]
+            agents = [f.replace('.json', '') for f in os.listdir(agents_dir) if f.endswith('.json')]
 
-        list_view = self.query_one("#agent-list")
+            list_view = self.query_one("#agent-list", AutoSelectListView)
+            no_agents_label = self.query_one("#no-agents-label")
+            load_button = self.query_one("#load-button")
 
-        no_agents_label = self.query_one("#no-agents-label")
-        load_button = self.query_one("#load-button")
-
-        list_view.clear()
-        
-        if not agents:
-            list_view.display = False
-            no_agents_label.remove_class("hidden")
-            load_button.disabled = True
-        else:
-            list_view.display = True
-            no_agents_label.add_class("hidden")
-            for agent in agents:
-                list_view.append(ListItem(Label(agent)))
-
+            list_view.clear()
+            
+            if not agents:
+                list_view.display = False
+                no_agents_label.remove_class("hidden")
+                load_button.disabled = True
+            else:
+                list_view.display = True
+                no_agents_label.add_class("hidden")
+                for agent in agents:
+                    list_view.append(ListItem(Label(agent)))
+                
+            # Enable the load button if there are agents
+            load_button.disabled = False
 
     def on_button_pressed(self, event: Button.Pressed):
         if event.button.id == "load-button":

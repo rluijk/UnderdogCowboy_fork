@@ -3,14 +3,12 @@ import os
 import json
 import re
 
-from typing import Tuple
-
 from textual import on
 from textual.app import ComposeResult
-from textual.screen import Screen
 from textual.containers import Vertical, Horizontal
-from textual.widgets import Label, Header, Footer, Collapsible
+from textual.widgets import Header, Footer, Collapsible
 from textual.css.query import NoMatches
+from textual.binding import Binding
 
 from uccli import StateMachine
 
@@ -35,8 +33,8 @@ from ui_components.new_dialog_ui import NewDialogUI
 
 # Events
 from events.button_events import UIButtonPressed
-from events.agent_events import AgentSelected, NewAgentCreated, LoadAgent, AgentLoaded
-from events.dialog_events import DialogSelected, NewDialogCreated, LoadDialog, DialogLoaded
+from events.agent_events import AgentSelected, NewAgentCreated
+from events.dialog_events import DialogSelected, NewDialogCreated
 from events.action_events import ActionSelected
 
 # Screens
@@ -47,22 +45,18 @@ from state_machines.timeline_editor_state_machine import create_timeline_editor_
 
 # uc
 from underdogcowboy.core.config_manager import LLMConfigManager 
-from underdogcowboy.core.timeline_editor import Timeline, CommandProcessor
-from underdogcowboy.core.model import ModelManager, ConfigurableModel
 
 # uc exceptions
 from underdogcowboy.core.exceptions import InvalidAgentNameError
-
-""""
-Under development, the use and none use of SessionScreen.
-SessionScreen
-
-"""
 
 class TimeLineEditorScreen(SessionScreen):
     """A screen for the timeline editor."""
 
     # CSS_PATH = "../state_machine_app.css"
+
+    BINDINGS = [
+        Binding("ctrl+t", "toggle_task_panel", "Toggle Task Panel")
+    ]
 
     def __init__(self,
                  state_machine: StateMachine = None,
@@ -123,6 +117,10 @@ class TimeLineEditorScreen(SessionScreen):
         if session_name:
             self.sub_title += f" - Active Session: {session_name}"
         self.refresh(layout=True)
+
+    def action_toggle_task_panel(self) -> None:
+        collapsible = self.query_one("#state-info-collapsible", Collapsible)
+        collapsible.collapsed = not collapsible.collapsed
 
     on(DialogSelected)
     def on_dialog_selected(self, event: DialogSelected):

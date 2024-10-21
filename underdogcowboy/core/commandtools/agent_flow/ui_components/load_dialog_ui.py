@@ -11,6 +11,9 @@ from rich.text import Text
 from events.dialog_events import DialogSelected
 from events.button_events import UIButtonPressed
 
+# UI
+from ui_components.autoselect_list_view_ui import AutoSelectListView
+
 # uc
 from underdogcowboy.core.config_manager import LLMConfigManager 
 
@@ -21,7 +24,7 @@ class LoadDialogUI(Static):
         yield Container(
             Vertical(
                 Static("Select a dialog to load:", id="dialog-prompt", classes="dialog-prompt"),
-                ListView(id="dialog-list", classes="dialog-list"),
+                AutoSelectListView(id="dialog-list", classes="dialog-list"),
                 Label("No dialog available. Create a new dialog first.", id="no-dialogs-label", classes="hidden"),
                 Button("Load Selected Dialog", id="load-button", disabled=True, classes="action-button"),
                 Button("Cancel", id="cancel-button", classes="action-button")
@@ -32,7 +35,7 @@ class LoadDialogUI(Static):
     def on_mount(self):
         self.load_dialogs()
 
-    def on_list_view_selected(self, event: ListView.Selected):
+    def on_list_view_highlighted(self, event: AutoSelectListView.Highlighted):
         self.query_one("#load-button").disabled = False
 
     def load_dialogs(self):
@@ -57,8 +60,10 @@ class LoadDialogUI(Static):
         else:
             list_view.display = True
             no_dialogs_label.add_class("hidden")
-            for agent in dialogs:
-                list_view.append(ListItem(Label(agent)))
+            for dialog in dialogs:
+                list_view.append(ListItem(Label(dialog)))
+
+        load_button.disabled = False
 
 
     def on_button_pressed(self, event: Button.Pressed):

@@ -7,6 +7,8 @@ from typing import Tuple, Optional, Union
 import re
 import urllib.parse
 
+import yaml
+
 from rich.markdown import Markdown
 
 from textual import on
@@ -85,6 +87,8 @@ class ChatUI(Static):
             
         self.llm_call_manager = LLMCallManager()
         self.llm_call_manager.set_message_post_target(self) 
+
+        self.load_folder_aliases()
             
     def disable_input(self) -> None:
         text_area = self.query_one("#chat-textarea", ChatTextArea)
@@ -176,56 +180,6 @@ class ChatUI(Static):
             else:
                 markdown_output += f"#### {message.role.capitalize()}:\n{formatted_text}\n\n"
 
-        return markdown_output
-
-
-
-    def __bck__format_messages_to_markdown(self) -> str:
-        """Unpacks the messages and returns a markdown-formatted string."""
-        markdown_output = ""
-        
-        # Regular expression to detect file messages
-        # file_message_pattern = re.compile(r'^File sent:\s*(.+)$')
-        file_message_pattern = re.compile(r'^File sent:\s*([^\n]+)')
-
-        
-        if isinstance(self.processor, CommandProcessor):
-            messages = self.processor.timeline.history 
-            for message in messages:
-                formatted_text = self._format_message_text(message.text, file_message_pattern)
-                markdown_output += f"#### {message.role.capitalize()}:\n{formatted_text}\n\n"
-        
-        elif isinstance(self.processor, AgentDialogManager):
-            # Get the active agent's CommandProcessor
-            agent = self.processor.active_agent
-            command_processor = self.processor.processors[agent]  # CommandProcessor instance
-            
-            # Access the message history
-            messages = command_processor.timeline.history
-            
-            # Ensure hide_message_counter is within the bounds
-            if not hasattr(self, 'hide_message_counter'):
-                self.hide_message_counter = 0  # Default to 0 if not set
-            
-            if self.hide_message_counter < 0:
-                self.hide_message_counter = 0  # Prevent negative indices
-            
-            if self.hide_message_counter > len(messages):
-                self.hide_message_counter = len(messages)  # Cap at the list length
-            
-            # Filter messages after hide_message_counter
-            filtered_messages = messages[self.hide_message_counter:]
-            
-            # Update hide_message_counter to current length to avoid reprocessing
-            self.hide_message_counter += len(filtered_messages)
-            
-            for message in filtered_messages:
-                formatted_text = self._format_message_text(message.text, file_message_pattern)
-                markdown_output += f"#### {message.role.capitalize()}:\n{formatted_text}\n\n"
-        
-        else:
-            logging.error("Unsupported processor type in ChatUI.")
-        
         return markdown_output
 
     def _format_message_text(self, text: str, pattern: re.Pattern) -> str:
@@ -366,27 +320,39 @@ class ChatUI(Static):
 
     @on(CommandSubmitted)  
     def handle_command_submission(self, event: CommandSubmitted):  
-
-        """Handle the submission of a command."""  
         command_parts = event.command.lower().split()
         base_command = command_parts[0]
         
         if base_command == '/markdown':
             offset = 0
+            folder_alias = None
             if len(command_parts) > 1:
                 try:
                     offset = int(command_parts[1])
+                    if len(command_parts) > 2:
+                        folder_alias = command_parts[2]
                 except ValueError:
-                    self.app.notify("Invalid offset. Using most recent response.")
-            self.save_response_to_markdown(offset)
+                    if len(command_parts) > 2:
+                        offset = 0
+                        folder_alias = command_parts[1]
+                    else:
+                        folder_alias = command_parts[1]
+            self.save_response_to_markdown(offset, folder_alias)
         else:
             self.app.notify("Unknown command")
 
-    def save_response_to_markdown(self, offset=0):  
-        config_manager = LLMConfigManager()  
-        dialogs_dir = config_manager.get_general_config().get('message_export_path', '')
-        os.makedirs(dialogs_dir, exist_ok=True)
+
+    def save_response_to_markdown(self, offset=0, folder_alias=None):  
         
+        config_manager = LLMConfigManager()  
+        
+        if folder_alias and folder_alias in self.folder_aliases:
+            dialogs_dir = os.path.expanduser(self.folder_aliases[folder_alias])
+        else:
+            dialogs_dir = config_manager.get_general_config().get('message_export_path', '')
+        
+        os.makedirs(dialogs_dir, exist_ok=True)
+                
         if isinstance(self.processor, CommandProcessor):  
             messages = self.processor.timeline.history  
         elif isinstance(self.processor, AgentDialogManager):  
@@ -413,7 +379,9 @@ class ChatUI(Static):
                 f.write(response_to_save)
             self.app.notify(f"Response (offset: {offset}) saved to {file_path}")  
         else:  
-            self.app.notify(f"No assistant response found at offset {offset}")             
+            self.app.notify(f"No assistant response found at offset {offset}")    
+            
+
 
     def append_to_chat(self, text: str, role: str, move_to_bottom: bool = False) -> int:
         """Append a new message to the chat."""
@@ -429,7 +397,25 @@ class ChatUI(Static):
             scroll_widget.scroll_end(animate=False, force=True)
 
         return len(self.chat_history_text)  # Return the length of the chat history as a simple ID
-  
+    
+    def load_folder_aliases(self):
+        config_path = os.path.expanduser("~/.folder_aliases")
+        self.folder_aliases = {}
+
+        # Ensure the directory exists
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+
+        # If the file doesn't exist, create an empty one
+        if not os.path.exists(config_path):
+            with open(config_path, 'w') as file:
+                yaml.dump({}, file)
+
+        try:
+            with open(config_path, 'r') as file:
+                self.folder_aliases = yaml.safe_load(file) or {}
+        except Exception as e:
+            self.app.notify(f"Error loading folder aliases: {str(e)}")
+
 class DialogChatUI(ChatUI):  
 
     BINDINGS =  [  

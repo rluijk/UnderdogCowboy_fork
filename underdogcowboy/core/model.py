@@ -267,7 +267,9 @@ class AnthropicModel(ConfigurableModel):
         data = {
             "model": self.model_id,
             "messages": formatted_conversation,
-            "max_tokens": 4500
+            "max_tokens": 4500, # TODO can also be made agent/call specific
+            # TODO "temperature": 0.0 default to zero, we need to make this agent/call  specific.
+
         }
 
         if system_message:

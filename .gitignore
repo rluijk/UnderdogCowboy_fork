@@ -33,3 +33,5 @@ venv_an
 /.uccli_sessions
 session_data.db
 *.log
+/underdogcowboy/core/commandtools/agent_flow/dev_notes
+*.md
