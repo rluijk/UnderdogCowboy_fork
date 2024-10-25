@@ -14,9 +14,8 @@ from events.button_events import UIButtonPressed
 # UI
 from ui_components.autoselect_list_view_ui import AutoSelectListView
 
-# uc
+# UC
 from underdogcowboy.core.config_manager import LLMConfigManager 
-
 
 class LoadDialogUI(Static):
     """A UI for getting an dialog selected """
@@ -44,7 +43,7 @@ class LoadDialogUI(Static):
         config_manager: LLMConfigManager = LLMConfigManager()
         dialogs_dir: str = config_manager.get_general_config().get('dialog_save_path', '')
       
-        dialogs = [f.replace('.json', '') for f in os.listdir(dialogs_dir) if f.endswith('.json')]
+        dialogs = sorted([f.replace('.json', '') for f in os.listdir(dialogs_dir) if f.endswith('.json')], key=str.lower)
 
         list_view = self.query_one("#dialog-list")
 

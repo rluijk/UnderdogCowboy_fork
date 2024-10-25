@@ -43,7 +43,7 @@ class LoadAgentUI(Static):
             if not os.path.exists(agents_dir):
                 os.makedirs(agents_dir)
 
-            agents = [f.replace('.json', '') for f in os.listdir(agents_dir) if f.endswith('.json')]
+            agents = sorted([f.replace('.json', '') for f in os.listdir(agents_dir) if f.endswith('.json')], key=str.lower)
 
             list_view = self.query_one("#agent-list", AutoSelectListView)
             no_agents_label = self.query_one("#no-agents-label")
