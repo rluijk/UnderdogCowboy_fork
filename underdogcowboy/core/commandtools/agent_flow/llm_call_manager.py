@@ -38,12 +38,15 @@ class LLMCallManager(MessageEmitterMixin):
                 response = result
                 adm = None
             self.post_message(LLMCallComplete(sender=self, input_id=input_id, result=response, adm=adm))
+            logging.info(f"Used post_message to send LLMCallComplete with input_id {input_id}")
         except Exception as e:
             self.post_message(LLMCallError(sender=self, input_id=input_id, error=str(e)))
 
+        logging.debug("_handle Task post (after) send self.post_message")
+
     async def submit_llm_call_with_agent(self, llm_function, llm_config, agent_name, agent_type, input_id, pre_prompt,post_prompt):
         """Submits an LLM call to the task queue."""
-        logging.info(f"Submitting LLM call for input_id: {input_id}")
+        logging.info(f"Submitting LLM call for input_id: {input_id}: agent: {agent_name} type: {agent_type}")
         if not self._message_post_target:
             raise MessagePostTargetNotSetError("Message post target not set.")
         

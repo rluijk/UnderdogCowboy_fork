@@ -1,3 +1,5 @@
+import logging
+
 from textual.app import ComposeResult
 
 # UI
@@ -14,13 +16,11 @@ class CategoryEditorUI(SessionDependentUI):
     def __init__(self, session_manager, screen_name, agent_name_plain):
         super().__init__(session_manager, screen_name, agent_name_plain)
         self.session_manager = session_manager
-        self.llm_call_manager = LLMCallManager()
-        self.llm_call_manager.set_message_post_target(self)
         self.selected_category = self.session_manager.get_data('selected_category', "Default Category")
         self.styles.overflow_y = "auto"  # Enable vertical scrolling
         self.styles.height = "500"       # Set a fixed height
         self.agent_name_plain = agent_name_plain
 
     def compose(self) -> ComposeResult:
-        yield CategoryScaleWidget(self.llm_call_manager, self.agent_name_plain)
+        yield CategoryScaleWidget(self.agent_name_plain)
 

@@ -3,10 +3,12 @@ import os
 import json
 import re
 
+
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
-from textual.widgets import Header, Footer, Collapsible
+from textual.widgets import Header, Footer, Collapsible, Static
+from textual.reactive import reactive
 from textual.css.query import NoMatches
 from textual.binding import Binding
 
@@ -84,7 +86,7 @@ class TimeLineEditorScreen(SessionScreen):
             yield DynamicContainer(id="center-dynamic-container-timeline-editor", classes="center-dynamic-spacer")        
 
         with Vertical(id="app-layout"):
-            with Collapsible(title="Task Panel", id="state-info-collapsible", collapsed=False):
+            with Collapsible(title="Task Panel", id="state-info-collapsible", collapsed=False):                  
                 yield StateInfo(id="state-info")
                 yield StateButtonGrid(self.state_machine, id="button-grid", state_machine_active_on_mount=True)  
                 
