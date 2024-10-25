@@ -47,7 +47,7 @@ class AgentAssessmentBuilderScreen(SessionScreen):
     def compose(self) -> ComposeResult:
         yield Header()
         with Horizontal(id="agent-centre", classes="dynamic-spacer"):
-            yield LeftSideContainer(classes="left-dynamic-spacer")
+            yield LeftSideContainer(classes="left-dynamic-spacer agent-assessment-left")
             yield DynamicContainer(id="center-dynamic-container-agent-assessment-builder", classes="center-dynamic-spacer")
 
         with Vertical(id="app-layout"):
