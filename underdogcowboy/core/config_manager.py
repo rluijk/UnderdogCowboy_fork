@@ -22,6 +22,7 @@ GROQ_MODELS = [
 ]
 
 CLAUDE_MODELS = [
+    {'id': 'claude-3-5-sonnet-20241022', 'name': 'Claude 3.5 Sonnet (Upgrade)'},
     {'id': 'claude-3-5-sonnet-20240620', 'name': 'Claude 3.5 Sonnet'},
     {'id': 'claude-3-opus-20240229', 'name': 'Claude 3 Opus'},
     {'id': 'claude-3-sonnet-20240229', 'name': 'Claude 3 Sonnet'},
