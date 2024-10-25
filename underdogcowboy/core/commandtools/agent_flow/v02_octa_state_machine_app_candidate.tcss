@@ -33,10 +33,6 @@ Collapsible {
     border: none
 }
 
-DynamicContainer{
-    border: none;
-    height: 100%
-}
 
 
 /* --- Header Elements --- */
@@ -56,14 +52,22 @@ Header > .header--sub_title {
 
 Collapsible > .collapsible--header {
     background: #5e3a2e 10%;
-    color: #e0e0e0;
     padding: 1;
+    link-background-hover: green;
 }
+
 
 Collapsible > .collapsible--content {
     padding: 1;
 }
 
+.collapsible {
+    background: red;
+}
+
+.collapsible.active {
+    color: red; /* Change color when active */
+}
 
 /* CSS styling for chat messages and buttons */
 
@@ -86,6 +90,7 @@ Collapsible > .collapsible--content {
 
 #create-button{
     background: #5e3a2e;
+    
 }
 
 /* --- Specific IDs --- */
@@ -96,16 +101,15 @@ Collapsible > .collapsible--content {
 }
 
 #chat-textarea{
-    border: lightgrey;
+    border: #c08e7e;
     height: 25%;
 }
 
 #chat-textarea.-disabled{
-    border: lightgrey;
-    background: darkgrey;
+    border: #c08e7e 50%;
+    background: #5e3a2e 20%;
     height: 25%;
 }
-
 
 
 #analyze-box {
@@ -133,7 +137,7 @@ Collapsible > .collapsible--content {
     layout: vertical;
     height: auto;
     dock: bottom;
-    border: #4a4a4a;
+    border-bottom: solid #4a4a4a;
     background: #5e3a2e 20%;
     
 }
@@ -146,11 +150,6 @@ Collapsible > .collapsible--content {
     border-bottom: solid #4a4a4a;
 }
 
-#state-info-collapsible{
-    align: center middle;
-    border: none;
-}
-
 #button-grid {
     width: 100%;
     height: auto;
@@ -158,34 +157,12 @@ Collapsible > .collapsible--content {
     grid-gutter: 1 1;
     padding: 0;
     background: #5e3a2e 10%;
-    border:  #5e3a2e 20%; 
-    align: center middle;
+    border: #5e3a2e 20%;
+    
 
 }
 
 /* --- Button Styles --- */
-
-
-.toggle-collapse {
-    background: #1a1a1a;
-    border: solid #333333;
-}
-
-.toggle-collapse > CollapsibleHeader {
-    background: #333333;
-    color: #eeeeee;
-    padding: 1 1;
-}
-
-.toggle-collapse > CollapsibleHeader:hover {
-    background: #444444;
-}
-
-.toggle-collapse > CollapsibleContent {
-    background: #2a2a2a;
-    color: #cccccc;
-    padding: 1 2;
-}
 
 .action-button {
     width: 100%;
@@ -242,6 +219,7 @@ Collapsible > .collapsible--content {
     height: auto;
     background: #5e3a2e 20%;
     border: none;
+    align: center top;
 }
 
 /* --- Result Components --- */
@@ -258,7 +236,7 @@ Collapsible > .collapsible--content {
     max-height: 50;
     overflow: auto;
     background: #252525;
-    border: solid
+    border-bottom: white
 }
 
 /* --- Utility Classes --- */
@@ -274,27 +252,42 @@ Collapsible > .collapsible--content {
 
 .left-dynamic-spacer {
     width: 1fr;
-    background: #5e3a2e 20%;
     layout: vertical;
     align: center middle;
 }
 
 .center-dynamic-spacer {
     width: 2fr;
-    background: #2f2f2f;
+    background: #000000;
 }
 
 .right-dynamic-spacer {
     width: 1fr;
-    background: #2f2f2f;
+    background: #000000;
 }
 
 .agent-clarity-base{
-    border: none
+    border-bottom: #5e3a2e 20%;
+    background: #000000;
+}
+
+.agent-assesment-left {
+    border: #5e3a2e 20%;
+    background: #5e3a2e 20%;
+}
+
+.agent-assesment-base {
+    border-bottom: #5e3a2e 20%;
+    background: #000000;
+}
+
+.clarity-bb {
+    background: white;
 }
 
 .agent-clarity-left{
-    border: none;
+    border: #5e3a2e 20%;
+    background: #5e3a2e 20%;
 }
 /* --- Compact Styles --- */
 
@@ -358,6 +351,8 @@ Collapsible > .collapsible--content {
 
 ListView  {
     background: #000000;
+    scrollbar-color: #af775f;
+    scrollbar-background: #000000;
 
 }
 
@@ -381,7 +376,7 @@ ListItem > :disabled {
 }
 
 ListView:focus > ListItem.--highlight {
-    background: #5e3a2e;
+    background: #2c8faa;
 }
 ListItem > Widget {
     height: auto;
@@ -389,6 +384,7 @@ ListItem > Widget {
 
 #session-name-input {
     background: white;
+    border: tall #c08e7e;
 }
 
 #loading-indicator{
@@ -400,26 +396,45 @@ ListItem > Widget {
 
 ToastRack {
     align: right bottom;
-
 }
 
 Toast {
     padding: 2;
+    background: #9ed9de;
+    color: white;
+
 }
 
 Toast.-information {
-    background: #64d4d1; /* Styling here. */
-    width: 30
-}
-
-Toast.-information .toast--title {
-    text-style: italic;
+    background: #69c8c2; /* Styling here. */
+    color: white;
+    width: 40%;
 }
 
 Toast.-warning {
-    color: #152331; /* Styling here. */
+    background: #2c8faa;
+    color: white; /* Styling here. */
+    width: 40%;
 }
 
 Toast.-error {
-    color: #152331; /* Styling here. */
+    background: #14425c;
+    color: white; /* Styling here. */
 }
+
+/*Toast.-information .toast--title {
+    text-style: italic;
+} */
+
+/*Toast.-warning .toast--title {
+    color: yellow; 
+} */
+
+DynamicContainer{
+    border: tall #000000;
+    height: 100%;
+    background: #000000;
+    padding: 1;
+
+}
+

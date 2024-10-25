@@ -52,8 +52,9 @@ def load_config(config_path: str) -> dict:
 class MultiScreenApp(App):
     """Main application managing multiple screens and session synchronization."""
 
-    CSS_PATH = "./state_machine_app_candidate.tcss"
-
+    # CSS_PATH = "./state_machine_app_candidate.tcss"
+    CSS_PATH = "./v02_octa_state_machine_app_candidate.tcss"
+    ENABLE_COMMAND_PALETTE = False
 
     # Key bindings for user interactions to switch between screens or sync sessions
     BINDINGS = [
