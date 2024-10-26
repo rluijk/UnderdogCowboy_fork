@@ -1,7 +1,8 @@
 import logging
+import os
 import asyncio
 
-from typing import Tuple, Optional, Dict, Any
+from typing import Tuple, Optional, Dict, Any, List
 
 from concurrent.futures import ThreadPoolExecutor
 
@@ -10,6 +11,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Vertical, Horizontal
 from textual.widgets import Label, Header, Select, Input, Static, TextArea, Button
 from textual.message import Message
+from textual.reactive import Reactive, reactive
 
 # LLM
 from agent_llm_handler import send_agent_data_to_llm, run_category_call 
@@ -30,45 +32,38 @@ class CategorySelected(Message):
 
 class SelectCategoryWidget(Static):
     """Widget for the UI components of categories."""
-    def __init__(self, agent_name_plain):
+    
+    
+    # Reactive properties
+    selected_category = Reactive(None)
+    is_loading = Reactive(False)
+    show_edit_controls = Reactive(False)
+    title_value = Reactive("")
+    description_value = Reactive("")
+    categories = Reactive([])
+
+    def __init__(self, agent_name):
         super().__init__()
-        self.selected_category = None  # Initialize to track the selected category
-        
-        self.agent_name_plain = agent_name_plain
+        self.agent_name = agent_name
+        self._init_widgets()
+
+    def _init_widgets(self):
+        """Initialize all widget components."""
         self.select = Select(
             options=[("create_initial", "Create Initial Categories")],
             id="category-select"
         )
-        self.loading_indicator = Static(
-            "  Loading categories...", 
-            id="loading-indicator"
-        )
-        self.input_box = Input(
-            placeholder="Rename selected category", 
-            id="category-input"
-        )
-        self.description_area = TextArea(
-            "", 
-            id="category-description-area"
-        )
-        # Initialize buttons
-        self.refresh_title_button = Button(
-            "Refresh Title", 
-            id="refresh-title-button"
-        )
-        self.refresh_description_button = Button(
-            "Refresh Description", 
-            id="refresh-description-button"
-        )
-        self.refresh_both_button = Button(
-            "Refresh Both", 
-            id="refresh-both-button"
-        )
 
-        self.lbl_text =  Label("Modify Directly or use buttons for agent assistance", id="lbl_text") 
-
-        # Initially hide certain components, including buttons
-        self.loading_indicator.visible = False
+        
+        self.loading_indicator = Static("Loading categories...", id="loading-indicator")
+        self.input_box = Input(placeholder="Rename selected category", id="category-input")
+        self.description_area = TextArea("", id="category-description-area")
+        self.refresh_title_button = Button("Refresh Title", id="refresh-title-button")
+        self.refresh_description_button = Button("Refresh Description", id="refresh-description-button")
+        self.refresh_both_button = Button("Refresh Both", id="refresh-both-button")
+        self.lbl_text = Label("Modify Directly or use buttons for agent assistance", id="lbl_text")
+        
+        self.loading_indicator.visible = False 
         self.input_box.visible = False
         self.description_area.visible = False
         self.refresh_title_button.visible = False
@@ -76,272 +71,254 @@ class SelectCategoryWidget(Static):
         self.refresh_both_button.visible = False
         self.lbl_text.visible = False
 
-        
+
     def on_mount(self) -> None:
+        """Initialize components after mount."""
         self.llm_call_manager = LLMCallManager()
         self.llm_call_manager.set_message_post_target(self)
         logging.info(f"Post target message set to: {self.llm_call_manager._message_post_target}")
 
     def compose(self) -> ComposeResult:
+        """Compose the widget layout."""
         yield self.select
         yield self.loading_indicator
         with Vertical(id="edit_container"):
             yield self.lbl_text
             yield self.input_box
             yield self.description_area
-            # Create a horizontal container for the buttons
-            btn_container = Horizontal(id="button-container")
-            with btn_container:
+            with Horizontal(id="button-container"):
                 yield self.refresh_title_button
                 yield self.refresh_description_button
                 yield self.refresh_both_button
 
+    def update_options(self, options):
+        """Helper method to update select options."""
+        self.select.set_options(options)
+        self.refresh()
+
+    # Reactive watchers
+    def watch_is_loading(self, old_value: bool, new_value: bool) -> None:
+        """React to loading state changes."""
+        if self.loading_indicator:
+            self.loading_indicator.visible = new_value
+            # Hide other controls during loading
+            if new_value:
+                self.show_edit_controls = False
+            self.refresh()
+
+    def watch_show_edit_controls(self, old_value: bool, new_value: bool) -> None:
+        """React to edit controls visibility changes."""
+        if not self.is_loading:  # Only show controls if not loading
+            self.input_box.visible = new_value
+            self.description_area.visible = new_value
+            self.refresh_title_button.visible = new_value
+            self.refresh_description_button.visible = new_value
+            self.refresh_both_button.visible = new_value
+            self.lbl_text.visible = new_value
+
+    def watch_title_value(self, old_value: str, new_value: str) -> None:
+        """React to title value changes."""
+        if new_value != self.input_box.value:
+            self.input_box.value = new_value
+            self.input_box.refresh()
+
+    def watch_description_value(self, old_value: str, new_value: str) -> None:
+        """React to description value changes."""
+        if new_value != self.description_area.value:
+            self.description_area.value = new_value
+            self.description_area.refresh()
+
+    def watch_categories(self, old_value: list, new_value: list) -> None:
+        """React to categories list changes."""
+        options = [("refresh_all", "Refresh All")] + [
+            (cat['name'], cat['name']) for cat in new_value
+        ]
+        self.select.set_options(options)
+        self.refresh()
+
+    def watch_selected_category(self, old_value: Optional[str], new_value: Optional[str]) -> None:
+        """React to category selection changes."""
+        if not new_value or new_value in ["create_initial", "refresh_all"]:
+            self.show_edit_controls = False
+            return
+
+        self.show_edit_controls = True
+        self.title_value = new_value
+        
+        # Update description if available
+        category_data = next(
+            (cat for cat in self.categories if cat['name'] == new_value),
+            None
+        )
+        if category_data:
+            self.description_value = category_data.get('description', '')
+
+    # LLM Configuration
     def _llm_config_current_agent(self) -> Optional[Tuple[Dict[str, Any], str]]:
+        """Get LLM configuration and current agent."""
         llm_config = self.app.get_current_llm_config()
         if not llm_config:
             self.show_error("No LLM configuration available.")
-            return
+            return None
         
-        current_agent = self.agent_name_plain
-        if not current_agent:
-            self.show_error("No agent currently loaded. Please load an agent first.")
-            return
+        if not self.agent_name:
+            self.show_error("No agent currently loaded.")
+            return None
 
-        return (llm_config, current_agent)
+        return (llm_config, self.agent_name)
 
-    """  --------- Start Base pattern  ---------- """
-    """  method via async and event system that contains the pre prompt """
-    """  LLMComplete and LLMError handlers  """
-
+    # Async operations
     async def refresh_title(self) -> None:
-        llm_config, current_agent = self._llm_config_current_agent()
-        if not llm_config or not current_agent:
-            return  # Early exit if configuration is missing
-
-        pre_prompt = f"prompt to get a title: {self.selected_category}"
-        
-        async def task_wrapper():
-            try:
-                await self.llm_call_manager.submit_llm_call_with_agent( 
-                    llm_function=send_agent_data_to_llm,
-                    llm_config=llm_config,
-                    agent_name=current_agent,
-                    agent_type="assessment",
-                    input_id="scale-title",
-                    pre_prompt=pre_prompt,    
-                    post_prompt=None
-                )
-            except Exception as e:
-                logging.error(f"Error in refresh_title task: {e}")
-                self.show_error(str(e))
-        
-        asyncio.create_task(task_wrapper())
+        """Refresh title using LLM."""
+        self.is_loading = True
+        try:
+            config = self._llm_config_current_agent()
+            if not config:
+                return
+            
+            llm_config, current_agent = config
+            pre_prompt = f"prompt to get a title: {self.selected_category}"
+            
+            await self.llm_call_manager.submit_llm_call_with_agent(
+                llm_function=send_agent_data_to_llm,
+                llm_config=llm_config,
+                agent_name=current_agent,
+                agent_type="assessment",
+                input_id="scale-title",
+                pre_prompt=pre_prompt,
+                post_prompt=None
+            )
+        except Exception as e:
+            logging.error(f"Error in refresh_title: {e}")
+            self.show_error(str(e))
+        finally:
+            self.is_loading = False
 
     async def refresh_description(self) -> None:
-        llm_config, current_agent = self._llm_config_current_agent()
-        if not llm_config or not current_agent:
-            return  # Early exit if configuration is missing
+        """Refresh description using LLM."""
+        self.is_loading = True
+        try:
+            config = self._llm_config_current_agent()
+            if not config:
+                return
+            
+            llm_config, current_agent = config
+            pre_prompt = f"prompt to get a description: {self.selected_category}"
+            
+            await self.llm_call_manager.submit_llm_call_with_agent(
+                llm_function=send_agent_data_to_llm,
+                llm_config=llm_config,
+                agent_name=current_agent,
+                agent_type="assessment",
+                input_id="scale-description",
+                pre_prompt=pre_prompt,
+                post_prompt=None
+            )
+        except Exception as e:
+            logging.error(f"Error in refresh_description: {e}")
+            self.show_error(str(e))
+        finally:
+            self.is_loading = False
 
-        pre_prompt = f"prompt to get a description: {self.selected_category}"
-        
-        async def task_wrapper():
-            try:
-                await self.llm_call_manager.submit_llm_call_with_agent( 
-                    llm_function=send_agent_data_to_llm,
-                    llm_config=llm_config,
-                    agent_name=current_agent,
-                    agent_type="assessment",
-                    input_id="scale-description",
-                    pre_prompt=pre_prompt,    
-                    post_prompt=None
-                )
-            except Exception as e:
-                logging.error(f"Error in refresh_description task: {e}")
-                self.show_error(str(e))
-        
-        asyncio.create_task(task_wrapper())
+    async def refresh_both(self) -> None:
+        """Refresh both title and description concurrently."""
+        self.is_loading = True
+        try:
+            config = self._llm_config_current_agent()
+            if not config:
+                return
+            
+            llm_config, current_agent = config
+            await asyncio.gather(
+                self.refresh_title(),
+                self.refresh_description()
+            )
+        finally:
+            self.is_loading = False
 
-    async def refresh_both(self):
-        """Function to refresh both title and description concurrently."""
-        llm_config, current_agent = self._llm_config_current_agent()
-        if not llm_config or not current_agent:
-            return  # Early exit if configuration is missing
-
-        pre_prompt_title = f"prompt to get a title: {self.selected_category}"
-        pre_prompt_description = f"prompt to get a description: {self.selected_category}"
-
-        async def task_wrapper():
-            try:
-                await asyncio.gather(
-                    self.llm_call_manager.submit_llm_call_with_agent( 
-                        llm_function=send_agent_data_to_llm,
-                        llm_config=llm_config,
-                        agent_name=current_agent,
-                        agent_type="assessment",
-                        input_id="scale-title",
-                        pre_prompt=pre_prompt_title,    
-                        post_prompt=None
-                    ),
-                    self.llm_call_manager.submit_llm_call_with_agent( 
-                        llm_function=send_agent_data_to_llm,
-                        llm_config=llm_config,
-                        agent_name=current_agent,
-                        agent_type="assessment",
-                        input_id="scale-description",
-                        pre_prompt=pre_prompt_description,    
-                        post_prompt=None
-                    )
-                )
-            except Exception as e:
-                logging.error(f"Error in refresh_both task: {e}")
-                self.show_error(str(e))
-        
-        asyncio.create_task(task_wrapper())
-
+    # Event handlers
     @on(LLMCallComplete)
     async def handle_llm_call_complete(self, event: LLMCallComplete) -> None:
-        logging.info(f"LLMCallComplete with event.input_id: {event.input_id}")
-        if event.input_id == "scale-title":
-            await self.on_refresh_title_complete(event)
-        elif event.input_id == "scale-description":
-            await self.on_refresh_description_complete(event)
-  #      elif event.input_id == "create-initial-categories":
-  #          await self.on_create_initial_categories_complete(event)
-        elif event.input_id == "refresh-categories":
-            await self.on_refresh_categories_complete(event)
-        elif event.input_id == "retrieve-scales":
-            await self.on_retrieve_scales_complete(event)
-
-    async def on_refresh_title_complete(self, event: LLMCallComplete) -> None:
-        if event.input_id == "scale-title":
+        """Handle LLM call completions."""
+        handlers = {
+            "scale-title": self._handle_title_update,
+            "scale-description": self._handle_description_update,
+            "refresh-categories": self._handle_categories_update,
+            "retrieve-scales": self._handle_scales_update
+        }
+        
+        handler = handlers.get(event.input_id)
+        if handler:
             try:
-                self.input_box.value = event.result[0]['name']
-                self.input_box.refresh()
-            except (IndexError, KeyError) as e:
-                logging.error(f"Error processing scale-title result: {e}")
-                self.show_error("Invalid data received for title.")
-
-    async def on_refresh_description_complete(self, event: LLMCallComplete) -> None:
-        if event.input_id == "scale-description":
-            try:
-                self.description_area.value = event.result[0]['description']
-                self.description_area.refresh()
-            except (IndexError, KeyError) as e:
-                logging.error(f"Error processing scale-description result: {e}")
-                self.show_error("Invalid data received for description.")
-
-    async def on_refresh_categories_complete(self, event: LLMCallComplete) -> None:
-        if event.input_id == "refresh-categories":
-            try:
-                categories = event.result
-                self.retrieve_categories(categories)
+                await handler(event.result)
             except Exception as e:
-                logging.error(f"Error processing refresh-categories result: {e}")
-                self.show_error("Failed to refresh categories.")
-
-    async def on_retrieve_scales_complete(self, event: LLMCallComplete) -> None:
-        if event.input_id == "retrieve-scales":
-            try:
-                scales = event.result
-                for cat in self.all_categories:
-                    if cat['name'] == self.selected_category:
-                        cat['scale'] = scales
-                        break
-                self.current_scales = scales
-                self.scale_components.scale_select.set_options([(scale['name'], scale['name']) for scale in scales])
-                if scales:
-                    self.scale_components.scale_select.value = scales[0]['name']
-                    self.display_scale_details(scales[0]['name'])
-                logging.debug(f"Scales retrieved for category '{self.selected_category}': {scales}")
-            except Exception as e:
-                logging.error(f"Error retrieving scales for category '{self.selected_category}': {e}")
-                self.show_error("Failed to retrieve scales.")
-            finally:
-                self.scale_components.loading_indicator.visible = False
-                self.refresh()
+                logging.error(f"Error processing {event.input_id}: {e}")
+                self.show_error(f"Failed to process {event.input_id}")
 
     @on(LLMCallError)
     async def handle_llm_call_error(self, event: LLMCallError) -> None:
-        if event.input_id == "scale-title":
-            await self.on_refresh_title_error(event)
-        elif event.input_id == "scale-description":
-            await self.on_refresh_description_error(event)
-#        elif event.input_id == "create-initial-categories":
-#            await self.on_create_initial_categories_error(event)
-        elif event.input_id == "refresh-categories":
-            await self.on_refresh_categories_error(event)
-        elif event.input_id == "retrieve-scales":
-            await self.on_retrieve_scales_error(event)
+        """Handle LLM call errors."""
+        logging.error(f"LLM call error for {event.input_id}: {event.error}")
+        self.show_error(event.error)
+        self.is_loading = False
 
-    async def on_refresh_title_error(self, event: LLMCallError) -> None:
-        if event.input_id == "scale-title":    
-            self.show_error(event.error)
-
-    async def on_refresh_description_error(self, event: LLMCallError) -> None:
-        if event.input_id == "scale-description":    
-            self.show_error(event.error)
-
-    async def on_create_initial_categories_error(self, event: LLMCallError) -> None:
-        if event.input_id == "create-initial-categories":    
-            self.show_error(event.error)
-
-    async def on_refresh_categories_error(self, event: LLMCallError) -> None:
-        if event.input_id == "refresh-categories":    
-            self.show_error(event.error)
-
-    async def on_retrieve_scales_error(self, event: LLMCallError) -> None:
-        if event.input_id == "retrieve-scales":    
-            self.show_error(event.error)
-
-    async def on_button_pressed(self, event: Button.Pressed) -> None:
+    @on(Button.Pressed)
+    async def handle_button_press(self, event: Button.Pressed) -> None:
         """Handle button press events."""
-        button_id = event.button.id
-        if button_id == "refresh-title-button":
-            await self.refresh_title()
-        elif button_id == "refresh-description-button":
-            await self.refresh_description()
-        elif button_id == "refresh-both-button":
-            await self.refresh_both()
+        handlers = {
+            "refresh-title-button": self.refresh_title,
+            "refresh-description-button": self.refresh_description,
+            "refresh-both-button": self.refresh_both
+        }
+        
+        handler = handlers.get(event.button.id)
+        if handler:
+            await handler()
 
-    def show_buttons(self):
-        """Utility method to make buttons visible."""
-        self.refresh_title_button.visible = True
-        self.refresh_description_button.visible = True
-        self.refresh_both_button.visible = True
-        self.lbl_text.visible = True
+    # LLM result handlers
+    async def _handle_title_update(self, result: dict) -> None:
+        """Handle title update from LLM result."""
+        self.title_value = result[0]['name']
 
-    def hide_buttons(self):
-        """Utility method to hide buttons."""
-        self.refresh_title_button.visible = False
-        self.refresh_description_button.visible = False
-        self.refresh_both_button.visible = False
-        self.lbl_text.visible = False
+    async def _handle_description_update(self, result: dict) -> None:
+        """Handle description update from LLM result."""
+        self.description_value = result[0]['description']
 
-    async def show_loading_indicator(self):
-        """Utility method to show the loading indicator."""
-        self.loading_indicator.visible = True
-        self.refresh()
+    async def _handle_categories_update(self, result: dict) -> None:
+        """Handle categories update from LLM result."""
+        self.categories = result
 
-    async def hide_loading_indicator(self):
-        """Utility method to hide the loading indicator."""
-        self.loading_indicator.visible = False
-        self.refresh()
+    async def _handle_scales_update(self, result: dict) -> None:
+        """Handle scales update from LLM result."""
+        if self.selected_category:
+            for cat in self.categories:
+                if cat['name'] == self.selected_category:
+                    cat['scale'] = result
+                    break
 
 class SelectScaleWidget(Static):
     """Widget for the UI components of scales."""
+    
+    # Reactive properties
+    selected_scale = Reactive(None)
+    is_loading = Reactive(False)
+    show_edit_controls = Reactive(False)
+    scales = Reactive([])
+    title_value = Reactive("")
+    description_value = Reactive("")
+    show_create_button = Reactive(False)
+
     def __init__(self):
         super().__init__()
+        self._init_widgets()
+
+    def _init_widgets(self):
+        """Initialize all widget components."""
         self.create_scales_button = Button("Create Initial Scales", id="create-scales-button")
         self.scale_select = Select([], id="scale-select")
-        self.loading_indicator = Static("  Loading scales...", id="scale-loading-indicator")
+        self.loading_indicator = Static("Loading scales...", id="scale-loading-indicator")
         self.scale_input_box = Input(placeholder="Rename selected scale", id="scale-input")
         self.scale_description_area = TextArea("", id="scale-description-area")
-        
-        self.create_scales_button.visible = False
-        self.scale_select.visible = False
-        self.loading_indicator.visible = False
-        self.scale_input_box.visible = False
-        self.scale_description_area.visible = False
 
     def compose(self) -> ComposeResult:
         yield self.create_scales_button
@@ -350,420 +327,498 @@ class SelectScaleWidget(Static):
         yield self.scale_input_box
         yield self.scale_description_area
 
+    # Watchers
+    def watch_is_loading(self, old_value: bool, new_value: bool) -> None:
+        """React to loading state changes."""
+        self.loading_indicator.visible = new_value
+        self.refresh()
+
+    def watch_show_edit_controls(self, old_value: bool, new_value: bool) -> None:
+        """React to edit controls visibility changes."""
+        self.scale_input_box.visible = new_value
+        self.scale_description_area.visible = new_value
+        self.refresh()
+
+    def watch_scales(self, old_value: list, new_value: list) -> None:
+        """React to scales list changes."""
+        self.scale_select.set_options([(scale['name'], scale['name']) for scale in new_value])
+        self.scale_select.visible = bool(new_value)
+        self.show_create_button = not bool(new_value)
+        if new_value:
+            self.selected_scale = new_value[0]['name']
+        self.refresh()
+
+    def watch_show_create_button(self, old_value: bool, new_value: bool) -> None:
+        """React to create button visibility changes."""
+        self.create_scales_button.visible = new_value
+        self.refresh()
+
+    def watch_title_value(self, old_value: str, new_value: str) -> None:
+        """React to title value changes."""
+        if new_value != self.scale_input_box.value:
+            self.scale_input_box.value = new_value
+            self.scale_input_box.refresh()
+
+    def watch_description_value(self, old_value: str, new_value: str) -> None:
+        """React to description value changes."""
+        if new_value != self.scale_description_area.value:
+            self.scale_description_area.value = new_value
+            self.scale_description_area.refresh()
+
+    def watch_selected_scale(self, old_value: Optional[str], new_value: Optional[str]) -> None:
+        """React to scale selection changes."""
+        if not new_value:
+            self.show_edit_controls = False
+            return
+
+        self.show_edit_controls = True
+        scale_data = next(
+            (scale for scale in self.scales if scale['name'] == new_value),
+            None
+        )
+        if scale_data:
+            self.title_value = scale_data['name']
+            self.description_value = scale_data.get('description', '')
+
 class CategoryWidget(Static):
-    """Widget for managing categories."""
-    def __init__(self, all_categories, agent_name_plain, id=None):
+    """
+    Widget for managing categories.
+    Responsibilities:
+    - Manages category selection and updates
+    - Coordinates with SelectCategoryWidget for UI
+    - Handles category-related LLM operations
+    """
+    
+    # Reactive Properties
+    selected_category = Reactive[Optional[str]](None)
+    is_loading = Reactive[bool](False)
+    categories = Reactive[List[Dict]](default=[])
+    show_controls = Reactive[bool](False) 
+
+    def __init__(self, all_categories, agent_name, id=None):
         super().__init__(id=id)
         self.selected_category = None
-       
-        self.all_categories = all_categories  # Datastructure passed via init
-        self.agent_name_plain = agent_name_plain
-        self.category_components = SelectCategoryWidget(agent_name_plain)
-       
+        self.all_categories = all_categories
+        self.agent_name = agent_name
+        self.category_components = SelectCategoryWidget(agent_name)  # This contains the select widget
 
     def compose(self) -> ComposeResult:
+        """Compose widget layout."""
         yield self.category_components
 
     def on_mount(self) -> None:
+        """Initialize LLM manager after mount."""
         self.llm_call_manager = LLMCallManager()
         self.llm_call_manager.set_message_post_target(self)
         logging.info(f"Post target message set to: {self.llm_call_manager._message_post_target}")
 
+    def update_select_options(self, options):
+        self.category_components.select.set_options(options)
 
+    # Reactive Watchers
+    def watch_selected_category(self, old_value: Optional[str], new_value: Optional[str]) -> None:
+        """React to category selection changes."""
+        self.category_components.selected_category = new_value
+        if new_value and new_value not in ["create_initial", "refresh_all"]:
+            self.post_message(CategorySelected(self, new_value))
+
+    def watch_categories(self, old_value: list, new_value: list) -> None:
+        """React to categories list changes."""
+        try:
+            # Ensure we're working with a list of dictionaries
+            if isinstance(new_value, list):
+                options = [("refresh_all", "Refresh All")] + [
+                    (cat['name'], cat['name']) for cat in new_value 
+                    if isinstance(cat, dict) and 'name' in cat
+                ]
+                # Access select through category_components
+                self.category_components.select.set_options(options)
+                self.refresh()
+            else:
+                logging.error(f"Invalid categories format: {type(new_value)}")
+                self.notify("Invalid categories format received", severity="error")
+        except Exception as e:
+            logging.error(f"Error updating categories: {e}")
+            self.notify(f"Error updating categories: {str(e)}", severity="error")
+
+
+    def watch_is_loading(self, old_value: bool, new_value: bool) -> None:
+        """React to loading state changes."""
+        if hasattr(self.category_components, 'is_loading'):
+            self.category_components.is_loading = new_value
+
+    # Event Handlers
     @on(Select.Changed, "#category-select")
-    async def category_changed(self, event: Select.Changed) -> None:
+    async def handle_category_changed(self, event: Select.Changed) -> None:
+        """Handle category selection changes."""
         selected_value = event.value
         logging.info(f"Category Select changed: {selected_value}")
 
-        self.selected_category = selected_value  
-        # Ensure the category selection is propagated to SelectCategoryWidget
-        self.category_components.selected_category = selected_value
-
         if selected_value == Select.BLANK:
-            logging.info("No category selection made (BLANK)")
-            self.category_components.hide_buttons()  # Hide buttons if no selection
+            self.selected_category = None
+            self.show_controls = False
             return
 
         if selected_value == "Create Initial Categories":
-            llm_config, current_agent = self.category_components._llm_config_current_agent()
-            if not llm_config or not current_agent:
-                return  # Early exit if configuration is missing
+            self.show_controls = False  # Hide controls during creation
+            await self._create_initial_categories()
+            return
 
-            pre_prompt = f"prompt to get initial categories"
-            
-            await self.category_components.show_loading_indicator()
-            self.category_components.select.set_options([("waiting", "Waiting for categories...")])
-            self.category_components.hide_buttons()  
+        self.selected_category = selected_value
+        self.show_controls = True 
 
-            async def task_wrapper():
-                try:
-                    await self.llm_call_manager.submit_llm_call_with_agent( 
-                        llm_function=run_category_call,
-                        llm_config=llm_config,
-                        agent_name=current_agent,
-                        agent_type="assessment",
-                        input_id="create-initial-categories",
-                        pre_prompt=pre_prompt,    
-                        post_prompt=None
-                    )
-                except Exception as e:
-                    logging.error(f"Error in create_initial_categories task: {e}")
-                    self.show_error(str(e))
-            
-            asyncio.create_task(task_wrapper())
-
-        elif selected_value == "Refresh All":
-            llm_config, current_agent = self.category_components._llm_config_current_agent()
-            if not llm_config or not current_agent:
-                return  # Early exit if configuration is missing
-
-            pre_prompt = f"prompt to refesh all"
-            
-            await self.category_components.show_loading_indicator()
-            self.category_components.select.set_options([("waiting", "Refreshing categories...")])
-            self.category_components.hide_buttons()  
-
-            async def task_wrapper():
-                try:
-                    await self.llm_call_manager.submit_llm_call_with_agent( 
-                        llm_function=send_agent_data_to_llm,
-                        llm_config=llm_config,
-                        agent_name=current_agent,
-                        agent_type="assessment",
-                        input_id="refresh-categories",
-                        pre_prompt=pre_prompt,    
-                        post_prompt=None
-                    )
-                except Exception as e:
-                    logging.error(f"Error in refresh_categories task: {e}")
-                    self.show_error(str(e))
-            
-            asyncio.create_task(task_wrapper())
-
-        else:
-            self.selected_category = selected_value
-            self.category_components.input_box.value = selected_value
-            self.category_components.input_box.visible = True
-
-            selected_category_data = next(
-                (cat for cat in self.all_categories if cat['name'] == selected_value), None
-            )
-            if selected_category_data:
-                self.category_components.description_area.text = selected_category_data.get("description", "")
-                self.category_components.description_area.visible = True
-                self.category_components.description_area.refresh()
-
-                self.category_components.show_buttons()  # Show buttons when a valid category is selected
-                self.post_message(CategorySelected(self, self.selected_category))
-            else:
-                self.category_components.description_area.text = "Category not found."
-                self.category_components.description_area.visible = True
-                self.category_components.show_buttons()  # Optionally show buttons even if category not found
-
-        self.refresh()
-
+    # LLM Event Handlers
     @on(LLMCallComplete)
     async def handle_llm_call_complete(self, event: LLMCallComplete) -> None:
-        logging.info(f"LLMCallComplete with event.input_id: {event.input_id}")
+        """Handle LLM call completions."""
         if event.input_id == "create-initial-categories":
-            self.on_create_initial_categories_complete(event)
-  
+            await self._handle_initial_categories_complete(event)
 
-    def on_create_initial_categories_complete(self, event: LLMCallComplete) -> None:
-        if event.input_id == "create-initial-categories":
-            try:
-                categories = event.result
-                self.retrieve_new_categories(categories)
-            except Exception as e:
-                logging.error(f"Error processing create-initial-categories result: {e}")
-                self.show_error("Failed to create initial categories.")
+    @on(LLMCallError)
+    async def handle_llm_call_error(self, event: LLMCallError) -> None:
+        """Handle LLM call errors."""
+        self.is_loading = False
+        self.show_error(f"LLM operation failed: {event.error}")
 
-
-    @on(Input.Submitted, "#category-input")
-    async def category_input_submitted(self, event: Input.Submitted) -> None:
-        if self.selected_category:
-            new_name = event.value.strip()
-            if not new_name:
-                logging.warning("Attempted to rename category to an empty string.")
+    # Private Methods
+    async def _create_initial_categories(self) -> None:
+        """Create initial categories using LLM."""
+        self.is_loading = True
+        self.show_controls = False
+        try:
+            config = self._get_llm_config()
+            if not config:
                 return
 
-            logging.info(f"Renaming category '{self.selected_category}' to '{new_name}'")
-            for cat in self.all_categories:
-                if cat['name'] == self.selected_category:
-                    cat['name'] = new_name
-                    break
-
-            self.category_components.select.set_options([("refresh_all", "Refresh All")] + [(cat['name'], cat['name']) for cat in self.all_categories])
-            self.category_components.select.value = new_name
-
-            self.selected_category = new_name
-            self.category_components.input_box.visible = False
-            self.category_components.description_area.visible = False
-            self.refresh()
-
-    @on(TextArea.Changed, "#category-description-area")
-    async def category_description_changed(self, event: TextArea.Changed) -> None:
-        if self.selected_category:
-            new_description = event.text_area.document.text.strip()
-            logging.info(f"Updating description for category '{self.selected_category}'")
-            for cat in self.all_categories:
-                if cat['name'] == self.selected_category:
-                    cat['description'] = new_description
-                    break
-            self.refresh()
-
-    def retrieve_categories_common(self, categories, category_type="categories"):
-        """
-        Generalized method to retrieve categories.
-
-        :param categories: List of category dictionaries.
-        :param category_type: Type of categories being retrieved (e.g., "categories", "new categories").
-        """
-        logging.debug(f"debugging: {categories}")
-        try:
-            self.all_categories = categories
-            self.category_components.select.set_options(
-                [("refresh_all", "Refresh All")] + [(cat['name'], cat['name']) for cat in self.all_categories]
+            # Update SelectCategoryWidget state
+            self.category_components.show_edit_controls = False
+            self.category_components.select.disabled = True  # Disable select during loading
+         
+            llm_config, current_agent = config
+            pre_prompt = "prompt to get initial categories"
+            
+            await self.llm_call_manager.submit_llm_call_with_agent(
+                llm_function=run_category_call,
+                llm_config=llm_config,
+                agent_name=current_agent,
+                agent_type="assessment",
+                input_id="create-initial-categories",
+                pre_prompt=pre_prompt,
+                post_prompt=None
             )
-            self.category_components.select.value = categories[0]['name'] if categories else None
-            # After successfully retrieving categories, show buttons
-            self.category_components.show_buttons()
         except Exception as e:
-            logging.error(f"Error retrieving {category_type}: {e}")
-            self.category_components.select.set_options([("error", f"Error loading {category_type}")])
-            # Hide buttons on error
-            self.category_components.hide_buttons()
+            self.show_error(f"Failed to create categories: {str(e)}")
+            logging.error(f"Error in create_initial_categories: {e}")
         finally:
-            asyncio.create_task(self.category_components.hide_loading_indicator())
-            self.refresh()
+            self.is_loading = False
 
-    def retrieve_new_categories(self, categories):
-        """Retrieve and update new categories."""
-        self.retrieve_categories_common(categories, category_type="new categories")
+    async def _refresh_all_categories(self) -> None:
+        """Refresh all categories using LLM."""
+        self.is_loading = True
+        try:
+            config = self._get_llm_config()
+            if not config:
+                return
 
-    def retrieve_categories(self, categories):
-        """Retrieve and update existing categories."""
-        self.retrieve_categories_common(categories, category_type="categories")
+            llm_config, current_agent = config
+            pre_prompt = "prompt to refresh all"
+            
+            await self.llm_call_manager.submit_llm_call_with_agent(
+                llm_function=send_agent_data_to_llm,
+                llm_config=llm_config,
+                agent_name=current_agent,
+                agent_type="assessment",
+                input_id="refresh-categories",
+                pre_prompt=pre_prompt,
+                post_prompt=None
+            )
+        except Exception as e:
+            self.show_error(f"Failed to refresh categories: {str(e)}")
+            logging.error(f"Error in refresh_categories: {e}")
+        finally:
+            self.is_loading = False
+
+    async def _handle_initial_categories_complete(self, event: LLMCallComplete) -> None:
+        """Handle completion of initial categories creation."""
+        try:
+            if isinstance(event.result, dict) and 'categories' in event.result:
+                self.categories = event.result['categories']
+            else:
+                self.categories = event.result
+            
+            # Enable controls after successful load
+            self.category_components.select.disabled = False
+            self.show_controls = True
+        except Exception as e:
+            logging.error(f"Error processing create-initial-categories result: {e}")
+            self.notify("Failed to create initial categories.", severity="error")
+
+    def _get_llm_config(self) -> Optional[Tuple[Dict[str, Any], str]]:
+        """Get LLM configuration and agent."""
+        llm_config = self.app.get_current_llm_config()
+        if not llm_config:
+            self.show_error("No LLM configuration available.")
+            return None
+        
+        if not self.agent_name:
+            self.show_error("No agent currently loaded.")
+            return None
+
+        return (llm_config, self.agent_name)
 
 class ScaleWidget(Static):
     """Widget for managing scales within a selected category."""
-    def __init__(self, all_categories, agent_name_plain, id=None):
+    
+    # Reactive properties
+    selected_category = Reactive(None)
+    selected_scale = Reactive(None)
+    current_scales = Reactive([])
+    is_loading = Reactive(False)
+    show_scales = Reactive(False)
+
+    def __init__(self, all_categories, agent_name, id=None):
         super().__init__(id=id)
-   
-        self.all_categories = all_categories  # Reference to the categories data structure
-        self.selected_category = None
-        self.current_scales = []
-        self.selected_scale = None
+        self.all_categories = all_categories  # Reference to categories data structure
+        self.agent_name = agent_name
         self.scale_components = SelectScaleWidget()
-        self.agent_name_plain = agent_name_plain
 
     def compose(self) -> ComposeResult:
         yield self.scale_components
 
-
     def on_mount(self) -> None:
+        """Initialize components after mount."""
         self.llm_call_manager = LLMCallManager()
         self.llm_call_manager.set_message_post_target(self)
         logging.info(f"Post target message set to: {self.llm_call_manager._message_post_target}")
 
-    async def update_scales(self, selected_category_name):
-        """Update scales based on the selected category."""
-        self.selected_category = selected_category_name
-        selected_category_data = next(
-            (cat for cat in self.all_categories if cat['name'] == selected_category_name), None
-        )
-        if selected_category_data:
-            self.current_scales = selected_category_data.get("scale", [])
-            if self.current_scales:
-                # Populate the scale select widget
-                self.scale_components.scale_select.set_options([(scale['name'], scale['name']) for scale in self.current_scales])
-                self.scale_components.scale_select.value = self.current_scales[0]['name']
-                self.scale_components.scale_select.visible = True
-                self.scale_components.scale_input_box.visible = True
-                self.scale_components.scale_description_area.visible = True
-                self.scale_components.create_scales_button.visible = False
-                # Display the first scale's details
-                self.display_scale_details(self.current_scales[0]['name'])
-            else:
-                # No scales available
-                self.scale_components.scale_select.set_options([])
-                self.scale_components.scale_select.visible = False
-                self.scale_components.scale_input_box.visible = False
-                self.scale_components.scale_description_area.visible = False
-                self.scale_components.create_scales_button.visible = True  # Show the button to create scales
-        else:
-            # Category not found
-            self.current_scales = []
-            self.scale_components.scale_select.set_options([])
-            self.scale_components.scale_select.visible = False
-            self.scale_components.scale_input_box.visible = False
-            self.scale_components.scale_description_area.visible = False
-            self.scale_components.create_scales_button.visible = False
-        self.refresh()
+    # Watchers
+    def watch_selected_category(self, old_value: Optional[str], new_value: Optional[str]) -> None:
+        """React to category selection changes."""
+        if new_value:
+            asyncio.create_task(self._update_scales_for_category(new_value))
 
+    def watch_current_scales(self, old_value: List, new_value: List) -> None:
+        """React to changes in current scales."""
+        self.scale_components.scales = new_value
+        self.show_scales = bool(new_value)
+
+    def watch_is_loading(self, old_value: bool, new_value: bool) -> None:
+        """React to loading state changes."""
+        self.scale_components.is_loading = new_value
+
+    def watch_selected_scale(self, old_value: Optional[str], new_value: Optional[str]) -> None:
+        """React to scale selection changes."""
+        self.scale_components.selected_scale = new_value
+        if new_value:
+            self._update_scale_details(new_value)
+
+    # Private helper methods
+    async def _update_scales_for_category(self, category_name: str) -> None:
+        """Update scales for the selected category."""
+        category_data = next(
+            (cat for cat in self.all_categories if cat['name'] == category_name),
+            None
+        )
+        if category_data:
+            self.current_scales = category_data.get("scale", [])
+            if not self.current_scales:
+                # Show create button if no scales available
+                self.scale_components.show_create_button = True
+
+    def _update_scale_details(self, scale_name: str) -> None:
+        """Update the display of scale details."""
+        scale_data = next(
+            (scale for scale in self.current_scales if scale['name'] == scale_name),
+            None
+        )
+        if scale_data:
+            self.scale_components.title_value = scale_data.get('name', '')
+            self.scale_components.description_value = scale_data.get('description', '')
+
+    def _llm_config_current_agent(self) -> Optional[Tuple[Dict[str, Any], str]]:
+        """Get LLM configuration and current agent."""
+        llm_config = self.app.get_current_llm_config()
+        if not llm_config:
+            self.show_error("No LLM configuration available.")
+            return None
+        
+        if not self.agent_name:
+            self.show_error("No agent currently loaded.")
+            return None
+
+        return (llm_config, self.agent_name)
+
+    # Async LLM operations
+    async def retrieve_scales(self) -> None:
+        """Retrieve scales using LLM."""
+        self.is_loading = True
+        try:
+            config = self._llm_config_current_agent()
+            if not config:
+                return
+
+            llm_config, current_agent = config
+            pre_prompt = f"prompt to retrieve scales for category: {self.selected_category}"
+            
+            await self.llm_call_manager.submit_llm_call_with_agent(
+                llm_function=send_agent_data_to_llm,
+                llm_config=llm_config,
+                agent_name=current_agent,
+                agent_type="assessment",
+                input_id="retrieve-scales",
+                pre_prompt=pre_prompt,
+                post_prompt=None
+            )
+        except Exception as e:
+            logging.error(f"Error in retrieve_scales: {e}")
+            self.show_error(str(e))
+        finally:
+            self.is_loading = False
+
+    # Event handlers
     @on(Button.Pressed, "#create-scales-button")
-    async def create_scales_pressed(self, event: Button.Pressed) -> None:
+    async def handle_create_scales(self, event: Button.Pressed) -> None:
+        """Handle create scales button press."""
         logging.info(f"Creating initial scales for category '{self.selected_category}'")
-        self.scale_components.create_scales_button.visible = False
-        self.scale_components.loading_indicator.visible = True
-        self.refresh()
         await self.retrieve_scales()
 
-    async def retrieve_scales(self):
-        llm_config, current_agent = self._llm_config_current_agent()
-        if not llm_config or not current_agent:
-            return  # Early exit if configuration is missing
+    @on(Select.Changed, "#scale-select")
+    async def handle_scale_changed(self, event: Select.Changed) -> None:
+        """Handle scale selection changes."""
+        if event.value != Select.BLANK:
+            self.selected_scale = event.value
 
-        pre_prompt = f"prompt to retrieve scales"
-        
-    
-        async def task_wrapper():
-            try:
-                await self.llm_call_manager.submit_llm_call_with_agent( 
-                    llm_function=send_agent_data_to_llm,
-                    llm_config=llm_config,
-                    agent_name=current_agent,
-                    agent_type="assessment",
-                    input_id="retrieve-scales",
-                    pre_prompt=pre_prompt,    
-                    post_prompt=None
-                )
-            except Exception as e:
-                logging.error(f"Error in retrieve_scales task: {e}")
-                self.show_error(str(e))
-        
-        asyncio.create_task(task_wrapper())
+    @on(Input.Submitted, "#scale-input")
+    async def handle_scale_rename(self, event: Input.Submitted) -> None:
+        """Handle scale rename submission."""
+        if not self.selected_scale or not self.selected_category:
+            return
 
+        new_name = event.value.strip()
+        if not new_name:
+            logging.warning("Attempted to rename scale to an empty string.")
+            return
+
+        logging.info(f"Renaming scale '{self.selected_scale}' to '{new_name}'")
+        self._update_scale_name(self.selected_scale, new_name)
+        self.selected_scale = new_name
+
+    @on(TextArea.Changed, "#scale-description-area")
+    async def handle_description_change(self, event: TextArea.Changed) -> None:
+        """Handle scale description changes."""
+        if not self.selected_scale or not self.selected_category:
+            return
+
+        new_description = event.text_area.document.text.strip()
+        self._update_scale_description(self.selected_scale, new_description)
+
+    # LLM event handlers
     @on(LLMCallComplete)
     async def handle_llm_call_complete(self, event: LLMCallComplete) -> None:
+        """Handle LLM call completions."""
         if event.input_id == "retrieve-scales":
-            await self.on_retrieve_scales_complete(event)
-
-    async def on_retrieve_scales_complete(self, event: LLMCallComplete) -> None:
-        if event.input_id == "retrieve-scales":
-            try:
-                scales = event.result
-                for cat in self.all_categories:
-                    if cat['name'] == self.selected_category:
-                        cat['scale'] = scales
-                        break
-                self.current_scales = scales
-                self.scale_components.scale_select.set_options([(scale['name'], scale['name']) for scale in scales])
-                if scales:
-                    self.scale_components.scale_select.value = scales[0]['name']
-                    self.display_scale_details(scales[0]['name'])
-                logging.debug(f"Scales retrieved for category '{self.selected_category}': {scales}")
-            except Exception as e:
-                logging.error(f"Error retrieving scales for category '{self.selected_category}': {e}")
-                self.show_error("Failed to retrieve scales.")
-            finally:
-                self.scale_components.loading_indicator.visible = False
-                self.refresh()
+            await self._handle_scales_update(event.result)
 
     @on(LLMCallError)
     async def handle_llm_call_error(self, event: LLMCallError) -> None:
-        if event.input_id == "retrieve-scales":
-            await self.on_retrieve_scales_error(event)
+        """Handle LLM call errors."""
+        logging.error(f"LLM call error for {event.input_id}: {event.error}")
+        self.show_error(event.error)
+        self.is_loading = False
 
-    async def on_retrieve_scales_error(self, event: LLMCallError) -> None:
-        if event.input_id == "retrieve-scales":    
-            self.show_error(event.error)
-
-    def display_scale_details(self, scale_name):
-        """Display details of the selected scale."""
-        self.selected_scale = scale_name
-        selected_scale_data = next(
-            (scale for scale in self.current_scales if scale['name'] == scale_name), None
-        )
-        if selected_scale_data:
-            self.scale_components.scale_input_box.value = selected_scale_data.get('name', '')
-            self.scale_components.scale_description_area.text = selected_scale_data.get('description', '')
-            self.scale_components.scale_input_box.visible = True
-            self.scale_components.scale_description_area.visible = True
-        else:
-            self.scale_components.scale_input_box.visible = False
-            self.scale_components.scale_description_area.visible = False
-        self.refresh()
-
-    @on(Select.Changed, "#scale-select")
-    async def scale_changed(self, event: Select.Changed) -> None:
-        selected_scale = event.value
-        logging.info(f"Scale Select changed: {selected_scale}")
-        if selected_scale == Select.BLANK:
-            logging.info("No scale selection made (BLANK)")
-            return
-        self.display_scale_details(selected_scale)
-
-    @on(Input.Submitted, "#scale-input")
-    async def scale_input_submitted(self, event: Input.Submitted) -> None:
-        if self.selected_scale and self.selected_category:
-            new_name = event.value.strip()
-            if not new_name:
-                logging.warning("Attempted to rename scale to an empty string.")
-                return
-            logging.info(f"Renaming scale '{self.selected_scale}' to '{new_name}' in category '{self.selected_category}'")
-            for scale in self.current_scales:
-                if scale['name'] == self.selected_scale:
-                    scale['name'] = new_name
-                    break
+    # Scale data update methods
+    async def _handle_scales_update(self, scales: List[Dict]) -> None:
+        """Handle scales update from LLM result."""
+        try:
+            # Update the scales in all_categories
             for cat in self.all_categories:
                 if cat['name'] == self.selected_category:
-                    cat['scale'] = self.current_scales
+                    cat['scale'] = scales
                     break
-            self.scale_components.scale_select.set_options([(scale['name'], scale['name']) for scale in self.current_scales])
-            self.scale_components.scale_select.value = new_name
-            self.selected_scale = new_name
-            self.refresh()
+            
+            # Update current scales (triggers watcher)
+            self.current_scales = scales
+            
+            logging.debug(f"Scales updated for category '{self.selected_category}': {scales}")
+        except Exception as e:
+            logging.error(f"Error updating scales: {e}")
+            self.show_error("Failed to update scales.")
 
-    @on(TextArea.Changed, "#scale-description-area")
-    async def scale_description_changed(self, event: TextArea.Changed) -> None:
-        if self.selected_scale and self.selected_category:
-            new_description = event.text_area.document.text.strip()
-            logging.info(f"Updating description for scale '{self.selected_scale}' in category '{self.selected_category}'")
-            for scale in self.current_scales:
-                if scale['name'] == self.selected_scale:
-                    scale['description'] = new_description
-                    break
-            for cat in self.all_categories:
-                if cat['name'] == self.selected_category:
-                    cat['scale'] = self.current_scales
-                    break
-            logging.debug(f"Scale '{self.selected_scale}' description updated.")
-            self.refresh()
+    def _update_scale_name(self, old_name: str, new_name: str) -> None:
+        """Update scale name in data structures."""
+        updated_scales = self.current_scales.copy()
+        for scale in updated_scales:
+            if scale['name'] == old_name:
+                scale['name'] = new_name
+                break
+        self.current_scales = updated_scales  # Trigger watcher
+
+        # Update in all_categories
+        for cat in self.all_categories:
+            if cat['name'] == self.selected_category:
+                cat['scale'] = updated_scales
+                break
+
+    def _update_scale_description(self, scale_name: str, new_description: str) -> None:
+        """Update scale description in data structures."""
+        updated_scales = self.current_scales.copy()
+        for scale in updated_scales:
+            if scale['name'] == scale_name:
+                scale['description'] = new_description
+                break
+        self.current_scales = updated_scales  # Trigger watcher
+
+        # Update in all_categories
+        for cat in self.all_categories:
+            if cat['name'] == self.selected_category:
+                cat['scale'] = updated_scales
+                break
 
 class CategoryScaleWidget(Static):
-    """Widget that combines CategoryWidget and ScaleWidget."""
-    CSS_PATH = "category_widgets.css"
-    def __init__(self, agent_name_plain, id=None):
-        super().__init__(id=id)
+    """
+    Container widget that coordinates CategoryWidget and ScaleWidget.
+    Responsibilities:
+    - Combines category and scale widgets in a vertical layout
+    - Manages shared category data structure
+    - Coordinates communication between widgets
+    """
+  
 
-        self.all_categories = []
-        self.agent_name_plain = agent_name_plain
-        self.category_widget = CategoryWidget(self.all_categories, self.agent_name_plain,  id="category-widget")
-        self.scale_widget = ScaleWidget(self.all_categories, self.agent_name_plain, id="scale-widget")
+    # Reactive Properties
+    categories = Reactive[List[Dict]](default=[])
+    selected_category = Reactive[Optional[str]](None)
+
+    def __init__(self, agent_name: str, id: Optional[str] = None):
+        """Initialize the coordinator widget."""
+        super().__init__(id=id)
+        self.agent_name = agent_name
+        self._init_widgets()
+
+    def _init_widgets(self) -> None:
+        """Initialize child widgets with shared data reference."""
+        self.category_widget = CategoryWidget(
+            all_categories=self.categories,
+            agent_name=self.agent_name,
+            id="category-widget"
+        )
+        self.scale_widget = ScaleWidget(
+            all_categories=self.categories,
+            agent_name=self.agent_name,
+            id="scale-widget"
+        )
 
     def compose(self) -> ComposeResult:
+        """Layout child widgets vertically."""
         with Vertical(id="main-container"):
             yield self.category_widget
             yield self.scale_widget
 
-    def on_category_selected(self, message: CategorySelected) -> None:
-        """Handle CategorySelected messages from CategoryWidget."""
-        asyncio.create_task(self.scale_widget.update_scales(message.category_name))  # Ensure coroutine is run
+    def watch_selected_category(self, old_value: Optional[str], new_value: Optional[str]) -> None:
+        """Propagate category selection to scale widget."""
+        if new_value:
+            self.scale_widget.selected_category = new_value
 
-class MainApp(App):
-    CSS_PATH = "../mocks/category_widgets.css"
-
-    def __init__(self):
-        super().__init__()
-  
-        self.all_categories = []  # Initialize with an empty data structure
-        logging.debug("MainApp initialized")
-
-    def compose(self) -> ComposeResult:
-        yield CategoryScaleWidget()
-
-#if __name__ == "__main__":
-#    logging.info("Starting MainApp")
-#    app = MainApp()
-#    app.run()
+    @on(CategorySelected)
+    def handle_category_selected(self, message: CategorySelected) -> None:
+        """Update selected category when CategorySelected message is received."""
+        self.selected_category = message.category_name

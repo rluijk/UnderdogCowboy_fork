@@ -432,9 +432,92 @@ Toast.-error {
 
 DynamicContainer{
     border: tall #000000;
-    height: 100%;
     background: #000000;
-    padding: 1;
 
 }
 
+/* Overall Container Styling */
+DynamicContainer {
+    border: tall #000000;
+    background: #000000;
+}
+
+
+/**** ****/
+
+
+/* CategoryScaleWidget Styling */
+CategoryScaleWidget {
+    border: pink;
+    width: 100%;
+    padding: 1;
+}
+
+/* CategoryWidget Styling */
+CategoryWidget {
+    border: blue;
+    width: 100%;
+    padding: 1;
+}
+
+/* SelectCategoryWidget Styling */
+SelectCategoryWidget {
+    border: solid red;
+    height: 40;
+    width: 100%;
+    padding: 1;
+}
+
+/* SelectScaleWidget Styling */
+SelectScaleWidget {
+    border: orange;
+    width: 100%;
+    padding: 1;
+    
+}
+
+
+/* ScaleWidget Styling */
+ScaleWidget {
+    border: yellow;
+    width: 100%;
+    padding: 1;
+}
+
+
+/* Button Container for Horizontal Layout */
+.button-container {
+    layout: horizontal;
+    width: 100%;
+    margin-top: 1;
+    border: green
+}
+
+/* Full Width for Select, Input, and TextArea */
+Select {
+    width: 100%;
+    margin: 1 0;
+}
+
+Input {
+    width: 100%;
+    margin: 1 0;
+    border: grey
+}
+
+TextArea {
+    width: 100%;
+    height: 15;
+    margin: 1 0;
+    border: white
+}
+
+/* Loading Indicator Visibility */
+#loading-indicator, #scale-loading-indicator {
+    visibility: hidden;
+    margin: 1 0;
+}
+
+#loading-indicator.visible, #scale-loading-indicator.visible {
+    visibility: visible;
+}

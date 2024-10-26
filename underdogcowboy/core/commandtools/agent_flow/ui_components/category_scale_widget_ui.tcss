@@ -1,0 +1,241 @@
+/* Define color variables for consistent theming */
+$panel = #2e2e2e;
+$background = #1e1e1e;
+$accent = #007acc;
+$accent_dark = #005a9e;
+$text = #ffffff;
+$text_disabled = #7f7f7f;
+$input_background = #3c3c3c;
+$input_text = #d4d4d4;
+$input_border = #555555;
+$warning = #ff8800;
+
+/* Main container styling */
+#main-container {
+    background: $background;
+    padding: 2;
+    width: 100%;
+    height: 100%;
+    overflow-y: auto;
+}
+
+/* Category widget styling */
+#category-widget {
+    background: $panel;
+    padding: 2;
+    border: solid 1px $accent;
+    margin-bottom: 2;
+    border-radius: 4;
+}
+
+/* Scale widget styling */
+#scale-widget {
+    background: $panel;
+    padding: 2;
+    border: solid 1px $accent;
+    border-radius: 4;
+}
+
+/* Styling for the category select dropdown */
+#category-select {
+    padding: 1;
+    margin-bottom: 1;
+    background: $input_background;
+    color: $input_text;
+    border: solid 1px $input_border;
+    border-radius: 4;
+}
+
+/* Loading indicator for categories */
+#loading-indicator {
+    text-align: center;
+    color: $warning;
+    margin-bottom: 1;
+    font-style: italic;
+}
+
+/* Input box for category title */
+#category-input {
+    padding: 1;
+    margin-bottom: 1;
+    background: $input_background;
+    color: $input_text;
+    border: solid 1px $input_border;
+    border-radius: 4;
+}
+
+/* Text area for category description */
+#category-description-area {
+    padding: 1;
+    margin-bottom: 1;
+    height: 5;
+    background: $input_background;
+    color: $input_text;
+    border: solid 1px $input_border;
+    border-radius: 4;
+}
+
+/* Label text styling */
+#lbl_text {
+    padding: 1;
+    margin-bottom: 1;
+    color: $text;
+    font-weight: bold;
+}
+
+/* Container for edit controls */
+#edit_container {
+    padding: 1;
+    background: $panel;
+    border-radius: 4;
+}
+
+/* Button container styling */
+#button-container {
+    padding: 1;
+    align-horizontal: center;
+    gap: 1;
+}
+
+/* Buttons for category actions */
+#refresh-title-button,
+#refresh-description-button,
+#refresh-both-button {
+    padding: 1 2;
+    background: $accent;
+    color: $text;
+    border: none;
+    border-radius: 4;
+    min-width: 20;
+}
+
+#refresh-title-button:hover,
+#refresh-description-button:hover,
+#refresh-both-button:hover {
+    background: $accent_dark;
+}
+
+/* Scale components styling */
+#scale-select {
+    padding: 1;
+    margin-bottom: 1;
+    background: $input_background;
+    color: $input_text;
+    border: solid 1px $input_border;
+    border-radius: 4;
+}
+
+/* Loading indicator for scales */
+#scale-loading-indicator {
+    text-align: center;
+    color: $warning;
+    margin-bottom: 1;
+    font-style: italic;
+}
+
+/* Input box for scale title */
+#scale-input {
+    padding: 1;
+    margin-bottom: 1;
+    background: $input_background;
+    color: $input_text;
+    border: solid 1px $input_border;
+    border-radius: 4;
+}
+
+/* Text area for scale description */
+#scale-description-area {
+    padding: 1;
+    margin-bottom: 1;
+    height: 5;
+    background: $input_background;
+    color: $input_text;
+    border: solid 1px $input_border;
+    border-radius: 4;
+}
+
+/* Button to create initial scales */
+#create-scales-button {
+    padding: 1 2;
+    background: $accent;
+    color: $text;
+    border: none;
+    border-radius: 4;
+    margin-bottom: 1;
+}
+
+#create-scales-button:hover {
+    background: $accent_dark;
+}
+
+/* General button styling */
+Button {
+    padding: 1 2;
+    background: $accent;
+    color: $text;
+    border: none;
+    border-radius: 4;
+    margin-bottom: 1;
+}
+
+Button:hover {
+    background: $accent_dark;
+}
+
+Button:disabled {
+    background: $background;
+    color: $text_disabled;
+}
+
+/* General input styling */
+Input {
+    background: $input_background;
+    color: $input_text;
+    border: solid 1px $input_border;
+    padding: 1;
+    border-radius: 4;
+}
+
+TextArea {
+    background: $input_background;
+    color: $input_text;
+    border: solid 1px $input_border;
+    padding: 1;
+    border-radius: 4;
+}
+
+Select {
+    background: $input_background;
+    color: $input_text;
+    border: solid 1px $input_border;
+    padding: 1;
+    border-radius: 4;
+}
+
+/* General label styling */
+Label {
+    color: $text;
+    padding: 1;
+}
+
+/* Static text styling */
+Static {
+    color: $text;
+    padding: 1;
+}
+
+/* Scrollbar styling */
+ScrollBar {
+    background: $background;
+    thumb-color: $accent;
+}
+
+/* Customize the appearance of disabled widgets */
+:disabled {
+    opacity: 0.6;
+}
+
+/* Hover effects for interactive elements */
+Interactive:hover {
+    cursor: pointer;
+}

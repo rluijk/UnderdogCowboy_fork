@@ -1,5 +1,6 @@
 
 from textual.app import ComposeResult
+from textual.events import Mount
 from textual.widgets import Label, Static
 
 class CenterContent(Static):
@@ -8,4 +9,9 @@ class CenterContent(Static):
         self.action = action
 
     def compose(self) -> ComposeResult:
-        yield Label(f"Content for action: {self.action}")
+        yield Label(f"")
+        #yield Label(f"Content for action: {self.action}")
+
+    #def _on_mount(self, event: Mount) -> None:
+        #pass
+        #self.app.notify(f"{self.action}", severity="information")
