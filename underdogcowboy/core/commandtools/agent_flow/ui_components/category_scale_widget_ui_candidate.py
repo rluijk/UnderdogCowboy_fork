@@ -26,6 +26,11 @@ from underdogcowboy.core.agent import Agent
 # UC / Textual Reactive
 from underdogcowboy.utils.d_reactive import DebugStatic, WatcherChainError
 
+# UI related
+from ui_components.session_dependent import SessionDependentUI
+
+
+
 class CategorySelected(Message):
     """Custom message to indicate a category has been selected."""
     def __init__(self, sender, category_name: str, category_description: str = ""):
@@ -34,7 +39,7 @@ class CategorySelected(Message):
         self.category_name = category_name
         self.category_description = category_description  # New field for description
 
-class CategoryScaleWidget(DebugStatic):
+class CategoryScaleWidget(SessionDependentUI):
     """
     Container widget that coordinates CategoryWidget and ScaleWidget.
     Responsibilities:
@@ -48,10 +53,10 @@ class CategoryScaleWidget(DebugStatic):
     categories = Reactive[List[Dict]](default=[])
     selected_category = Reactive[Optional[str]](None)
 
-    def __init__(self, agent_name: str, id: Optional[str] = None):
+    def __init__(self, session_manager, screen_name, agent_name_plain: str, id: Optional[str] = None):
         """Initialize the coordinator widget."""
-        super().__init__(id=id)
-        self.agent_name = agent_name
+        super().__init__(session_manager, screen_name, agent_name_plain)
+        self.agent_name = agent_name_plain
         self._init_widgets()
 
     def _init_widgets(self) -> None:

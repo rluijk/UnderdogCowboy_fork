@@ -14,10 +14,11 @@ from ui_factory import UIFactory
 from ui_components.session_dependent import SessionDependentUI
 from ui_components.dynamic_container import DynamicContainer
 from ui_components.state_button_grid_ui import StateButtonGrid
-from ui_components.state_info_ui import StateInfo
+from ui_components.state_info_ui import StateInfo 
 from ui_components.left_side_ui import LeftSideContainer
-from ui_components.category_list_ui import CategoryListUI
-from ui_components.category_editor_ui import CategoryEditorUI
+# from ui_components.category_list_ui import CategoryListUI
+from ui_components.category_editor_ui import CategoryEditorUI 
+from ui_components.category_scale_widget_ui_candidate import CategoryScaleWidget
 from ui_components.center_content_ui import CenterContent
 from ui_components.load_agent_ui import LoadAgentUI
 
@@ -161,7 +162,7 @@ class AgentAssessmentBuilderScreen(SessionScreen):
         # Mapping actions to their respective UI classes
         ui_class = {
             "load_agent": LoadAgentUI,
-            "list_categories" : CategoryListUI
+            "list_categories" : CategoryScaleWidget # this was placeholder: CategoryListUI 
         }.get(action)
 
         if ui_class:

@@ -17,6 +17,7 @@ class CategoryEditorUI(SessionDependentUI):
         super().__init__(session_manager, screen_name, agent_name_plain)
         self.session_manager = session_manager
         self.selected_category = self.session_manager.get_data('selected_category', "Default Category")
+        logging.info(f"selected at init of CategoryEditorUI: {self.selected_category}")
         self.styles.overflow_y = "auto"  # Enable vertical scrolling
         self.styles.height = "500"       # Set a fixed height
         self.agent_name_plain = agent_name_plain
