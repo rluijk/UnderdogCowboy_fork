@@ -57,6 +57,8 @@ class CategoryScaleWidget(SessionDependentUI):
         """Initialize the coordinator widget."""
         super().__init__(session_manager, screen_name, agent_name_plain)
         self.agent_name = agent_name_plain
+        self.session_manager = session_manager
+        self.screen_name = screen_name
         self._init_widgets()
 
     def _init_widgets(self) -> None:
@@ -64,12 +66,16 @@ class CategoryScaleWidget(SessionDependentUI):
         self.category_widget = CategoryWidget(
             all_categories=self.categories,
             agent_name=self.agent_name,
-            id="category-widget"
+            #id="category-widget",
+            session_manager=self.session_manager,
+            screen_name=self.screen_name
         )
         self.scale_widget = ScaleWidget(
             all_categories=self.categories,
             agent_name=self.agent_name,
-            id="scale-widget"
+            #id="scale-widget",
+            session_manager=self.session_manager,
+            screen_name=self.screen_name
         )
 
     def compose(self) -> ComposeResult:
@@ -91,7 +97,7 @@ class CategoryScaleWidget(SessionDependentUI):
         self.description_area.refresh()  # Ensure UI reflects the change
     """
 
-class CategoryWidget(DebugStatic):
+class CategoryWidget(SessionDependentUI):
     """
     Widget for managing categories.
     Responsibilities:
@@ -106,8 +112,8 @@ class CategoryWidget(DebugStatic):
     categories = Reactive[List[Dict]](default=[])
     show_controls = Reactive[bool](False) 
 
-    def __init__(self, all_categories, agent_name, id=None):
-        super().__init__(id=id)
+    def __init__(self, all_categories, agent_name, session_manager, screen_name):
+        super().__init__(session_manager, screen_name, agent_name)
         self.selected_category = None
         self.all_categories = all_categories
         self.agent_name = agent_name
@@ -294,7 +300,7 @@ class CategoryWidget(DebugStatic):
 
         return (llm_config, self.agent_name)
 
-class SelectCategoryWidget(DebugStatic):
+class SelectCategoryWidget(Static):
     """Widget for the UI components of categories."""
     
     
@@ -581,7 +587,7 @@ class SelectCategoryWidget(DebugStatic):
                     cat['scale'] = result
                     break
 
-class ScaleWidget(DebugStatic):
+class ScaleWidget(SessionDependentUI):
     """Widget for managing scales within a selected category."""
     
     # Reactive properties
@@ -591,8 +597,8 @@ class ScaleWidget(DebugStatic):
     is_loading = Reactive(False)
     show_scales = Reactive(False)
 
-    def __init__(self, all_categories, agent_name, id=None):
-        super().__init__(id=id)
+    def __init__(self, all_categories, agent_name, session_manager, screen_name):
+        super().__init__(session_manager, screen_name, agent_name)
         self.all_categories = all_categories  # Reference to categories data structure
         self.agent_name = agent_name
         self.scale_components = SelectScaleWidget()
@@ -789,7 +795,7 @@ class ScaleWidget(DebugStatic):
                 cat['scale'] = updated_scales
                 break
 
-class SelectScaleWidget(DebugStatic):
+class SelectScaleWidget(Static):
     """Widget for the UI components of scales."""
     
     # Reactive properties
