@@ -30,7 +30,6 @@ from underdogcowboy.utils.d_reactive import DebugStatic, WatcherChainError
 from ui_components.session_dependent import SessionDependentUI
 
 
-
 class CategorySelected(Message):
     """Custom message to indicate a category has been selected."""
     def __init__(self, sender, category_name: str, category_description: str = ""):
@@ -48,7 +47,6 @@ class CategoryScaleWidget(SessionDependentUI):
     - Coordinates communication between widgets
     """
   
-
     # Reactive Properties
     categories = Reactive[List[Dict]](default=[])
     selected_category = Reactive[Optional[str]](None)
@@ -59,6 +57,7 @@ class CategoryScaleWidget(SessionDependentUI):
         self.agent_name = agent_name_plain
         self.session_manager = session_manager
         self.screen_name = screen_name
+        
         self._init_widgets()
 
     def _init_widgets(self) -> None:
@@ -84,18 +83,41 @@ class CategoryScaleWidget(SessionDependentUI):
             yield self.category_widget
             yield self.scale_widget
 
+    def load_category_data(self, agent_name: str):
+        """Load category data from storage and update the reactive variable."""
+        # Fetch stored data for the specified agent
+        agent_data = self.get_or_initialize_category_data(agent_name)
+        
+        # Extract only 'name' and 'description' for each category, if available
+        self.categories = [
+            {"name": category["name"], "description": category["description"]}
+            for category in agent_data.get("categories", [])
+            if "name" in category and "description" in category
+        ]            
+
+    def get_or_initialize_category_data(self, agent_name: str) -> dict:
+            """Retrieve or initialize category data for an agent."""
+            all_agents_data = self.session_manager.get_data("agents", screen_name=self.screen_name)
+            if all_agents_data and agent_name in all_agents_data:
+                return all_agents_data[agent_name]
+
+            new_agent_data = {
+                "categories": [],
+                "meta_notes": "",
+                "base_agent": agent_name
+            }
+            if all_agents_data:
+                all_agents_data[agent_name] = new_agent_data
+            else:
+                all_agents_data = {agent_name: new_agent_data}
+
+            self.session_manager.update_data("agents", all_agents_data, self.screen_name)
+            return new_agent_data   
+
     def watch_selected_category(self, old_value: Optional[str], new_value: Optional[str]) -> None:
         """Propagate category selection to scale widget."""
         if new_value:
             self.scale_widget.selected_category = new_value
-
-    """    @on(CategorySelected)
-    def handle_category_selected(self, message: CategorySelected) -> None:
-        self.title_value = message.category_name  # Set title
-        self.description_value = message.category_description  # Set description
-        self.description_area.value = self.description_value  # Update TextArea with the description
-        self.description_area.refresh()  # Ensure UI reflects the change
-    """
 
 class CategoryWidget(SessionDependentUI):
     """
@@ -878,3 +900,5 @@ class SelectScaleWidget(Static):
         if scale_data:
             self.title_value = scale_data['name']
             self.description_value = scale_data.get('description', '')
+
+            
