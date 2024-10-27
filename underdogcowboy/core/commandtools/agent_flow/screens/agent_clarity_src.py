@@ -74,8 +74,8 @@ class ClarityScreen(SessionScreen):
         self.llm_manager = LLMManager(
             config_manager=LLMConfigManager(),
             default_provider='anthropic',
-            default_model_id='claude-3-5-sonnet-20240620',
-            default_model_name='Claude 3.5 Sonnet'
+            default_model_id='claude-3-5-sonnet-20241022', 
+            default_model_name='Claude 3.5 Sonnet (Upgrade)' 
         )
         
         # Set the default LLM during initialization
