@@ -12,6 +12,7 @@ from textual.app import App, ComposeResult
 from textual.containers import Vertical, Horizontal
 from textual.widgets import Label, Header, Select, Input, Static, TextArea, Button
 from textual.message import Message
+from textual.events import Event
 
 # LLM
 from agent_llm_handler import send_agent_data_to_llm, run_category_call 
@@ -19,6 +20,7 @@ from llm_call_manager import LLMCallManager
 
 # Events
 from events.llm_events import LLMCallComplete, LLMCallError
+from events.category_events import CategoryDataUpdate
 
 # UC
 from underdogcowboy.core.agent import Agent
@@ -28,6 +30,11 @@ from underdogcowboy.utils.d_reactive import DebugStatic, WatcherChainError
 
 # UI related
 from ui_components.session_dependent import SessionDependentUI
+from ui_components.bound_text_area import BoundTextArea
+
+# Events
+from events.chat_events import TextSubmitted
+
 
 
 class CategorySelected(Message):
@@ -114,10 +121,32 @@ class CategoryScaleWidget(SessionDependentUI):
             self.session_manager.update_data("agents", all_agents_data, self.screen_name)
             return new_agent_data   
 
+    @on(CategoryDataUpdate)
+    def handle_category_data_update(self, event: CategoryDataUpdate) -> None:
+        """Handle an update event for category data and save updated data to storage."""
+        self.update_category_data()
+
+    
+    def update_category_data(self) -> None:
+        """Save the current state of the agent's data, including all categories, into local storage."""
+        # Construct the agent's data from reactive properties
+        updated_agent_data = {
+            "categories": self.categories,  # Use the full reactive list of categories
+            "meta_notes": "",
+            "base_agent": self.agent_name
+        }
+
+        # Retrieve the entire 'agents' data from storage
+        all_agents_data = self.session_manager.get_data("agents", screen_name=self.screen_name) or {}
+        
+        # Update this specific agent's data
+        all_agents_data[self.agent_name] = updated_agent_data
+        self.session_manager.update_data("agents", all_agents_data, self.screen_name)
+
     def watch_selected_category(self, old_value: Optional[str], new_value: Optional[str]) -> None:
-        """Propagate category selection to scale widget."""
-        if new_value:
-            self.scale_widget.selected_category = new_value
+            """Propagate category selection to scale widget."""
+            if new_value:
+                self.scale_widget.selected_category = new_value
 
 class CategoryWidget(SessionDependentUI):
     """
@@ -139,7 +168,7 @@ class CategoryWidget(SessionDependentUI):
         self.selected_category = None
         self._categories_reference = categories 
         self.agent_name = agent_name
-        self.category_components = SelectCategoryWidget(agent_name)  # This contains the select widget
+        self.category_components = SelectCategoryWidget(agent_name, categories)  # This contains the select widget
 
     def compose(self) -> ComposeResult:
         """Compose widget layout."""
@@ -153,7 +182,6 @@ class CategoryWidget(SessionDependentUI):
 
         # Now assign the reference content to the reactive categories variable
         self.categories = self._categories_reference
-
 
     def update_select_options(self, options):
         self.category_components.select.set_options(options)
@@ -331,35 +359,51 @@ class SelectCategoryWidget(Static):
     
     
     # Reactive properties
-    selected_category = Reactive(None)
-    is_loading = Reactive(False)
-    show_edit_controls = Reactive(False)
-    title_value = Reactive("")
-    description_value = Reactive("")
-    categories = Reactive([])
+    selected_category = Reactive[Optional[str]](None)
+    is_loading = Reactive[bool](False)
+    categories = Reactive[List[Dict]](default=[])
+    show_controls = Reactive[bool](False)
 
-    def __init__(self, agent_name):
+    # Additional reactive properties 
+    title_value = Reactive[str]("")  
+    description_value = Reactive[str]("")  
+    show_edit_controls = Reactive[bool](False)
+
+    def __init__(self, agent_name, categories):
         super().__init__()
         self.agent_name = agent_name
-        self._init_widgets()
+        self._categories_reference = categories
 
-    def _init_widgets(self):
-        """Initialize all widget components."""
-        self.select = Select(
+    def compose(self) -> ComposeResult:
+        """Compose widget layout, yielding each component."""
+        # Define the widget layout here
+        yield Select(
             options=[("create_initial", "Create Initial Categories")],
             id="category-select"
         )
+        yield Static("Loading categories...", id="loading-indicator")
+        yield Input(placeholder="Rename selected category", id="category-input")
+        yield BoundTextArea("", id="category-description-area")
+        yield Button("Refresh Title", id="refresh-title-button")
+        yield Button("Refresh Description", id="refresh-description-button")
+        yield Button("Refresh Both", id="refresh-both-button")
+        yield Label("Modify Directly or use buttons for agent assistance", id="lbl_text")
 
-        
-        self.loading_indicator = Static("Loading categories...", id="loading-indicator")
-        self.input_box = Input(placeholder="Rename selected category", id="category-input")
-        self.description_area = TextArea("", id="category-description-area")
-        self.refresh_title_button = Button("Refresh Title", id="refresh-title-button")
-        self.refresh_description_button = Button("Refresh Description", id="refresh-description-button")
-        self.refresh_both_button = Button("Refresh Both", id="refresh-both-button")
-        self.lbl_text = Label("Modify Directly or use buttons for agent assistance", id="lbl_text")
-        
-        self.loading_indicator.visible = False 
+
+    def on_mount(self) -> None:
+
+        """Initialize states and hide elements after widgets are mounted."""
+        self.select = self.query_one("#category-select", Select)
+        self.loading_indicator = self.query_one("#loading-indicator", Static)
+        self.input_box = self.query_one("#category-input", Input)
+        self.description_area = self.query_one("#category-description-area", BoundTextArea)
+        self.refresh_title_button = self.query_one("#refresh-title-button", Button)
+        self.refresh_description_button = self.query_one("#refresh-description-button", Button)
+        self.refresh_both_button = self.query_one("#refresh-both-button", Button)
+        self.lbl_text = self.query_one("#lbl_text", Label)
+
+        # Initial visibility setup
+        self.loading_indicator.visible = False
         self.input_box.visible = False
         self.description_area.visible = False
         self.refresh_title_button.visible = False
@@ -367,25 +411,14 @@ class SelectCategoryWidget(Static):
         self.refresh_both_button.visible = False
         self.lbl_text.visible = False
 
+        self.categories = self._categories_reference
 
-    def on_mount(self) -> None:
         """Initialize components after mount."""
         self.llm_call_manager = LLMCallManager()
         self.llm_call_manager.set_message_post_target(self)
         logging.info(f"Post target message set to: {self.llm_call_manager._message_post_target}")
 
-    def compose(self) -> ComposeResult:
-        """Compose the widget layout."""
-        yield self.select
-        yield self.loading_indicator
-        with Vertical(id="edit_container"):
-            yield self.lbl_text
-            yield self.input_box
-            yield self.description_area
-            with Horizontal(id="button-container"):
-                yield self.refresh_title_button
-                yield self.refresh_description_button
-                yield self.refresh_both_button
+
 
     def update_category_details(self, title: str, description: str) -> None:
         """Update both title and description for the selected category."""
@@ -424,19 +457,26 @@ class SelectCategoryWidget(Static):
             self.input_box.refresh()
 
     def watch_description_value(self, old_value: str, new_value: str) -> None:
-        """React to description value changes."""
-
-
+        """React to description value changes and update the current category's description."""
+        # Locate the selected category within `self.categories` and update its description
+        for category in self.categories:
+            if category.get("name") == self.selected_category:
+                category["description"] = new_value
+                break
+        
+        # Update the TextArea to reflect the new description
         self.description_area.load_text(new_value)
         self.description_area.refresh()
+        
+        # Refresh categories to ensure the reactive system registers the change
+        self.categories = self.categories  # Trigger update by assigning the modified list to itself
+        self.post_message(CategoryDataUpdate())
 
-    def watch_categories(self, old_value: list, new_value: list) -> None:
-        """React to categories list changes."""
-        options = [("refresh_all", "Refresh All")] + [
-            (cat['name'], cat['name']) for cat in new_value
-        ]
-        self.select.set_options(options)
-        self.refresh()
+    def watch_categories(self, new_value: List[Dict], old_value: List[Dict]) -> None:
+        """Watch changes to categories and update options in select."""
+        options = [("refresh_all", "Refresh All")] + [(cat['name'], cat['name']) for cat in new_value]
+        self.select.set_options(options)  # Access to `select` is safe here
+        self.refresh()        
 
     def watch_selected_category(self, old_value: Optional[str], new_value: Optional[str]) -> None:
         """React to category selection changes."""
@@ -583,6 +623,16 @@ class SelectCategoryWidget(Static):
         if handler:
             await handler()
 
+    # Event Handlers for Input and TextArea changes
+    @on(Input.Submitted, "#category-input")
+    def handle_title_input_changed(self, event: Input.Submitted) -> None:
+        """Update title_value from the input box when the user types."""
+        self.title_value = event.value # Sync the reactive variable with the input
+
+    @on(TextSubmitted)
+    async def handle_text_submission(self, event: TextSubmitted):
+        self.description_value = event.text # Sync the reactive variable with the textarea
+    
     # LLM result handlers
     async def _handle_title_update(self, result: dict) -> None:
         """Handle title update from LLM result."""
@@ -843,7 +893,7 @@ class SelectScaleWidget(Static):
         self.scale_select = Select([], id="scale-select")
         self.loading_indicator = Static("Loading scales...", id="scale-loading-indicator")
         self.scale_input_box = Input(placeholder="Rename selected scale", id="scale-input")
-        self.scale_description_area = TextArea("", id="scale-description-area")
+        self.scale_description_area = BoundTextArea("", id="scale-description-area")
 
     def compose(self) -> ComposeResult:
         yield self.create_scales_button
