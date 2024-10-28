@@ -57,13 +57,13 @@ class CategoryScaleWidget(SessionDependentUI):
         self.agent_name = agent_name_plain
         self.session_manager = session_manager
         self.screen_name = screen_name
-        
+        self.load_category_data(self.agent_name)
         self._init_widgets()
 
     def _init_widgets(self) -> None:
         """Initialize child widgets with shared data reference."""
         self.category_widget = CategoryWidget(
-            all_categories=self.categories,
+            categories=self.categories,
             agent_name=self.agent_name,
             #id="category-widget",
             session_manager=self.session_manager,
@@ -131,13 +131,13 @@ class CategoryWidget(SessionDependentUI):
     # Reactive Properties
     selected_category = Reactive[Optional[str]](None)
     is_loading = Reactive[bool](False)
-    categories = Reactive[List[Dict]](default=[])
+    categories = Reactive[List[Dict]](default=[]) # new Reactive "wrapper" around our reference passed in.
     show_controls = Reactive[bool](False) 
 
-    def __init__(self, all_categories, agent_name, session_manager, screen_name):
+    def __init__(self, categories, agent_name, session_manager, screen_name):
         super().__init__(session_manager, screen_name, agent_name)
         self.selected_category = None
-        self.all_categories = all_categories
+        self._categories_reference = categories 
         self.agent_name = agent_name
         self.category_components = SelectCategoryWidget(agent_name)  # This contains the select widget
 
@@ -150,6 +150,10 @@ class CategoryWidget(SessionDependentUI):
         self.llm_call_manager = LLMCallManager()
         self.llm_call_manager.set_message_post_target(self)
         logging.info(f"Post target message set to: {self.llm_call_manager._message_post_target}")
+
+        # Now assign the reference content to the reactive categories variable
+        self.categories = self._categories_reference
+
 
     def update_select_options(self, options):
         self.category_components.select.set_options(options)
@@ -621,7 +625,7 @@ class ScaleWidget(SessionDependentUI):
 
     def __init__(self, all_categories, agent_name, session_manager, screen_name):
         super().__init__(session_manager, screen_name, agent_name)
-        self.all_categories = all_categories  # Reference to categories data structure
+        self.all_categories = all_categories  
         self.agent_name = agent_name
         self.scale_components = SelectScaleWidget()
 
