@@ -1,32 +1,22 @@
 import logging
-import os
 import asyncio
 
 from typing import Tuple, Optional, Dict, Any, List
 
-from concurrent.futures import ThreadPoolExecutor
-
 from textual import on
 from textual.reactive import Reactive
 from textual.app import App, ComposeResult
-from textual.containers import Vertical, Horizontal
-from textual.widgets import Label, Header, Select, Input, Static, TextArea, Button
+from textual.containers import Vertical
+from textual.widgets import Label, Select, Input, Static, TextArea, Button
 from textual.message import Message
-from textual.events import Event
 
 # LLM
-from agent_llm_handler import send_agent_data_to_llm, run_category_call 
+from agent_llm_handler import send_agent_data_to_llm, run_category_call, run_scale_call
 from llm_call_manager import LLMCallManager
 
 # Events
 from events.llm_events import LLMCallComplete, LLMCallError
-from events.category_events import CategoryDataUpdate
-
-# UC
-from underdogcowboy.core.agent import Agent
-
-# UC / Textual Reactive
-from underdogcowboy.utils.d_reactive import DebugStatic, WatcherChainError
+from events.category_events import CategoryDataUpdate, CategorySelected
 
 # UI related
 from ui_components.session_dependent import SessionDependentUI
@@ -35,15 +25,6 @@ from ui_components.bound_text_area import BoundTextArea
 # Events
 from events.chat_events import TextSubmitted
 
-
-
-class CategorySelected(Message):
-    """Custom message to indicate a category has been selected."""
-    def __init__(self, sender, category_name: str, category_description: str = ""):
-        super().__init__()
-        self.sender = sender
-        self.category_name = category_name
-        self.category_description = category_description  # New field for description
 
 class CategoryScaleWidget(SessionDependentUI):
     """
@@ -65,26 +46,24 @@ class CategoryScaleWidget(SessionDependentUI):
         self.session_manager = session_manager
         self.screen_name = screen_name
         self.load_category_data(self.agent_name)
-        self._init_widgets()
 
     def _init_widgets(self) -> None:
         """Initialize child widgets with shared data reference."""
         self.category_widget = CategoryWidget(
             categories=self.categories,
             agent_name=self.agent_name,
-            #id="category-widget",
             session_manager=self.session_manager,
             screen_name=self.screen_name
         )
         self.scale_widget = ScaleWidget(
-            all_categories=self.categories,
             agent_name=self.agent_name,
-            #id="scale-widget",
             session_manager=self.session_manager,
             screen_name=self.screen_name
         )
 
     def compose(self) -> ComposeResult:
+        self._init_widgets() # move directly into compose 
+
         """Layout child widgets vertically."""
         with Vertical(id="main-container"):
             yield self.category_widget
@@ -196,7 +175,10 @@ class CategoryWidget(SessionDependentUI):
             # Retrieve the category's description from self.categories
             category_data = next((cat for cat in self.categories if cat['name'] == new_value), None)
             category_description = category_data.get('description', '') if category_data else ''
-
+            
+            # shared state
+            self.app.query_one(CategoryScaleWidget).selected_category = self.selected_category
+            
             # Directly update title and description in SelectCategoryWidget
             self.category_components.update_category_details(new_value, category_description)
 
@@ -251,6 +233,10 @@ class CategoryWidget(SessionDependentUI):
     async def handle_llm_call_complete(self, event: LLMCallComplete) -> None:
         """Handle LLM call completions."""
         if event.input_id == "create-initial-categories":
+            self.app.query_one(CategoryScaleWidget).categories = event.result['categories'] 
+            self.app.query_one(SelectCategoryWidget).categories = event.result['categories']
+            #self.categories = event.result['categories']
+
             await self._handle_initial_categories_complete(event)
 
     @on(LLMCallError)
@@ -275,10 +261,11 @@ class CategoryWidget(SessionDependentUI):
          
             llm_config, current_agent = config
             pre_prompt = "prompt to get initial categories"
-            
+            session_name = self.session_manager.current_session_name.plain
             await self.llm_call_manager.submit_llm_call_with_agent(
                 llm_function=run_category_call,
                 llm_config=llm_config,
+                session_name=session_name,
                 agent_name=current_agent,
                 agent_type="assessment",
                 input_id="create-initial-categories",
@@ -286,7 +273,7 @@ class CategoryWidget(SessionDependentUI):
                 post_prompt=None
             )
         except Exception as e:
-            self.show_error(f"Failed to create categories: {str(e)}")
+            #self.show_error(f"Failed to create categories: {str(e)}")
             logging.error(f"Error in create_initial_categories: {e}")
         finally:
             self.is_loading = False
@@ -320,26 +307,42 @@ class CategoryWidget(SessionDependentUI):
     async def _handle_initial_categories_complete(self, event: LLMCallComplete) -> None:
         """Handle completion of initial categories creation."""
         try:
+            # Set initializing flag in SelectCategoryWidget
+            self.app.query_one(SelectCategoryWidget).initializing = True
+
             if isinstance(event.result, dict) and 'categories' in event.result:
                 categories = event.result['categories']
             else:
                 categories = event.result
-                
-            self.categories = categories
-            
-            # If we have categories, update both title and description for the first one
+
+            # Update the reactive categories property
+            self.categories = categories  # This will trigger watch_categories
+
+            # If we have categories, set the selected category to the first one
             if categories:
                 first_category = categories[0]
-                self.category_components.title_value = first_category.get('name', '')
-                self.category_components.description_area.value = first_category.get('description', '')
+                title = first_category.get('name', '')
+                description = first_category.get('description', '')
+
+                # Set the selected category and update details
+                self.selected_category = title  # Triggers watchers
+                self.category_components.title_value = title
+                self.category_components.description_area.value = description
                 self.category_components.description_area.refresh()
-            
+
             # Enable controls after successful load
             self.category_components.select.disabled = False
             self.show_controls = True
+
         except Exception as e:
             logging.error(f"Error processing create-initial-categories result: {e}")
             self.notify("Failed to create initial categories.", severity="error")
+        finally:
+            # Unset initializing flag in SelectCategoryWidget
+            self.app.query_one(SelectCategoryWidget).initializing = False
+
+
+
 
     def _get_llm_config(self) -> Optional[Tuple[Dict[str, Any], str]]:
         """Get LLM configuration and agent."""
@@ -450,11 +453,46 @@ class SelectCategoryWidget(Static):
             self.refresh_both_button.visible = new_value
             self.lbl_text.visible = new_value
 
+
     def watch_title_value(self, old_value: str, new_value: str) -> None:
         """React to title value changes."""
-        if new_value != self.input_box.value:
-            self.input_box.value = new_value
-            self.input_box.refresh()
+        # Skip updates if we're in the initialization phase
+        if getattr(self, 'initializing', False):
+            return
+
+        # Update the name in `self.categories`
+        for category in self.categories:
+            if category.get("name") == self.selected_category:
+                category["name"] = new_value
+                break
+
+        # Update the select box options and check that it includes the new value
+        updated_options = [
+            (category.get("name"), category.get("name"))
+            for category in self.categories
+        ]
+        
+        # Log the updated options to ensure they are set correctly
+        logging.debug(f"Updated select options: {updated_options}")
+
+        self.select.set_options(updated_options)
+        
+        # Verify that new_value exists in updated options before setting it
+        option_values = [option[1] for option in updated_options]
+        if new_value in option_values:
+            self.select.value = new_value  # Set the select to reflect the selected value
+        else:
+            logging.warning(f"Value '{new_value}' not found in options; available options: {option_values}")
+        
+        # Update the input box and refresh it
+        self.input_box.value = new_value
+        self.input_box.refresh()
+
+        # Notify that the category data has been updated
+        self.post_message(CategoryDataUpdate())
+
+
+
 
     def watch_description_value(self, old_value: str, new_value: str) -> None:
         """React to description value changes and update the current category's description."""
@@ -673,9 +711,13 @@ class ScaleWidget(SessionDependentUI):
     is_loading = Reactive(False)
     show_scales = Reactive(False)
 
-    def __init__(self, all_categories, agent_name, session_manager, screen_name):
+    def __init__(self, agent_name, session_manager, screen_name):
         super().__init__(session_manager, screen_name, agent_name)
-        self.all_categories = all_categories  
+
+        self.selected_category = self.app.query_one(CategoryScaleWidget).selected_category
+        # we reference them as all_categories (we are working just with the selected category)
+        self.all_categories = self.app.query_one(CategoryScaleWidget).categories
+  
         self.agent_name = agent_name
         self.scale_components = SelectScaleWidget()
 
@@ -757,10 +799,11 @@ class ScaleWidget(SessionDependentUI):
             llm_config, current_agent = config
             pre_prompt = f"prompt to retrieve scales for category: {self.selected_category}"
             
-            await self.llm_call_manager.submit_llm_call_with_agent(
-                llm_function=send_agent_data_to_llm,
+            await self.llm_call_manager.submit_llm_call_with_agent_and_id(
+                llm_function=run_scale_call,
                 llm_config=llm_config,
                 agent_name=current_agent,
+                id=self.selected_category,
                 agent_type="assessment",
                 input_id="retrieve-scales",
                 pre_prompt=pre_prompt,
@@ -885,7 +928,6 @@ class SelectScaleWidget(Static):
 
     def __init__(self):
         super().__init__()
-        self._init_widgets()
 
     def _init_widgets(self):
         """Initialize all widget components."""
@@ -896,6 +938,8 @@ class SelectScaleWidget(Static):
         self.scale_description_area = BoundTextArea("", id="scale-description-area")
 
     def compose(self) -> ComposeResult:
+        self._init_widgets() # TODO untangle this pattern 
+
         yield self.create_scales_button
         yield self.scale_select
         yield self.loading_indicator

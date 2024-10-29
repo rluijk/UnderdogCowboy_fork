@@ -35,3 +35,4 @@ session_data.db
 *.log
 /underdogcowboy/core/commandtools/agent_flow/dev_notes
 *.md
+/.vscode

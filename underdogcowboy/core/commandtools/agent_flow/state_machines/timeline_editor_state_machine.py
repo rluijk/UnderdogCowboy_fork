@@ -24,6 +24,10 @@ def create_timeline_editor_state_machine() -> StateMachine:
     dialog_loaded_state.add_transition("load_dialog", dialog_loaded_state)  # Reload dialog
     dialog_loaded_state.add_transition("save_dialog", dialog_loaded_state)  # Save dialog
     dialog_loaded_state.add_transition("reset", initial_state)  # Reset to initial state
+    
+    # TODO -> LLM call to make summary from history 
+    # dialog_loaded_state.add_transition("summary", initial_state)  # Reset to initial state
+    
 
     # Add reset transition to all states
     initial_state.add_transition("reset", initial_state)  # Reset can still be used in initial state to reinforce the state

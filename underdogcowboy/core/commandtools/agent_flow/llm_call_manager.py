@@ -44,7 +44,8 @@ class LLMCallManager(MessageEmitterMixin):
 
         logging.debug("_handle Task post (after) send self.post_message")
 
-    async def submit_llm_call_with_agent(self, llm_function, llm_config, agent_name, agent_type, input_id, pre_prompt,post_prompt):
+
+    async def submit_llm_call_with_agent_and_id(self, llm_function, llm_config, agent_name, agent_type, id, input_id, pre_prompt,post_prompt):
         """Submits an LLM call to the task queue."""
         logging.info(f"Submitting LLM call for input_id: {input_id}: agent: {agent_name} type: {agent_type}")
         if not self._message_post_target:
@@ -54,6 +55,27 @@ class LLMCallManager(MessageEmitterMixin):
         await self._task_queue.put((
             llm_function,
             llm_config,
+            agent_name,
+            agent_type,
+            id,
+            pre_prompt,
+            post_prompt,
+            input_id  # Ensure input_id is the last argument
+        ))
+
+        logging.info(f"LLM call for input_id {input_id} has been queued")
+
+    async def submit_llm_call_with_agent(self, llm_function, llm_config, session_name, agent_name, agent_type, input_id, pre_prompt,post_prompt):
+        """Submits an LLM call to the task queue."""
+        logging.info(f"Submitting LLM call for input_id: {input_id}: agent: {agent_name} type: {agent_type}")
+        if not self._message_post_target:
+            raise MessagePostTargetNotSetError("Message post target not set.")
+        
+        # Put the task in the async queue for processing
+        await self._task_queue.put((
+            llm_function,
+            llm_config,
+            session_name,
             agent_name,
             agent_type,
             pre_prompt,
