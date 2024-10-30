@@ -11,7 +11,12 @@ from textual.widgets import Label, Select, Input, Static, TextArea, Button
 from textual.message import Message
 
 # LLM
-from agent_llm_handler import send_agent_data_to_llm, run_category_call, run_scale_call
+from agent_llm_handler import (
+                                send_agent_data_to_llm, run_category_call, 
+                                run_scale_call, run_category_title_change, 
+                                run_category_description_change
+                                )
+
 from llm_call_manager import LLMCallManager
 
 # Events
@@ -147,7 +152,7 @@ class CategoryWidget(SessionDependentUI):
         self.selected_category = None
         self._categories_reference = categories 
         self.agent_name = agent_name
-        self.category_components = SelectCategoryWidget(agent_name, categories)  # This contains the select widget
+        self.category_components = SelectCategoryWidget(agent_name, session_manager, categories)  # This contains the select widget
 
     def compose(self) -> ComposeResult:
         """Compose widget layout."""
@@ -243,8 +248,7 @@ class CategoryWidget(SessionDependentUI):
     async def handle_llm_call_error(self, event: LLMCallError) -> None:
         """Handle LLM call errors."""
         self.is_loading = False
-        self.show_error(f"LLM operation failed: {event.error}")
-
+        
     # Private Methods
     async def _create_initial_categories(self) -> None:
         """Create initial categories using LLM."""
@@ -372,10 +376,11 @@ class SelectCategoryWidget(Static):
     description_value = Reactive[str]("")  
     show_edit_controls = Reactive[bool](False)
 
-    def __init__(self, agent_name, categories):
+    def __init__(self, agent_name, session_manager, categories):
         super().__init__()
         self.agent_name = agent_name
         self._categories_reference = categories
+        self.session_manager = session_manager
 
     def compose(self) -> ComposeResult:
         """Compose widget layout, yielding each component."""
@@ -552,22 +557,22 @@ class SelectCategoryWidget(Static):
                 return
             
             llm_config, current_agent = config
-            pre_prompt = f"prompt to get a title: {self.selected_category}"
-            
-            await self.llm_call_manager.submit_llm_call_with_agent(
-                llm_function=send_agent_data_to_llm,
+            session_name = self.session_manager.current_session_name.plain
+          
+            await self.llm_call_manager.submit_llm_call_with_agent_with_id_and_sesssion(
+                llm_function=run_category_title_change,
                 llm_config=llm_config,
                 agent_name=current_agent,
                 agent_type="assessment",
-                input_id="scale-title",
-                pre_prompt=pre_prompt,
-                post_prompt=None
+                category_to_change=self.selected_category,
+                session_name=session_name,
+                input_id="category-input"
             )
         except Exception as e:
             logging.error(f"Error in refresh_title: {e}")
-            self.show_error(str(e))
         finally:
             self.is_loading = False
+
 
     async def refresh_description(self) -> None:
         """Refresh description using LLM."""
@@ -576,22 +581,21 @@ class SelectCategoryWidget(Static):
             config = self._llm_config_current_agent()
             if not config:
                 return
-            
+                                
             llm_config, current_agent = config
-            pre_prompt = f"prompt to get a description: {self.selected_category}"
+            session_name = self.session_manager.current_session_name.plain
             
-            await self.llm_call_manager.submit_llm_call_with_agent(
-                llm_function=send_agent_data_to_llm,
+            await self.llm_call_manager.submit_llm_call_with_agent_with_id_and_sesssion(
+                llm_function=run_category_description_change,
                 llm_config=llm_config,
                 agent_name=current_agent,
                 agent_type="assessment",
-                input_id="scale-description",
-                pre_prompt=pre_prompt,
-                post_prompt=None
+                category_to_change=self.selected_category,
+                session_name=session_name,
+                input_id="category-description-area"
             )
         except Exception as e:
             logging.error(f"Error in refresh_description: {e}")
-            self.show_error(str(e))
         finally:
             self.is_loading = False
 
@@ -627,8 +631,8 @@ class SelectCategoryWidget(Static):
     async def handle_llm_call_complete(self, event: LLMCallComplete) -> None:
         """Handle LLM call completions."""
         handlers = {
-            "scale-title": self._handle_title_update,
-            "scale-description": self._handle_description_update,
+            "category-input": self._handle_title_update,
+            "category-description-area": self._handle_description_update,
             "refresh-categories": self._handle_categories_update,
             "retrieve-scales": self._handle_scales_update
         }
@@ -645,7 +649,7 @@ class SelectCategoryWidget(Static):
     async def handle_llm_call_error(self, event: LLMCallError) -> None:
         """Handle LLM call errors."""
         logging.error(f"LLM call error for {event.input_id}: {event.error}")
-        self.show_error(event.error)
+        # self.show_error(event.error)
         self.is_loading = False
 
     @on(Button.Pressed)
@@ -674,7 +678,7 @@ class SelectCategoryWidget(Static):
     # LLM result handlers
     async def _handle_title_update(self, result: dict) -> None:
         """Handle title update from LLM result."""
-        self.title_value = result[0]['name']
+        self.title_value = result
 
     async def _handle_description_update(self, result: dict) -> None:
         """Handle description update from LLM result."""
