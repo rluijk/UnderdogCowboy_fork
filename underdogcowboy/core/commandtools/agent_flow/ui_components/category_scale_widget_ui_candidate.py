@@ -78,16 +78,23 @@ class CategoryScaleWidget(SessionDependentUI):
             yield self.scale_widget
 
     def load_category_data(self, agent_name: str):
-        """Load category data from storage and update the reactive variable."""
+        """Load category data from storage, including scales, and update the reactive variable."""
+        
         # Fetch stored data for the specified agent
         agent_data = self.get_or_initialize_category_data(agent_name)
         
-        # Extract only 'name' and 'description' for each category, if available
+        # Extract 'name', 'description', and 'scales' (if present) for each category
         self.categories = [
-            {"name": category["name"], "description": category["description"]}
+            {
+                "name": category.get("name", ""), 
+                "description": category.get("description", ""),
+                "scales": category.get("scales", [])  # Retain existing scales or default to an empty list
+            }
             for category in agent_data.get("categories", [])
             if "name" in category and "description" in category
-        ]            
+        ]
+
+
 
     def get_or_initialize_category_data(self, agent_name: str) -> dict:
             """Retrieve or initialize category data for an agent."""
@@ -105,30 +112,13 @@ class CategoryScaleWidget(SessionDependentUI):
             else:
                 all_agents_data = {agent_name: new_agent_data}
 
-            self.session_manager.update_data("agents", all_agents_data, self.screen_name)
+            # self.session_manager.update_data("agents", all_agents_data, self.screen_name)
             return new_agent_data   
 
     @on(CategoryDataUpdate)
     def handle_category_data_update(self, event: CategoryDataUpdate) -> None:
         """Handle an update event for category data and save updated data to storage."""
         self.update_category_data()
-
-    
-    def __bck__update_category_data(self) -> None:
-        """Save the current state of the agent's data, including all categories, into local storage."""
-        # Construct the agent's data from reactive properties
-        updated_agent_data = {
-            "categories": self.categories,  # Use the full reactive list of categories
-            "meta_notes": "",
-            "base_agent": self.agent_name
-        }
-
-        # Retrieve the entire 'agents' data from storage
-        all_agents_data = self.session_manager.get_data("agents", screen_name=self.screen_name) or {}
-        
-        # Update this specific agent's data
-        all_agents_data[self.agent_name] = updated_agent_data
-        self.session_manager.update_data("agents", all_agents_data, self.screen_name)
 
     def update_category_data(self) -> None:
         """Save the current state of the agent's data, including all categories and scales, into local storage."""
@@ -143,7 +133,8 @@ class CategoryScaleWidget(SessionDependentUI):
             
             # If this is the selected category, add scales
             if updated_category["name"] == self.selected_category:
-                updated_category["scales"] = self.scales  # Add the scales for the selected category
+                if len(self.scales) > 0:
+                    updated_category["scales"] = self.scales  # Add the scales for the selected category
             
             updated_categories.append(updated_category)
         
