@@ -1,5 +1,7 @@
 import logging
 import asyncio
+import copy
+            
 
 from typing import Tuple, Optional, Dict, Any, List
 
@@ -129,8 +131,7 @@ class CategoryScaleWidget(SessionDependentUI):
         # Iterate through categories and add scales to the selected one
         for category in self.categories:
             # Copy category data
-            updated_category = category.copy()
-            
+            updated_category = copy.deepcopy(category)
             # If this is the selected category, add scales
             if updated_category["name"] == self.selected_category:
                 if len(self.scales) > 0:
@@ -151,7 +152,6 @@ class CategoryScaleWidget(SessionDependentUI):
         
         # Step 4: Persist updated data to storage
         self.session_manager.update_data("agents", all_agents_data, self.screen_name)
-
 
 
     def watch_selected_category(self, old_value: Optional[str], new_value: Optional[str]) -> None:
@@ -245,20 +245,50 @@ class CategoryWidget(SessionDependentUI):
     async def handle_category_changed(self, event: Select.Changed) -> None:
         """Handle category selection changes."""
         selected_value = event.value
+        
+        # communication with other widget
+        scale_select = self.app.query_one(SelectScaleWidget).scale_select
+
+        scale_input_box = self.app.query_one(SelectScaleWidget).scale_input_box
+        scale_description_area = self.app.query_one(SelectScaleWidget).scale_description_area
+
+        # clear scales
+        # self.app.query_one(CategoryScaleWidget).scales = []
+        # self.app.query_one(SelectScaleWidget).scales = []
+
+
         logging.info(f"Category Select changed: {selected_value}")
 
         if selected_value == Select.BLANK:
             self.selected_category = None
             self.show_controls = False
+            scale_select.set_options([])  # Clear scale options
             return
 
         if selected_value == "Create Initial Categories":
             self.show_controls = False  # Hide controls during creation
             await self._create_initial_categories()
+            scale_select.set_options([])  # Clear scale options
             return
 
-        self.selected_category = selected_value
-        self.show_controls = True 
+        # Find the selected category data
+        category = next((cat for cat in self.categories if cat['name'] == selected_value), None)
+       
+        if category:
+            self.selected_category = category['name']
+
+            # Extract scales
+            scales = category.get('scales', [])
+            scale_options = [(scale['name'],scale['name'] ) for scale in scales]  # Adjust based on your scale structure
+
+            # Update the scale_select widget
+            scale_select.set_options(scale_options)
+
+            logging.info(f"Scales updated for category '{selected_value}': {scale_options}")
+        else:
+            logging.warning(f"Selected category '{selected_value}' not found in data.")
+            self.scale_select.set_options([])  # Clear scale options if category not found
+
 
     # LLM Event Handlers
     @on(LLMCallComplete)
@@ -521,8 +551,6 @@ class SelectCategoryWidget(Static):
         self.post_message(CategoryDataUpdate())
 
 
-
-
     def watch_description_value(self, old_value: str, new_value: str) -> None:
         """React to description value changes and update the current category's description."""
         # Locate the selected category within `self.categories` and update its description
@@ -726,7 +754,7 @@ class SelectCategoryWidget(Static):
         if self.selected_category:
             for cat in self.categories:
                 if cat['name'] == self.selected_category:
-                    cat['scale'] = result
+                    cat['scales'] = result
                     break
 
 class ScaleWidget(SessionDependentUI):
@@ -735,7 +763,7 @@ class ScaleWidget(SessionDependentUI):
     # Reactive properties
     selected_category = Reactive(None)
     selected_scale = Reactive(None)
-    current_scales = Reactive([])
+    scales = Reactive([])
     is_loading = Reactive(False)
     show_scales = Reactive(False)
 
@@ -765,7 +793,7 @@ class ScaleWidget(SessionDependentUI):
         if new_value:
             asyncio.create_task(self._update_scales_for_category(new_value))
 
-    def watch_current_scales(self, old_value: List, new_value: List) -> None:
+    def watch_scales(self, old_value: List, new_value: List) -> None:
         """React to changes in current scales."""
         self.scale_components.scales = new_value
         self.show_scales = bool(new_value)
@@ -788,15 +816,18 @@ class ScaleWidget(SessionDependentUI):
             None
         )
         if category_data:
-            self.current_scales = category_data.get("scale", [])
-            if not self.current_scales:
+            self.scales = category_data.get("scales", [])
+            if not self.scales:
                 # Show create button if no scales available
                 self.scale_components.show_create_button = True
+            else:
+                self.scale_components.show_create_button = False
+            logging.debug(f"Updated scales for category '{category_name}': {self.scales}")
 
     def _update_scale_details(self, scale_name: str) -> None:
         """Update the display of scale details."""
         scale_data = next(
-            (scale for scale in self.current_scales if scale['name'] == scale_name),
+            (scale for scale in self.scales if scale['name'] == scale_name),
             None
         )
         if scale_data:
@@ -894,55 +925,58 @@ class ScaleWidget(SessionDependentUI):
         self.show_error(event.error)
         self.is_loading = False
 
-    # Scale data update methods
     async def _handle_scales_update(self, scales: List[Dict]) -> None:
         """Handle scales update from LLM result."""
         try:
             # Update the scales in all_categories
             for cat in self.all_categories:
                 if cat['name'] == self.selected_category:
-                    cat['scale'] = scales
+                    cat['scales'] = scales  # Corrected key
                     break
             
             # Update current scales (triggers watcher)
-            self.current_scales = scales
+            self.scales = scales
 
-            # sync reactive state
+            # Sync reactive state
             self.app.query_one(CategoryScaleWidget).scales = scales 
             
             logging.debug(f"Scales updated for category '{self.selected_category}': {scales}")
+            logging.info("sending post for CategoryDataUpdate after scales are in")
+            self.post_message(CategoryDataUpdate())
+            
+
+
         except Exception as e:
             logging.error(f"Error updating scales: {e}")
-            self.show_error("Failed to update scales.")
 
     def _update_scale_name(self, old_name: str, new_name: str) -> None:
         """Update scale name in data structures."""
-        updated_scales = self.current_scales.copy()
+        updated_scales = self.scales.copy()
         for scale in updated_scales:
             if scale['name'] == old_name:
                 scale['name'] = new_name
                 break
-        self.current_scales = updated_scales  # Trigger watcher
+        self.scales = updated_scales  # Trigger watcher
 
         # Update in all_categories
         for cat in self.all_categories:
             if cat['name'] == self.selected_category:
-                cat['scale'] = updated_scales
+                cat['scales'] = updated_scales
                 break
 
     def _update_scale_description(self, scale_name: str, new_description: str) -> None:
         """Update scale description in data structures."""
-        updated_scales = self.current_scales.copy()
+        updated_scales = self.scales.copy()
         for scale in updated_scales:
             if scale['name'] == scale_name:
                 scale['description'] = new_description
                 break
-        self.current_scales = updated_scales  # Trigger watcher
+        self.scales = updated_scales  # Trigger watcher
 
         # Update in all_categories
         for cat in self.all_categories:
             if cat['name'] == self.selected_category:
-                cat['scale'] = updated_scales
+                cat['scales'] = updated_scales
                 break
 
 class SelectScaleWidget(Static):
@@ -991,13 +1025,12 @@ class SelectScaleWidget(Static):
 
     def watch_scales(self, old_value: list, new_value: list) -> None:
         """React to scales list changes."""
-        self.scale_select.set_options([(scale['name'], scale['name']) for scale in new_value])
-        self.scale_select.visible = bool(new_value)
-        self.show_create_button = not bool(new_value)
-        if new_value:
-            self.selected_scale = new_value[0]['name']
+        options = [("create_initial", "Create Initial Scales")] if self.show_create_button else []
+        options += [(scale['name'], scale['name']) for scale in new_value]
+        self.scale_select.set_options(options)
+        self.scale_select.visible = bool(new_value) or self.show_create_button
         self.refresh()
-        self.post_message(CategoryDataUpdate())
+
 
     def watch_show_create_button(self, old_value: bool, new_value: bool) -> None:
         """React to create button visibility changes."""
@@ -1012,12 +1045,13 @@ class SelectScaleWidget(Static):
 
     def watch_description_value(self, old_value: str, new_value: str) -> None:
         """React to description value changes."""
-        self.scale_description_area.load_text(new_value)
-        self.scale_description_area.refresh()
+        if new_value != self.scale_description_area.text:
+            self.scale_description_area.load_text(new_value) 
+            self.scale_description_area.refresh()
 
     def watch_selected_scale(self, old_value: Optional[str], new_value: Optional[str]) -> None:
         """React to scale selection changes."""
-        if not new_value:
+        if not new_value or new_value == "create_initial":
             self.show_edit_controls = False
             return
 
@@ -1027,7 +1061,6 @@ class SelectScaleWidget(Static):
             None
         )
         if scale_data:
-            self.title_value = scale_data['name']
+            self.title_value = scale_data.get('name', '')
             self.description_value = scale_data.get('description', '')
-
-            
+            logging.debug(f"Selected scale '{new_value}' with data: {scale_data}")            
