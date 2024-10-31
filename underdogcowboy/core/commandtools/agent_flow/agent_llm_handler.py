@@ -295,7 +295,103 @@ def run_category_call(llm_config, session_name, agent_name, agent_type, pre_prom
         return f"Error: {str(e)}"
 
 def run_category_description_change(llm_config, agent_name, agent_type, category_to_change, session_name):
-    pass
+    from underdogcowboy import AgentDialogManager
+    import json
+    import os
+
+    config = load_config()
+    base_dir = config['storage']['base_dir']
+    agents_dir = os.path.expanduser("~/.underdogcowboy/agents")
+
+    agent_file = os.path.join(agents_dir, f"{agent_name}.json")
+    if not os.path.exists(agent_file):
+        return f"Error: Agent file for '{agent_name}' not found."
+    
+    with open(agent_file, 'r') as f:
+        agent_data = json.load(f)
+
+    # Ensure the agent_type exists in the registry
+    if agent_type not in AGENT_REGISTRY:
+        return f"Error: Invalid agent type '{agent_type}' specified."
+
+    logging.info(f"agent_type involved: {agent_type}")
+    logging.info(f"agent name: {agent_name}")
+
+    # Dynamically import the correct agent from the registry
+    try:
+        agent_module = __import__('underdogcowboy', fromlist=[AGENT_REGISTRY[agent_type]])
+        agent = getattr(agent_module, AGENT_REGISTRY[agent_type])
+    except ImportError as e:
+        logging.error("Agent Registry ImportError", exc_info=True)
+        return f"Error: Could not import the specified agent '{agent_type}'. {str(e)}"
+
+    # Initialize the agent and process the prompt
+    model_id = llm_config['model_id']
+    adm = AgentDialogManager([agent], model_name=model_id)
+
+    # Load session file
+    session_file = os.path.expanduser(os.path.join(base_dir, f"{session_name}.json"))
+    screen_name = "AgentAssessmentBuilderScreen"
+    
+    if not os.path.exists(session_file):
+        return f"Error: Session file for '{session_name}' not found."
+    
+    # Load session data and retrieve the current categories
+    with open(session_file, 'r') as file:
+        session_data = json.load(file)
+    
+    current_categories = session_data.get('screens', {}).get(screen_name, {}).get("data", {}).get("agents", {}).get(agent_name, {}).get("categories", [])
+
+    # Define the prompt with enriched context including agent history
+    prompt = f"""
+    Analyze the following agent definition and its current categories. Then suggest a new description specifically for the category '{category_to_change}'.
+
+    Agent Definition:
+    {json.dumps(agent_data, indent=2)}
+    
+    Current Categories with Titles:
+    {json.dumps([{cat['name']: cat.get('title', '')} for cat in current_categories], indent=2)}
+    
+    Change only the description of '{category_to_change}', maintaining its original purpose and context while ensuring it aligns well with other categories.
+
+    Return your response in the following JSON format:
+    {{
+        "new_description": "Suggested New Description"
+    }}
+    """
+    
+    # Request a response
+    response = agent >> prompt
+    
+    # Define the expected keys for our JSON structure
+    expected_keys = ["new_description"]
+
+    # Create an instance of JSONExtractor
+    extractor = JSONExtractor(response.text, expected_keys)
+
+    # Extract and parse the JSON
+    json_data, inspection_data = extractor.extract_and_parse_json()
+
+    # Define expected inspection data
+    expected_inspection_data = {
+        'number_of_keys': 1,
+        'keys': ["new_description"],
+        'values_presence': {"new_description": True},
+        'keys_match': True
+    }
+
+    # Check the inspection data against the expected data
+    is_correct, deviations = extractor.check_inspection_data(expected_inspection_data)
+
+    if is_correct:
+        logging.info("New description extracted successfully.")
+        new_description = json_data["new_description"]
+        return new_description
+    else:
+        logging.info("Error in extracting. Deviations found:")
+        logging.info(deviations)
+        logging.info("Raw response:")
+        logging.info(response.text)
 
 def run_category_title_change(llm_config, agent_name, agent_type, category_to_change, session_name):
     from underdogcowboy import AgentDialogManager
@@ -390,19 +486,16 @@ def run_category_title_change(llm_config, agent_name, agent_type, category_to_ch
     is_correct, deviations = extractor.check_inspection_data(expected_inspection_data)
 
     if is_correct:
-        print("New title extracted successfully.")
-        new_categories = json_data["new_title"]
-        return new_categories
+        logging.info("New title extracted successfully.")
+        new_title = json_data["new_title"]
+        return new_title
     else:
-        print("Error in extracting categories. Deviations found:")
-        print(deviations)
-        print("Raw response:")
-        print(response.text)
+        logging.info("Error in extracting. Deviations found:")
+        logging.info(deviations)
+        logging.info("Raw response:")
+        logging.info(response.text)
 
-
-
-
-def run_scale_call(llm_config, agent_name, agent_type, selected_category, pre_prompt=None, post_prompt=None):
+def run_scale_call(llm_config, agent_name, agent_type, category_to_change, session_name):
     """
     Retrieves 5 scales (title and description) for a selected category using the LLM.
 
@@ -411,19 +504,36 @@ def run_scale_call(llm_config, agent_name, agent_type, selected_category, pre_pr
         agent_name (str): Name of the agent.
         agent_type (str): Type of the agent.
         selected_category (str): The category for which to retrieve scales.
-        pre_prompt (str, optional): Additional prompt before the main prompt.
-        post_prompt (str, optional): Additional prompt after the main prompt.
-
+        session_name: Name of the session the user is doing the work in. 
     Returns:
         dict or str: Updated assessment_structure with scales or an error message.
     """
+    from underdogcowboy import AgentDialogManager
+    import json
+    import os
+
+    config = load_config()
+    base_dir = config['storage']['base_dir']
+    session_file = os.path.expanduser(os.path.join(base_dir, f"{session_name}.json"))
+    screen_name = "AgentAssessmentBuilderScreen"
+    
+    if not os.path.exists(session_file):
+        return f"Error: Session file for '{session_name}' not found."
+    
+    # Load session data and retrieve the current categories
+    with open(session_file, 'r') as file:
+        session_data = json.load(file)
+ 
+    current_categories = session_data.get('screens', {}).get(screen_name, {}).get("data", {}).get("agents", {}).get(agent_name, {}).get("categories", [])
+   
+
     # Ensure the agent_type exists in the registry
     if agent_type not in AGENT_REGISTRY:
         return f"Error: Invalid agent type '{agent_type}' specified."
 
     logging.info(f"Agent type involved: {agent_type}")
     logging.info(f"Agent name: {agent_name}")
-    logging.info(f"Selected category: {selected_category}")
+    logging.info(f"Selected category: {category_to_change}")
 
     # Dynamically import the correct agent from the registry
     try:
@@ -458,29 +568,24 @@ def run_scale_call(llm_config, agent_name, agent_type, selected_category, pre_pr
 
         prompt = f"""
         You are tasked with creating assessment scales for a specific category.
-        For the category "{selected_category}", please suggest 5 scales.
-        Each scale should have a "title" and a "description".
+        For the category "{category_to_change}", please suggest 5 scales.
+        Each scale should have a "name" and a "description".
 
+        this are the current Categories with Descriptions for reference in your analysis:
+        {json.dumps([{cat['name']: cat.get('description', '')} for cat in current_categories], indent=2)}
+  
         Return your response in the following JSON format:
         {{
             "scales": [
-                {{"title": "Scale1", "description": "Description of Scale1"}},
+                {{"name": "Scale1", "description": "Description of Scale1"}},
                 ... (repeat for 5 scales)
             ]
         }}
         Agent definition: {json.dumps(agent_data)}
         """
 
-        # Include pre_prompt and post_prompt if provided
-        if pre_prompt:
-            prompt = pre_prompt + "\n" + prompt
-        if post_prompt:
-            prompt = prompt + "\n" + post_prompt
-
-        logging.info(f"Prompt for scales: {prompt}")
-
         response = agent >> prompt
-        print("Scale retrieval complete. Extracting scales...")
+        logging.info("Scale retrieval complete. Extracting scales...")
 
         # Define the expected keys for our JSON structure
         expected_keys = ["scales"]
@@ -503,43 +608,20 @@ def run_scale_call(llm_config, agent_name, agent_type, selected_category, pre_pr
         is_correct, deviations = extractor.check_inspection_data(expected_inspection_data)
 
         if is_correct:
-            print("Scales extracted successfully.")
+            logging.info("Scales extracted successfully.")
             scales = json_data["scales"]
             for scale in scales:
                 scale["fixed"] = False
 
-            # Locate the selected category in the assessment_structure
-            # This assumes that assessment_structure is loaded or constructed elsewhere
-            # Here, we will append the scales to the selected category
-            # For demonstration, we'll add categories from agent_data if not already present
 
-            # Initialize categories if empty
-            if not assessment_structure["categories"]:
-                assessment_structure["categories"] = agent_data.get("categories", [])
-
-            # Find the category
-            category_found = False
-            for category in assessment_structure["categories"]:
-                if category["name"] == selected_category:
-                    category["scales"] = scales
-                    category_found = True
-                    break
-
-            if not category_found:
-                # Optionally, handle the case where the category is not found
-                assessment_structure["categories"].append({
-                    "name": selected_category,
-                    "scales": scales
-                })
-
-            logging.info(f"Returning the updated assessment_structure with scales: {assessment_structure}")
-            return assessment_structure
+            logging.info(f"Returning the updated assessment_structure with scales: {scales}")
+            return scales
 
         else:
-            print("Error in extracting scales. Deviations found:")
-            print(deviations)
-            print("Raw response:")
-            print(response.text)
+            logging.info("Error in extracting scales. Deviations found:")
+            logging.info(deviations)
+            logging.info("Raw response:")
+            logging.info(response.text)
             return "Error: Failed to extract scales correctly."
 
     except Exception as e:

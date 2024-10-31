@@ -44,6 +44,9 @@ class CategoryScaleWidget(SessionDependentUI):
     categories = Reactive[List[Dict]](default=[])
     selected_category = Reactive[Optional[str]](None)
 
+    scales = Reactive([])
+    # selected_scale = Reactive()
+
     def __init__(self, session_manager, screen_name, agent_name_plain: str, id: Optional[str] = None):
         """Initialize the coordinator widget."""
         super().__init__(session_manager, screen_name, agent_name_plain)
@@ -111,7 +114,7 @@ class CategoryScaleWidget(SessionDependentUI):
         self.update_category_data()
 
     
-    def update_category_data(self) -> None:
+    def __bck__update_category_data(self) -> None:
         """Save the current state of the agent's data, including all categories, into local storage."""
         # Construct the agent's data from reactive properties
         updated_agent_data = {
@@ -126,6 +129,39 @@ class CategoryScaleWidget(SessionDependentUI):
         # Update this specific agent's data
         all_agents_data[self.agent_name] = updated_agent_data
         self.session_manager.update_data("agents", all_agents_data, self.screen_name)
+
+    def update_category_data(self) -> None:
+        """Save the current state of the agent's data, including all categories and scales, into local storage."""
+        
+        # Step 1: Prepare updated categories with scales for the selected category
+        updated_categories = []
+        
+        # Iterate through categories and add scales to the selected one
+        for category in self.categories:
+            # Copy category data
+            updated_category = category.copy()
+            
+            # If this is the selected category, add scales
+            if updated_category["name"] == self.selected_category:
+                updated_category["scales"] = self.scales  # Add the scales for the selected category
+            
+            updated_categories.append(updated_category)
+        
+        # Step 2: Construct the updated agent data
+        updated_agent_data = {
+            "categories": updated_categories,  # Use categories with updated scales for the selected category
+            "meta_notes": "",
+            "base_agent": self.agent_name
+        }
+
+        # Step 3: Retrieve the entire 'agents' data from storage and update for the current agent
+        all_agents_data = self.session_manager.get_data("agents", screen_name=self.screen_name) or {}
+        all_agents_data[self.agent_name] = updated_agent_data
+        
+        # Step 4: Persist updated data to storage
+        self.session_manager.update_data("agents", all_agents_data, self.screen_name)
+
+
 
     def watch_selected_category(self, old_value: Optional[str], new_value: Optional[str]) -> None:
             """Propagate category selection to scale widget."""
@@ -345,9 +381,6 @@ class CategoryWidget(SessionDependentUI):
             # Unset initializing flag in SelectCategoryWidget
             self.app.query_one(SelectCategoryWidget).initializing = False
 
-
-
-
     def _get_llm_config(self) -> Optional[Tuple[Dict[str, Any], str]]:
         """Get LLM configuration and agent."""
         llm_config = self.app.get_current_llm_config()
@@ -394,7 +427,7 @@ class SelectCategoryWidget(Static):
         yield BoundTextArea("", id="category-description-area")
         yield Button("Refresh Title", id="refresh-title-button")
         yield Button("Refresh Description", id="refresh-description-button")
-        yield Button("Refresh Both", id="refresh-both-button")
+        # yield Button("Refresh Both", id="refresh-both-button")
         yield Label("Modify Directly or use buttons for agent assistance", id="lbl_text")
 
 
@@ -407,7 +440,7 @@ class SelectCategoryWidget(Static):
         self.description_area = self.query_one("#category-description-area", BoundTextArea)
         self.refresh_title_button = self.query_one("#refresh-title-button", Button)
         self.refresh_description_button = self.query_one("#refresh-description-button", Button)
-        self.refresh_both_button = self.query_one("#refresh-both-button", Button)
+        # self.refresh_both_button = self.query_one("#refresh-both-button", Button)
         self.lbl_text = self.query_one("#lbl_text", Label)
 
         # Initial visibility setup
@@ -416,7 +449,7 @@ class SelectCategoryWidget(Static):
         self.description_area.visible = False
         self.refresh_title_button.visible = False
         self.refresh_description_button.visible = False
-        self.refresh_both_button.visible = False
+        # self.refresh_both_button.visible = False
         self.lbl_text.visible = False
 
         self.categories = self._categories_reference
@@ -455,7 +488,7 @@ class SelectCategoryWidget(Static):
             self.description_area.visible = new_value
             self.refresh_title_button.visible = new_value
             self.refresh_description_button.visible = new_value
-            self.refresh_both_button.visible = new_value
+            # self.refresh_both_button.visible = new_value
             self.lbl_text.visible = new_value
 
 
@@ -682,7 +715,7 @@ class SelectCategoryWidget(Static):
 
     async def _handle_description_update(self, result: dict) -> None:
         """Handle description update from LLM result."""
-        self.description_value = result[0]['description']
+        self.description_value = result
 
     async def _handle_categories_update(self, result: dict) -> None:
         """Handle categories update from LLM result."""
@@ -721,7 +754,8 @@ class ScaleWidget(SessionDependentUI):
         self.selected_category = self.app.query_one(CategoryScaleWidget).selected_category
         # we reference them as all_categories (we are working just with the selected category)
         self.all_categories = self.app.query_one(CategoryScaleWidget).categories
-  
+        self.session_manager = session_manager
+
         self.agent_name = agent_name
         self.scale_components = SelectScaleWidget()
 
@@ -801,17 +835,16 @@ class ScaleWidget(SessionDependentUI):
                 return
 
             llm_config, current_agent = config
-            pre_prompt = f"prompt to retrieve scales for category: {self.selected_category}"
+            session_name = self.session_manager.current_session_name.plain
             
-            await self.llm_call_manager.submit_llm_call_with_agent_and_id(
+            await self.llm_call_manager.submit_llm_call_with_agent_with_id_and_sesssion(
                 llm_function=run_scale_call,
                 llm_config=llm_config,
                 agent_name=current_agent,
-                id=self.selected_category,
                 agent_type="assessment",
+                category_to_change=self.selected_category,
+                session_name = session_name,
                 input_id="retrieve-scales",
-                pre_prompt=pre_prompt,
-                post_prompt=None
             )
         except Exception as e:
             logging.error(f"Error in retrieve_scales: {e}")
@@ -882,6 +915,9 @@ class ScaleWidget(SessionDependentUI):
             
             # Update current scales (triggers watcher)
             self.current_scales = scales
+
+            # sync reactive state
+            self.app.query_one(CategoryScaleWidget).scales = scales 
             
             logging.debug(f"Scales updated for category '{self.selected_category}': {scales}")
         except Exception as e:
@@ -970,6 +1006,7 @@ class SelectScaleWidget(Static):
         if new_value:
             self.selected_scale = new_value[0]['name']
         self.refresh()
+        self.post_message(CategoryDataUpdate())
 
     def watch_show_create_button(self, old_value: bool, new_value: bool) -> None:
         """React to create button visibility changes."""
@@ -984,9 +1021,8 @@ class SelectScaleWidget(Static):
 
     def watch_description_value(self, old_value: str, new_value: str) -> None:
         """React to description value changes."""
-        if new_value != self.scale_description_area.value:
-            self.scale_description_area.value = new_value
-            self.scale_description_area.refresh()
+        self.scale_description_area.load_text(new_value)
+        self.scale_description_area.refresh()
 
     def watch_selected_scale(self, old_value: Optional[str], new_value: Optional[str]) -> None:
         """React to scale selection changes."""
