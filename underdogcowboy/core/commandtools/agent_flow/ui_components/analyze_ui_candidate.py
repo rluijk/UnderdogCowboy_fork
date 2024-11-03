@@ -127,7 +127,7 @@ class AnalyzeUI(SessionDependentUI):
 
     def update_and_show_result(self, result: str) -> None:
         logging.info(f"Entering in update error: result var: {result}")
-        self.session_manager.update_data("last_analysis", result)
+        self.session_manager.update_data("last_analysis", result, screen_name=self.screen_name)
         self.show_result(result)
 
     def show_result(self, result: str) -> None:

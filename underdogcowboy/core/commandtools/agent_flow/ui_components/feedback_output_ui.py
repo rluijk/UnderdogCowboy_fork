@@ -24,7 +24,6 @@ class FeedbackOutputUI(SessionDependentUI):
                     agent_name_plain):
         super().__init__(session_manager, screen_name, agent_name_plain)
         self.session_manager = session_manager
-
         self.llm_call_manager = LLMCallManager()
         self.llm_call_manager.set_message_post_target(self)
         logging.info(f"post target message set to: {self.llm_call_manager._message_post_target}")
@@ -72,10 +71,12 @@ class FeedbackOutputUI(SessionDependentUI):
 
         pre_prompt = "Provide feedback on how the following agent understands the structure of the output it produces."
       
+        session_name = self.session_manager.current_session_name.plain
         asyncio.create_task(self.llm_call_manager.submit_llm_call_with_agent( 
             
             llm_function = send_agent_data_to_llm,
             llm_config = llm_config,
+            session_name=session_name,
             agent_name = current_agent,
             agent_type = "clarity",
             input_id = "feedback-output",
@@ -97,7 +98,7 @@ class FeedbackOutputUI(SessionDependentUI):
             self.query_one("#loading-feedback-output").add_class("hidden")
 
     def update_and_show_feedback(self, result: str) -> None:
-        self.session_manager.update_data("last_feedback_output", result)
+        self.session_manager.update_data("last_feedback_output", result, screen_name=self.screen_name)
         self.show_feedback(result)
 
     def show_feedback(self, result: str) -> None:

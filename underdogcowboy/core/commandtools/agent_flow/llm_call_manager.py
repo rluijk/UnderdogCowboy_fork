@@ -40,7 +40,7 @@ class LLMCallManager(MessageEmitterMixin):
             self.post_message(LLMCallComplete(sender=self, input_id=input_id, result=response, adm=adm))
             logging.info(f"Used post_message to send LLMCallComplete with input_id {input_id}")
         except Exception as e:
-            logging.debug("_handle_task reports error: {e}")
+            logging.debug(f"_handle_task reports error: {e}")
             self.post_message(LLMCallError(sender=self, input_id=input_id, error=str(e)))
 
         logging.debug("_handle Task post (after) send self.post_message")

@@ -34,7 +34,7 @@ def load_config() -> dict:
         return yaml.safe_load(file)
 
 
-def send_agent_data_to_llm(llm_config, agent_name, agent_type, pre_prompt=None, post_prompt=None):
+def send_agent_data_to_llm(llm_config, session_name, agent_name, agent_type, pre_prompt=None, post_prompt=None):
     """
     Calls the LLM via a dynamically selected agent with the agent's data included in the prompt.
 
@@ -216,12 +216,22 @@ def run_category_call(llm_config, session_name, agent_name, agent_type, pre_prom
         with open(session_file, 'r') as file:
             session_data = json.load(file)
 
-        # Check if the screen data exists in the JSON structure
-        current_storage = []
-        if 'screens' in session_data and screen_name in session_data['screens']:
-            # Extract and set the specific screen data
-            current_storage = session_data['screens'][screen_name]["data"]["agents"][agent_name]["categories"]
-        
+        # Ensure the agent entry exists within the specified screen's data
+        if agent_name not in session_data['screens'][screen_name]["data"]["agents"]:
+            # Initialize the agent entry with an empty categories list
+            session_data['screens'][screen_name]["data"]["agents"][agent_name] = {
+                "categories": [],
+                "meta_notes": "",
+                "base_agent": agent_name
+            }
+
+            # Save the modified session data back to the JSON file
+            with open(session_file, 'w') as file:
+                json.dump(session_data, file, indent=4)
+
+        # Now retrieve the current storage for categories
+        current_storage = session_data['screens'][screen_name]["data"]["agents"][agent_name]["categories"]
+
         assessment_structure["categories"] = current_storage
 
         if not os.path.exists(agent_file):
