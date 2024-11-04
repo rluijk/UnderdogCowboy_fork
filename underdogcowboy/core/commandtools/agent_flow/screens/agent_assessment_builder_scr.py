@@ -154,7 +154,10 @@ class AgentAssessmentBuilderScreen(SessionScreen):
         action = event.action
 
         if action == "reset":
-            self.clear_session()
+            self.state_machine.current_state = self.state_machine.states["initial"]
+            self.app.query_one(StateInfo).update_state_info(self.state_machine, "")
+            self.app.query_one(StateButtonGrid).update_buttons()
+
 
         dynamic_container = self.query_one("#center-dynamic-container-agent-assessment-builder", DynamicContainer)
         dynamic_container.clear_content()
@@ -162,7 +165,7 @@ class AgentAssessmentBuilderScreen(SessionScreen):
         # Mapping actions to their respective UI classes
         ui_class = {
             "load_agent": LoadAgentUI,
-            "list_categories" : CategoryScaleWidget # this was placeholder: CategoryListUI 
+            "analyze" : CategoryScaleWidget # this was placeholder: CategoryListUI 
         }.get(action)
 
         if ui_class:
@@ -203,5 +206,10 @@ class AgentAssessmentBuilderScreen(SessionScreen):
         dynamic_container = self.query_one("#center-dynamic-container-agent-assessment-builder", DynamicContainer)
         dynamic_container.clear_content()
         
+        self.state_machine.current_state = self.state_machine.states["analysis_ready"]
+        self.app.query_one(StateInfo).update_state_info(self.state_machine, "")
+        self.app.query_one(StateButtonGrid).update_buttons()
+
+
         self.update_header()
         

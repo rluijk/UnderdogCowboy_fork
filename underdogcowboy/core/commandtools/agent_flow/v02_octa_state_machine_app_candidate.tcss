@@ -209,6 +209,18 @@ Collapsible > .collapsible--content {
     border: none;
 }
 
+.grid-buttons{
+    grid-size: 2 1;
+    grid-gutter: 1 1;
+    padding: 1;
+    width: 100%;
+    height: auto;
+    background: #5e3a2e 20%;
+    border: none;
+    align: center top; 
+}
+
+
 /* --- Left Side Components --- */
 
 .left-side-buttons {
@@ -430,11 +442,6 @@ Toast.-error {
     color: yellow; 
 } */
 
-DynamicContainer{
-    border: tall #000000;
-    background: #000000;
-
-}
 
 /* Overall Container Styling */
 DynamicContainer {
@@ -448,21 +455,24 @@ DynamicContainer {
 
 /* CategoryScaleWidget Styling */
 CategoryScaleWidget {
-    border: pink;
+    border: none;
     width: 100%;
-    padding: 1;
+    padding: 0;
+    overflow: auto;
+    height: 90;
 }
 
 /* CategoryWidget Styling */
 CategoryWidget {
-    border: blue;
+    border: #5e3a2e;
     width: 100%;
-    padding: 1;
+    padding: 0;
 }
 
 /* SelectCategoryWidget Styling */
 SelectCategoryWidget {
-    border: solid red;
+    border: #5e3a2e 20%;
+    background: #5e3a2e 20%;
     height: 40;
     width: 100%;
     padding: 1;
@@ -470,7 +480,7 @@ SelectCategoryWidget {
 
 /* SelectScaleWidget Styling */
 SelectScaleWidget {
-    border: orange;
+    border: #5e3a2e;
     width: 100%;
     padding: 1;
     
@@ -479,7 +489,7 @@ SelectScaleWidget {
 
 /* ScaleWidget Styling */
 ScaleWidget {
-    border: yellow;
+    border: #5e3a2e;
     width: 100%;
     padding: 1;
 }
@@ -494,23 +504,41 @@ ScaleWidget {
 }
 
 /* Full Width for Select, Input, and TextArea */
-Select {
+Select{ 
     width: 100%;
     margin: 1 0;
+    border: #5e3a2e;
+    
 }
+
+Select:focus{
+    border: #9ed9de
+}
+
+
 
 Input {
     width: 100%;
     margin: 1 0;
-    border: grey
+    border: #5e3a2e
 }
+
+Input:focus {
+    border: #9ed9de;
+}
+
 
 TextArea {
     width: 100%;
     height: 15;
     margin: 1 0;
-    border: white
+    border: #5e3a2e
 }
+
+TextArea:focus {
+    border: #9ed9de;
+}
+
 
 /* Loading Indicator Visibility */
 #loading-indicator, #scale-loading-indicator {

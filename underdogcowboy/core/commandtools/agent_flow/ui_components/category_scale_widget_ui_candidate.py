@@ -8,7 +8,7 @@ from typing import Tuple, Optional, Dict, Any, List
 from textual import on
 from textual.reactive import Reactive
 from textual.app import App, ComposeResult
-from textual.containers import Vertical
+from textual.containers import Vertical, Grid
 from textual.widgets import Label, Select, Input, Static, TextArea, Button
 from textual.message import Message
 
@@ -446,8 +446,9 @@ class SelectCategoryWidget(Static):
         yield Static("Loading categories...", id="loading-indicator")
         yield Input(placeholder="Rename selected category", id="category-input")
         yield BoundTextArea("", id="category-description-area")
-        yield Button("Refresh Title", id="refresh-title-button")
-        yield Button("Refresh Description", id="refresh-description-button")
+        with Grid(id="grid-buttons", classes="grid-buttons"):
+            yield Button("Refresh Title", id="refresh-title-button", classes="action-button")
+            yield Button("Refresh Description", id="refresh-description-button", classes="action-button")
         # yield Button("Refresh Both", id="refresh-both-button")
         yield Label("Modify Directly or use buttons for agent assistance", id="lbl_text")
 
@@ -479,7 +480,6 @@ class SelectCategoryWidget(Static):
         self.llm_call_manager = LLMCallManager()
         self.llm_call_manager.set_message_post_target(self)
         logging.info(f"Post target message set to: {self.llm_call_manager._message_post_target}")
-
 
 
     def update_category_details(self, title: str, description: str) -> None:
@@ -819,9 +819,11 @@ class ScaleWidget(SessionDependentUI):
             self.scales = category_data.get("scales", [])
             if not self.scales:
                 # Show create button if no scales available
-                self.scale_components.show_create_button = True
+                # self.scale_components.show_create_button = True
+                self.app.query_one(SelectScaleWidget).show_create_button = True
             else:
-                self.scale_components.show_create_button = False
+                # self.scale_components.show_create_button = False
+                self.app.query_one(SelectScaleWidget).show_create_button = False
             logging.debug(f"Updated scales for category '{category_name}': {self.scales}")
 
     def _update_scale_details(self, scale_name: str) -> None:
@@ -996,7 +998,7 @@ class SelectScaleWidget(Static):
 
     def _init_widgets(self):
         """Initialize all widget components."""
-        self.create_scales_button = Button("Create Initial Scales", id="create-scales-button")
+        self.create_scales_button = Button("Create Initial Scales", id="create-scales-button", classes="action-button")
         self.scale_select = Select([], id="scale-select")
         self.loading_indicator = Static("Loading scales...", id="scale-loading-indicator")
         self.scale_input_box = Input(placeholder="Rename selected scale", id="scale-input")
