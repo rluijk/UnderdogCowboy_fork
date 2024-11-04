@@ -1,4 +1,5 @@
 from typing import Dict, List, Set
+import os
 import logging
 
 from textual import on
@@ -50,6 +51,7 @@ from screens.session_screen import SessionScreen
 
 # State Machines for each screen
 from state_machines.clarity_state_machine import create_clarity_state_machine
+
 
 
 class ClarityScreen(SessionScreen):
@@ -180,16 +182,21 @@ class ClarityScreen(SessionScreen):
             self.call_later(self.update_ui_after_session_load)
 
     def on_agent_selected(self, event: AgentSelected):
+
         self.current_agent = event.agent_name.plain
         self.agent_name_plain = event.agent_name.plain
         self.notify(f"Loaded Agent: {event.agent_name.plain}")
-        # self.query_one(DynamicContainer).clear_content()
+
         dynamic_container = self.query_one("#center-dynamic-container-clarity", DynamicContainer)
         dynamic_container.clear_content()
         
         # Update header with current agent and session (if available)
         self.update_header(agent_name=event.agent_name.plain)
         
+        # Transition of the statemachine 
+        self.state_machine.current_state = self.state_machine.states["agent_loaded"]
+        self.query_one(StateInfo).update_state_info(self.state_machine, "")
+        self.query_one(StateButtonGrid).update_buttons()
         # Store the current agent in the session data
         self.session_manager.update_data("current_agent", self.current_agent, screen_name=self.screen_name)
 
@@ -298,7 +305,49 @@ class ClarityScreen(SessionScreen):
         action = event.action
 
         if action == "reset":
-            self.clear_session()
+            # self.clear_session()
+            self.state_machine.current_state = self.state_machine.states["initial"]
+            self.app.query_one(StateInfo).update_state_info(self.state_machine, "")
+            self.app.query_one(StateButtonGrid).update_buttons()
+
+        if action == 'export_analysis':
+           
+            config_manager = LLMConfigManager() 
+            message_export_path = config_manager.get_general_config().get('message_export_path', '')
+        
+           # data from session analysis related
+            last_analysis = self.session_manager.get_data("last_analysis", screen_name=self.screen_name)
+            last_feedback_output = self.session_manager.get_data("last_feedback_output", screen_name=self.screen_name)
+            last_feedback_input = self.session_manager.get_data("last_feedback_input", screen_name=self.screen_name)
+            last_feedback_rules = self.session_manager.get_data("last_feedback_rules", screen_name=self.screen_name)
+            last_feedback_constraints = self.session_manager.get_data("last_feedback_constraints", screen_name=self.screen_name)
+
+            # Make markdown files for each data value
+            try:
+                os.makedirs(message_export_path, exist_ok=True)
+        
+                data_to_export = {
+                    "last_analysis": last_analysis,
+                    "last_feedback_output": last_feedback_output,
+                    "last_feedback_input": last_feedback_input,
+                    "last_feedback_rules": last_feedback_rules,
+                    "last_feedback_constraints": last_feedback_constraints,
+                }
+                
+                for key, value in data_to_export.items():
+                    if value is not None:  # Ensure there is content to write
+                        filename = f"{key}_{self.agent_name_plain}.md"
+                        export_path = os.path.join(message_export_path, filename)
+                        with open(export_path, 'w') as f:
+                            f.write(value)
+
+            except Exception as e:
+                print(f"Error during file creation: {str(e)}")
+                self.app.notify("Export Error")
+
+
+            self.app.notify(f"Export(s) in your message export folder: {message_export_path} ")
+
 
         dynamic_container = self.query_one("#center-dynamic-container-clarity", DynamicContainer)
         dynamic_container.clear_content()
@@ -317,11 +366,20 @@ class ClarityScreen(SessionScreen):
         if ui_class:
             # Instantiate with parameters if it's a subclass of SessionDependentUI
             if issubclass(ui_class, SessionDependentUI):
-                dynamic_container.mount(ui_class(
-                    session_manager=self.session_manager,
-                    screen_name=self.screen_name,
-                    agent_name_plain=self.agent_name_plain
-                ))
+                if  ui_class == AnalyzeUI:
+                    dynamic_container.mount(ui_class(
+                        session_manager=self.session_manager,
+                        state_machine = self.state_machine,
+                        screen_name=self.screen_name,
+                        agent_name_plain=self.agent_name_plain
+                    ))                    
+                else:
+                    dynamic_container.mount(ui_class(
+                        session_manager=self.session_manager,
+                        screen_name=self.screen_name,
+                        agent_name_plain=self.agent_name_plain
+                    ))
+                    
             else:
                 dynamic_container.mount(ui_class())
         else:

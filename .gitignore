@@ -37,3 +37,4 @@ session_data.db
 *.md
 /.vscode
 .vscode/launch.json
+/.vscode

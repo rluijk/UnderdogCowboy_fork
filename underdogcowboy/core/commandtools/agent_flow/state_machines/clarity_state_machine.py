@@ -14,9 +14,7 @@ def create_clarity_state_machine() -> StateMachine:
     agent_loaded_state.add_transition("load_agent", agent_loaded_state)
     agent_loaded_state.add_transition("system_message", agent_loaded_state)
     agent_loaded_state.add_transition("analyze", analysis_ready_state)  # Added transition
-
-    
-    analysis_ready_state.add_transition("load_agent", agent_loaded_state)
+ 
     analysis_ready_state.add_transition("analyze", analysis_ready_state)
     analysis_ready_state.add_transition("export_analysis", analysis_ready_state)
     
