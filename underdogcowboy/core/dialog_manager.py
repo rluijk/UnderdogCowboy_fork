@@ -188,9 +188,13 @@ class AgentDialogManager(DialogManager):
                         raise ModelConfigurationError("Failed to select or configure the model.")
 
                 # Get the provider for the selected model
-                provider = self.config_manager.get_provider_from_model(self.model_name)    
+                provider = self.config_manager.get_provider_from_model(self.model_name)   
+                
+                # Ensure only the model ID part is passed to the initializer
+                model_id = self.model_name[1] if isinstance(self.model_name, tuple) else self.model_name
+
                 # Initialize the model with the given provider and model ID
-                model = ModelManager.initialize_model_with_id(provider, self.model_name)
+                model = ModelManager.initialize_model_with_id(provider, model_id)
                 timeline = Timeline()
                 
                 # Use the agent's content as the initial timeline content
