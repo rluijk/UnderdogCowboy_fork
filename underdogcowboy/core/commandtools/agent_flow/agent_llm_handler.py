@@ -22,7 +22,8 @@ a response based on the agent's specific logic (such as 'clarity' for agent asse
 # Mapping agent names to agent classes (or objects)
 AGENT_REGISTRY = {
     'clarity': 'agentclarity',
-    'assessment': 'assessmentbuilder'
+    'assessment': 'assessmentbuilder',
+    'leftOff': 'leftOff' 
     # Add other agents here as needed
 }
 
@@ -215,6 +216,25 @@ def run_category_call(llm_config, session_name, agent_name, agent_type, pre_prom
         # Load JSON data from the session file
         with open(session_file, 'r') as file:
             session_data = json.load(file)
+
+        # Check if 'screens' exists in session_data
+        if 'screens' not in session_data:
+            session_data['screens'] = {}
+            logging.info(f"'screens' key not found in session data. Initialized 'screens'.")
+
+        # Check if the specified screen_name exists
+        if screen_name not in session_data['screens']:
+            session_data['screens'][screen_name] = {
+                "data": {
+                    "agents": {}
+                },
+                "meta": {}
+            }
+            logging.info(f"Screen '{screen_name}' not found in session data. Initialized '{screen_name}'.")
+
+            # Save the modified session data back to the JSON file
+            with open(session_file, 'w') as file:
+                json.dump(session_data, file, indent=4)
 
         # Ensure the agent entry exists within the specified screen's data
         if agent_name not in session_data['screens'][screen_name]["data"]["agents"]:
@@ -638,6 +658,51 @@ def run_scale_call(llm_config, agent_name, agent_type, category_to_change, sessi
         logging.error("Exception occurred in run_scale_call", exc_info=True)
         return f"Error: {str(e)}"
 
+def run_leftoff_summary(llm_config, agent_type, aggregate_files_path, session_name):
+    
+    import json
+    import os
+
+    from underdogcowboy import AgentDialogManager
+    from underdogcowboy.core.tools.work_session_tools import aggregate_files 
+    
+    # Ensure the agent_type exists in the registry
+    if agent_type not in AGENT_REGISTRY:
+        return f"Error: Invalid agent type '{agent_type}' specified."
+
+    logging.info(f"Agent type involved: {agent_type}")
+  
+    # Dynamically import the correct agent from the registry
+    try:
+        agent_module = __import__('underdogcowboy', fromlist=[AGENT_REGISTRY[agent_type]])
+        agent = getattr(agent_module, AGENT_REGISTRY[agent_type])
+    except ImportError as e:
+        logging.error("Agent Registry ImportError", exc_info=True)
+        return f"Error: Could not import the specified agent '{agent_type}'. {str(e)}"
+
+    config = load_config()
+    base_dir = config['storage']['base_dir']
+    session_file = os.path.expanduser(os.path.join(base_dir, f"{session_name}.json"))
+    screen_name = "WorkSessionScreen"
+    
+    if not os.path.exists(session_file):
+        return f"Error: Session file for '{session_name}' not found."
+    
+    # Load session data
+    with open(session_file, 'r') as file:
+        session_data = json.load(file)
+ 
+    model_id = llm_config['model_id']
+    adm = AgentDialogManager([agent], model_name=model_id)
+
+    adm | [agent]
+
+    refs = aggregate_files(aggregate_files_path)
+
+    response = agent >> f"file {refs[0]}"
+    response = agent >> f"file {refs[1]}"
+    response = agent >> "Can you give a 5 sentence summary of your findings?"
+    return response.text
 
 
 def generate_system_prompt(llm_config, agent_name, agent_type, pre_prompt=None, post_prompt=None):
