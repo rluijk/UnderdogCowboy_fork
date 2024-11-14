@@ -511,6 +511,28 @@ class SelectCategoryWidget(Static):
             self.refresh_description_button.visible = new_value
             # self.refresh_both_button.visible = new_value
             self.lbl_text.visible = new_value
+            
+            # if self.selected_category is not None
+            has_scales = any(
+                   item['scales'] for item in self.categories if item['name'] == self.selected_category
+            )
+            selected_scales_widget = self.app.query_one(SelectScaleWidget)
+            if has_scales:
+                # If scales exist, show the scale select dropdown in the other widget
+                selected_scales_widget.create_scales_button.visible = False
+                selected_scales_widget.scale_select.visible = True
+                selected_scales_widget.scale_input_box.visible = False
+                selected_scales_widget.scale_description_area.visible = False 
+            else:
+                # No scales present, show the "Create Initial Scales" button in the other widget
+                selected_scales_widget.create_scales_button.visible = True
+                selected_scales_widget.scale_select.visible = False
+                selected_scales_widget.scale_input_box.visible = False
+                selected_scales_widget.scale_description_area.visible = False
+
+            # Refresh the external widget to apply visibility changes
+            selected_scales_widget.refresh()
+                    
 
 
     def watch_title_value(self, old_value: str, new_value: str) -> None:
@@ -1051,7 +1073,7 @@ class SelectScaleWidget(Static):
             self.scale_description_area.load_text(new_value) 
             self.scale_description_area.refresh()
 
-    def watch_selected_scale(self, old_value: Optional[str], new_value: Optional[str]) -> None:
+    def __bck__watch_selected_scale(self, old_value: Optional[str], new_value: Optional[str]) -> None:
         """React to scale selection changes."""
         if not new_value or new_value == "create_initial":
             self.show_edit_controls = False
@@ -1066,3 +1088,33 @@ class SelectScaleWidget(Static):
             self.title_value = scale_data.get('name', '')
             self.description_value = scale_data.get('description', '')
             logging.debug(f"Selected scale '{new_value}' with data: {scale_data}")            
+
+    def watch_selected_scale(self, old_value: Optional[str], new_value: Optional[str]) -> None:
+        """React to scale selection changes."""
+        if not new_value or new_value == "create_initial":
+            # No scale selected or 'create_initial' selected, hide edit controls
+            self.show_edit_controls = False
+            self.scale_input_box.visible = False
+            self.scale_description_area.visible = False
+            return
+
+        # A valid scale is selected, show the edit controls
+        self.show_edit_controls = True
+        self.scale_input_box.visible = True
+        self.scale_description_area.visible = True
+
+        # Find the selected scale data and update the input fields
+        scale_data = next(
+            (scale for scale in self.scales if scale['name'] == new_value),
+            None
+        )
+        if scale_data:
+            self.title_value = scale_data.get('name', '')
+            self.description_value = scale_data.get('description', '')
+            self.scale_input_box.value = self.title_value
+            self.scale_description_area.load_text(self.description_value)
+            logging.debug(f"Selected scale '{new_value}' with data: {scale_data}")
+
+        # Refresh to ensure changes are visible
+        self.refresh()
+            
