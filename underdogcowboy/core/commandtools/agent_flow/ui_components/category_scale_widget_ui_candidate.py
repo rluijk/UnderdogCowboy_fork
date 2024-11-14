@@ -210,6 +210,7 @@ class CategoryWidget(SessionDependentUI):
             
             # shared state
             self.app.query_one(CategoryScaleWidget).selected_category = self.selected_category
+            self.app.query_one(SelectScaleWidget).selected_category = self.selected_category
             
             # Directly update title and description in SelectCategoryWidget
             self.category_components.update_category_details(new_value, category_description)
@@ -514,8 +515,9 @@ class SelectCategoryWidget(Static):
             
             # if self.selected_category is not None
             has_scales = any(
-                   item['scales'] for item in self.categories if item['name'] == self.selected_category
+                item.get('scales') for item in self.categories if item.get('name') == self.selected_category and 'scales' in item
             )
+
             selected_scales_widget = self.app.query_one(SelectScaleWidget)
             if has_scales:
                 # If scales exist, show the scale select dropdown in the other widget
@@ -1007,6 +1009,7 @@ class SelectScaleWidget(Static):
     """Widget for the UI components of scales."""
     
     # Reactive properties
+    selected_category = Reactive[Optional[str]](None) 
     selected_scale = Reactive(None)
     is_loading = Reactive(False)
     show_edit_controls = Reactive(False)
@@ -1020,11 +1023,11 @@ class SelectScaleWidget(Static):
 
     def _init_widgets(self):
         """Initialize all widget components."""
-        self.create_scales_button = Button("Create Initial Scales", id="create-scales-button", classes="action-button")
-        self.scale_select = Select([], id="scale-select")
+        self.create_scales_button = Button("Create Initial Scales", id="create-scales-button", classes="action-button").add_class("hidden")
+        self.scale_select = Select([], id="scale-select").add_class("hidden")
         self.loading_indicator = Static("Loading scales...", id="scale-loading-indicator")
-        self.scale_input_box = Input(placeholder="Rename selected scale", id="scale-input")
-        self.scale_description_area = BoundTextArea("", id="scale-description-area")
+        self.scale_input_box = Input(placeholder="Rename selected scale", id="scale-input").add_class("hidden")
+        self.scale_description_area = BoundTextArea("", id="scale-description-area").add_class("hidden")
 
     def compose(self) -> ComposeResult:
         self._init_widgets() # TODO untangle this pattern 
@@ -1036,6 +1039,13 @@ class SelectScaleWidget(Static):
         yield self.scale_description_area
 
     # Watchers
+    def watch_selected_category(self, old_value: bool, new_value: bool) -> None:
+        if new_value:
+            self.app.notify(f"selected category {new_value}")
+            self.scale_select.remove_class("hidden")
+        else:
+            self.app.notify(f"selected category {new_value}")    
+
     def watch_is_loading(self, old_value: bool, new_value: bool) -> None:
         """React to loading state changes."""
         self.loading_indicator.visible = new_value
@@ -1045,6 +1055,10 @@ class SelectScaleWidget(Static):
         """React to edit controls visibility changes."""
         self.scale_input_box.visible = new_value
         self.scale_description_area.visible = new_value
+
+        self.scale_input_box.remove_class("hidden")
+        self.scale_description.remove_class("hidden")
+
         self.refresh()
 
     def watch_scales(self, old_value: list, new_value: list) -> None:
@@ -1054,7 +1068,6 @@ class SelectScaleWidget(Static):
         self.scale_select.set_options(options)
         self.scale_select.visible = bool(new_value) or self.show_create_button
         self.refresh()
-
 
     def watch_show_create_button(self, old_value: bool, new_value: bool) -> None:
         """React to create button visibility changes."""
@@ -1072,22 +1085,6 @@ class SelectScaleWidget(Static):
         if new_value != self.scale_description_area.text:
             self.scale_description_area.load_text(new_value) 
             self.scale_description_area.refresh()
-
-    def __bck__watch_selected_scale(self, old_value: Optional[str], new_value: Optional[str]) -> None:
-        """React to scale selection changes."""
-        if not new_value or new_value == "create_initial":
-            self.show_edit_controls = False
-            return
-
-        self.show_edit_controls = True
-        scale_data = next(
-            (scale for scale in self.scales if scale['name'] == new_value),
-            None
-        )
-        if scale_data:
-            self.title_value = scale_data.get('name', '')
-            self.description_value = scale_data.get('description', '')
-            logging.debug(f"Selected scale '{new_value}' with data: {scale_data}")            
 
     def watch_selected_scale(self, old_value: Optional[str], new_value: Optional[str]) -> None:
         """React to scale selection changes."""
