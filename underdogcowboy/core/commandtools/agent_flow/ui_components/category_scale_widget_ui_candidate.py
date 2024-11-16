@@ -49,7 +49,6 @@ class SharedState(SessionDependentUI):
     def selected_category(self, value: Optional[str]) -> None:
         self._selected_category = value
         # Emit an event when the selected category changes
-        self.app.post_message(CategorySelected(category_name=value))
         
     @property
     def categories(self) -> List[Dict]:
@@ -73,7 +72,6 @@ class SharedState(SessionDependentUI):
 
 class CategoryScaleWidget(SessionDependentUI):
   
-
     def __init__(self, session_manager, screen_name, agent_name_plain: str, id: Optional[str] = None):
         """Initialize the coordinator widget."""
         super().__init__(session_manager, screen_name, agent_name_plain)
@@ -109,7 +107,6 @@ class CategoryScaleWidget(SessionDependentUI):
         # Ensure the widgets are mounted before querying
         self.call_later(self._populate_select_box)
 
-
     def _populate_select_box(self) -> None:
         """Populate the select box if categories are available."""
         if self.shared_state.categories:
@@ -119,7 +116,6 @@ class CategoryScaleWidget(SessionDependentUI):
             select_widget = self.app.query_one("#category-select")
             select_widget.set_options(options)
     
-
     def compose(self) -> ComposeResult:
         self._init_widgets() # move directly into compose 
 
@@ -244,14 +240,12 @@ class CategoryWidget(SessionDependentUI):
             self.shared_state.selected_category = None
             self.show_controls = False
             # Emit event to clear scales in other widgets
-            self.post_message(CategorySelected(category_name=None))
             return
 
         if selected_value == "Create Initial Categories":
             self.show_controls = False
             await self._create_initial_categories()
             # Emit event to notify other widgets about scale clearing
-            # self.post_message(CategorySelected(category_name=None))
             return
 
         # Find the selected category data
@@ -261,13 +255,11 @@ class CategoryWidget(SessionDependentUI):
             self.shared_state.selected_category = category['name']
 
             # Emit the event to notify other components about the selected category
-            self.post_message(CategorySelected(category_name=category['name']))
-
+     
             logging.info(f"Category '{selected_value}' selected with scales: {category.get('scales', [])}")
         else:
             logging.warning(f"Selected category '{selected_value}' not found in data.")
-            self.post_message(CategorySelected(category_name=None))
-
+    
 
     # LLM Event Handlers
     @on(LLMCallComplete)
@@ -370,7 +362,6 @@ class CategoryWidget(SessionDependentUI):
         except Exception as e:
             logging.error(f"Error processing create-initial-categories result: {e}")
             self.notify("Failed to create initial categories.", severity="error")
-
 
     def _get_llm_config(self) -> Optional[Tuple[Dict[str, Any], str]]:
         """Get LLM configuration and agent."""
@@ -561,6 +552,10 @@ class SelectCategoryWidget(Static):
             self.input_box.visible = True
             self.description_area.visible = True
 
+            # Handle scales
+            scale_widget = self.app.query_one(ScaleWidget)
+            scale_widget.handle_category_selected(self.shared_state.selected_category)
+
         else:
             # Reset if invalid selection
             self.shared_state.selected_category = None
@@ -568,10 +563,8 @@ class SelectCategoryWidget(Static):
             self.description_area.visible = False
             logging.info("No valid category selected.")
 
-        
 
-
-    # Event handlers
+    # Event handlers (i dont think is actually called)
     @on(CategorySelected)
     def handle_category_selected(self, message: CategorySelected) -> None:
         """Handle the CategorySelected message to set title and description."""
@@ -582,8 +575,6 @@ class SelectCategoryWidget(Static):
         self.description_value = message.category_description  # Update the description value
         self.description_area.value = self.description_value  # Set the TextArea with the description
         self.description_area.refresh()   
-
-
 
     @on(LLMCallComplete)
     async def handle_llm_call_complete(self, event: LLMCallComplete) -> None:
@@ -777,10 +768,9 @@ class ScaleWidget(SessionDependentUI):
         # Initial UI state setup
         self._clear_scales()
 
-    @on(CategorySelected)
-    async def handle_category_selected(self, event: CategorySelected) -> None:
+    def handle_category_selected(self, category_name) -> None:
         """Handle category selection to display scales."""
-        selected_category = event.category_name
+        selected_category = category_name
         self.selected_scale = None
 
         # Clear previous state
@@ -814,6 +804,7 @@ class ScaleWidget(SessionDependentUI):
                 llm_function=run_scale_call,
                 llm_config=llm_config,
                 agent_name=current_agent,
+                agent_type="assessment",
                 category_to_change=self.shared_state.selected_category,
                 session_name=session_name,
                 input_id="retrieve-scales"
@@ -847,7 +838,8 @@ class ScaleWidget(SessionDependentUI):
 
             # Update UI
             self._show_scales()
-            self.update_category_data()
+            cs_w = self.app.query_one(CategoryScaleWidget)
+            cs_w.update_category_data()
             logging.info(f"Scales updated for category '{self.shared_state.selected_category}'.")
 
     def _clear_scales(self) -> None:
@@ -924,249 +916,47 @@ class SelectScaleWidget(Static):
             )
             if scale_data:
                 self.scale_input_box.value = scale_data.get('name', '')
-                self.scale_description_area.value = scale_data.get('description', '')
+                self.scale_description_area.load_text(scale_data.get('description', ''))
                 self.scale_input_box.visible = True
                 self.scale_description_area.visible = True
 
-class __bck__ScaleWidget(SessionDependentUI):
-    """Widget for managing scales within a selected category."""
-    
-    def __init__(self, shared_state, agent_name, session_manager, screen_name):
-        super().__init__(session_manager, screen_name, agent_name)
-
-        self.session_manager = session_manager
-        self.shared_state = shared_state
-        self.agent_name = agent_name
-        self.scale_components = SelectScaleWidget(shared_state)
-
-    def compose(self) -> ComposeResult:
-        yield self.scale_components
-
-    def on_mount(self) -> None:
-        """Initialize components after mount."""
-        self.llm_call_manager = LLMCallManager()
-        self.llm_call_manager.set_message_post_target(self)
-        logging.info(f"Post target message set to: {self.llm_call_manager._message_post_target}")
-
-    # Private helper methods
-    async def _update_scales_for_category(self, category_name: str) -> None:
-        """Update scales for the selected category."""
-        category_data = next(
-            (cat for cat in self.all_categories if cat['name'] == category_name),
-            None
-        )
-        if category_data:
-            self.scales = category_data.get("scales", [])
-            if not self.scales:
-                # Show create button if no scales available
-                # self.scale_components.show_create_button = True
-                self.app.query_one(SelectScaleWidget).show_create_button = True
-            else:
-                # self.scale_components.show_create_button = False
-                self.app.query_one(SelectScaleWidget).show_create_button = False
-            logging.debug(f"Updated scales for category '{category_name}': {self.scales}")
-
-    def _update_scale_details(self, scale_name: str) -> None:
-        """Update the display of scale details."""
-        scale_data = next(
-            (scale for scale in self.scales if scale['name'] == scale_name),
-            None
-        )
-        if scale_data:
-            self.scale_components.title_value = scale_data.get('name', '')
-            self.scale_components.description_value = scale_data.get('description', '')
-
-    def _llm_config_current_agent(self) -> Optional[Tuple[Dict[str, Any], str]]:
-        """Get LLM configuration and current agent."""
-        llm_config = self.app.get_current_llm_config()
-        if not llm_config:
-            self.show_error("No LLM configuration available.")
-            return None
-        
-        if not self.agent_name:
-            self.show_error("No agent currently loaded.")
-            return None
-
-        return (llm_config, self.agent_name)
-
-    # Async LLM operations
-    async def retrieve_scales(self) -> None:
-        """Retrieve scales using LLM."""
-        self.is_loading = True
-        try:
-            config = self._llm_config_current_agent()
-            if not config:
-                return
-
-            llm_config, current_agent = config
-            session_name = self.session_manager.current_session_name.plain
-            
-            await self.llm_call_manager.submit_llm_call_with_agent_with_id_and_sesssion(
-                llm_function=run_scale_call,
-                llm_config=llm_config,
-                agent_name=current_agent,
-                agent_type="assessment",
-                category_to_change=self.selected_category,
-                session_name = session_name,
-                input_id="retrieve-scales",
-            )
-        except Exception as e:
-            logging.error(f"Error in retrieve_scales: {e}")
-            self.show_error(str(e))
-        finally:
-            self.is_loading = False
-
-    # Event handlers
-    @on(CategorySelected)
-    async def handle_category_selected(self, event: CategorySelected) -> None:
-        """Update scales when a new category is selected."""
-        selected_category = event.category_name
-
-        if not selected_category:
-            # Clear the scales if no category is selected
-            self.scales = []
-            self.scale_select.set_options([])
-            return
-
-        # Find the scales for the selected category
-        category_data = next(
-            (cat for cat in self.shared_state.categories if cat['name'] == selected_category),
-            None
-        )
-        if category_data:
-            self.scales = category_data.get('scales', [])
-            scale_options = [(scale['name'], scale['name']) for scale in self.scales]
-            self.scale_select.set_options(scale_options)
-            logging.info(f"Scales updated for category '{selected_category}': {scale_options}")
-        else:
-            self.scale_select.set_options([])
-
-    @on(Button.Pressed, "#create-scales-button")
-    async def handle_create_scales(self, event: Button.Pressed) -> None:
-        """Handle create scales button press."""
-        logging.info(f"Creating initial scales for category '{self.selected_category}'")
-        await self.retrieve_scales()
-
-    @on(Select.Changed, "#scale-select")
-    async def handle_scale_changed(self, event: Select.Changed) -> None:
-        """Handle scale selection changes."""
-        if event.value != Select.BLANK:
-            self.selected_scale = event.value
-
     @on(Input.Submitted, "#scale-input")
-    async def handle_scale_rename(self, event: Input.Submitted) -> None:
-        """Handle scale rename submission."""
-        if not self.selected_scale or not self.selected_category:
-            return
+    def handle_scale_name_changed(self, event: Input.Submitted) -> None:
+        """Handle changes to the scale's name."""
+        if self.shared_state.selected_category and self.shared_state.selected_scale:
+            # Update the scale name in the shared state
+            for category in self.shared_state.categories:
+                if category['name'] == self.shared_state.selected_category:
+                    for scale in category.get('scales', []):
+                        if scale['name'] == self.shared_state.selected_scale:
+                            scale['name'] = event.value
+                            break
+                    break
 
-        new_name = event.value.strip()
-        if not new_name:
-            logging.warning("Attempted to rename scale to an empty string.")
-            return
+            # Update the selected scale to the new name
+            self.shared_state.selected_scale = event.value
 
-        logging.info(f"Renaming scale '{self.selected_scale}' to '{new_name}'")
-        self._update_scale_name(self.selected_scale, new_name)
-        self.selected_scale = new_name
+            # Update the UI components
+            self.scale_input_box.value = event.value
+            self._refresh_scale_select_box()
+
+            # Update storage
+            category_scale_widget = self.app.query_one(CategoryScaleWidget)
+            category_scale_widget.update_category_data()
 
     @on(TextArea.Changed, "#scale-description-area")
-    async def handle_description_change(self, event: TextArea.Changed) -> None:
-        """Handle scale description changes."""
-        if not self.selected_scale or not self.selected_category:
-            return
-
-        new_description = event.text_area.document.text.strip()
-        self._update_scale_description(self.selected_scale, new_description)
-
-    # LLM event handlers
-    @on(LLMCallComplete)
-    async def handle_llm_call_complete(self, event: LLMCallComplete) -> None:
-        """Handle LLM call completions."""
-        if event.input_id == "retrieve-scales":
-            await self._handle_scales_update(event.result)
-
-    @on(LLMCallError)
-    async def handle_llm_call_error(self, event: LLMCallError) -> None:
-        """Handle LLM call errors."""
-        logging.error(f"LLM call error for {event.input_id}: {event.error}")
-        self.show_error(event.error)
-        self.is_loading = False
-
-    async def _handle_scales_update(self, scales: List[Dict]) -> None:
-        """Handle scales update from LLM result."""
-        try:
-            # Update the scales in all_categories
-            for cat in self.all_categories:
-                if cat['name'] == self.selected_category:
-                    cat['scales'] = scales  # Corrected key
+    def handle_scale_description_changed(self, event: TextArea.Changed) -> None:
+        """Handle changes to the scale's description."""
+        if self.shared_state.selected_category and self.shared_state.selected_scale:
+            # Update the scale description in the shared state
+            for category in self.shared_state.categories:
+                if category['name'] == self.shared_state.selected_category:
+                    for scale in category.get('scales', []):
+                        if scale['name'] == self.shared_state.selected_scale:
+                            scale['description'] = event.text_area.text
+                            break
                     break
-            
-            # Update current scales (triggers watcher)
-            self.scales = scales
 
-            # Sync reactive state
-            self.app.query_one(CategoryScaleWidget).scales = scales 
-            
-            logging.debug(f"Scales updated for category '{self.selected_category}': {scales}")
-            logging.info("sending post for CategoryDataUpdate after scales are in")
-            self.post_message(CategoryDataUpdate())
-            
-
-
-        except Exception as e:
-            logging.error(f"Error updating scales: {e}")
-
-    def _update_scale_name(self, old_name: str, new_name: str) -> None:
-        """Update scale name in data structures."""
-        updated_scales = self.scales.copy()
-        for scale in updated_scales:
-            if scale['name'] == old_name:
-                scale['name'] = new_name
-                break
-        self.scales = updated_scales  # Trigger watcher
-
-        # Update in all_categories
-        for cat in self.all_categories:
-            if cat['name'] == self.selected_category:
-                cat['scales'] = updated_scales
-                break
-
-    def _update_scale_description(self, scale_name: str, new_description: str) -> None:
-        """Update scale description in data structures."""
-        updated_scales = self.scales.copy()
-        for scale in updated_scales:
-            if scale['name'] == scale_name:
-                scale['description'] = new_description
-                break
-        self.scales = updated_scales  # Trigger watcher
-
-        # Update in all_categories
-        for cat in self.all_categories:
-            if cat['name'] == self.selected_category:
-                cat['scales'] = updated_scales
-                break
-
-class __bck__SelectScaleWidget(Static):
-    
-    def __init__(self,shared_state):
-        super().__init__()
-        self.shared_state = shared_state
-
-    def _init_widgets(self):
-        """Initialize all widget components."""
-        self.create_scales_button = Button("Create Initial Scales", id="create-scales-button", classes="action-button").add_class("hidden")
-        self.scale_select = Select([], id="scale-select").add_class("hidden")
-        self.loading_indicator = Static("Loading scales...", id="scale-loading-indicator")
-        self.scale_input_box = Input(placeholder="Rename selected scale", id="scale-input").add_class("hidden")
-        self.scale_description_area = BoundTextArea("", id="scale-description-area").add_class("hidden")
-
-    def compose(self) -> ComposeResult:
-        self._init_widgets() # TODO untangle this pattern 
-
-        yield self.create_scales_button
-        yield self.scale_select
-        yield self.loading_indicator
-        yield self.scale_input_box
-        yield self.scale_description_area
-
-  
-            
+            # Update storage
+            category_scale_widget = self.app.query_one(CategoryScaleWidget)
+            category_scale_widget.update_category_data()
