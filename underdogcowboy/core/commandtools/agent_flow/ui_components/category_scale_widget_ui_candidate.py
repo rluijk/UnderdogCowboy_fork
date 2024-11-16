@@ -39,6 +39,7 @@ class SharedState(SessionDependentUI):
     def __init__(self):
         self._selected_category: Optional[str] = None
         self._categories: List[Dict] = []
+        self._selected_scale: Optional[str] = None
         self._scales: List[Dict] = []
 
     @property
@@ -48,7 +49,6 @@ class SharedState(SessionDependentUI):
     @selected_category.setter
     def selected_category(self, value: Optional[str]) -> None:
         self._selected_category = value
-        # Emit an event when the selected category changes
         
     @property
     def categories(self) -> List[Dict]:
@@ -58,7 +58,7 @@ class SharedState(SessionDependentUI):
     def categories(self, value: List[Dict]) -> None:
         self._categories = value
         # Emit an event when the categories list changes
-        self.app.post_message(CategoryDataUpdate())
+        # self.app.post_message(CategoryDataUpdate())
 
     @property
     def scales(self) -> List[Dict]:
@@ -68,7 +68,16 @@ class SharedState(SessionDependentUI):
     def scales(self, value: List[Dict]) -> None:
         self._scales = value
         # Emit an event when the scales list changes
-        self.app.message_post_target.post_message(ScalesUpdated())
+        # self.app.message_post_target.post_message(ScalesUpdated())
+
+    @property
+    def selected_scale(self) -> Optional[str]:
+        return self._selected_scale
+
+    @selected_scale.setter
+    def selected_scale(self, value: Optional[str]) -> None:
+        self._selected_scale = value
+
 
 class CategoryScaleWidget(SessionDependentUI):
   
@@ -193,11 +202,12 @@ class CategoryScaleWidget(SessionDependentUI):
             "base_agent": self.agent_name
         }
 
-        # Step 3: Retrieve the current agents' data from storage
+        # Step 3: Retrieve the entire 'agents' data from storage and update for the current agent
         all_agents_data = self.session_manager.get_data("agents", screen_name=self.screen_name) or {}
-        
-        # Step 4: Update the agent's data with the current state and persist it
         all_agents_data[self.agent_name] = updated_agent_data
+        
+
+        # Step 4: Update the agent's data with the current state and persist it        all_agents_data[self.agent_name] = updated_agent_data
         self.session_manager.update_data("agents", all_agents_data, self.screen_name)
 
         # Log success for debugging
@@ -652,21 +662,26 @@ class SelectCategoryWidget(Static):
         select_widget.set_options(options)
 
 
-
     @on(TextSubmitted)
     async def handle_text_submission(self, event: TextSubmitted) -> None:
-        """Handle description changes, update shared state, and save to storage."""
-        # Update the shared state with the new description value
+        """Handle category description changes, update shared state, and save to storage."""
         if self.shared_state.selected_category:
+            # Directly update the description of the selected category in the shared state
             for category in self.shared_state.categories:
                 if category['name'] == self.shared_state.selected_category:
                     category['description'] = event.text
                     break
 
-            # Update the description field and persist changes
-            self.description_value = event.text
+            # Persist the updated shared state to storage
             category_widget = self.app.query_one(CategoryScaleWidget)
             category_widget.update_category_data()
+
+            # Refresh the TextArea with the latest saved description
+            self.description_area.load_text(event.text)
+            self.description_area.refresh()
+
+            # Notify the user that the edit has been saved
+            self.app.notify("Category description saved")
 
 
     def _update_storage(self) -> None:
@@ -892,7 +907,7 @@ class SelectScaleWidget(Static):
         self.create_scales_button = Button("Create Initial Scales", id="create-scales-button", classes="action-button")
         self.scale_select = Select([], id="scale-select")
         self.scale_input_box = Input(placeholder="Rename selected scale", id="scale-input")
-        self.scale_description_area = TextArea("", id="scale-description-area")
+        self.scale_description_area = BoundTextArea("", id="scale-description-area")
 
     def compose(self) -> ComposeResult:
         self._init_widgets()
@@ -910,15 +925,26 @@ class SelectScaleWidget(Static):
     def handle_scale_changed(self, event: Select.Changed) -> None:
         """Handle scale selection changes."""
         if event.value:
-            scale_data = next(
-                (scale for scale in self.parent.scales if scale['name'] == event.value),
+            self.shared_state.selected_scale = event.value
+            
+            # Find the selected category first
+            category = next(
+                (cat for cat in self.shared_state.categories if cat['name'] == self.shared_state.selected_category),
                 None
             )
+
+            # Now, find the scale within the selected category
+            scale_data = next(
+                (scale for scale in category.get('scales', []) if scale['name'] == event.value),
+                None
+            ) if category else None
+
             if scale_data:
                 self.scale_input_box.value = scale_data.get('name', '')
                 self.scale_description_area.load_text(scale_data.get('description', ''))
                 self.scale_input_box.visible = True
                 self.scale_description_area.visible = True
+
 
     @on(Input.Submitted, "#scale-input")
     def handle_scale_name_changed(self, event: Input.Submitted) -> None:
@@ -929,34 +955,54 @@ class SelectScaleWidget(Static):
                 if category['name'] == self.shared_state.selected_category:
                     for scale in category.get('scales', []):
                         if scale['name'] == self.shared_state.selected_scale:
+                            # Update the scale name
                             scale['name'] = event.value
+                            # Update the selected scale name
+                            self.shared_state.selected_scale = event.value
                             break
-                    break
-
-            # Update the selected scale to the new name
-            self.shared_state.selected_scale = event.value
-
-            # Update the UI components
-            self.scale_input_box.value = event.value
-            self._refresh_scale_select_box()
 
             # Update storage
             category_scale_widget = self.app.query_one(CategoryScaleWidget)
             category_scale_widget.update_category_data()
 
-    @on(TextArea.Changed, "#scale-description-area")
-    def handle_scale_description_changed(self, event: TextArea.Changed) -> None:
+            # Update the select box options
+            self._refresh_scale_select_box()
+
+
+    def _refresh_scale_select_box(self) -> None:
+        """Refresh the scale select box with updated scale names."""
+        scale_options = [
+            (scale['name'], scale['name'])
+            for scale in next(
+                (cat for cat in self.shared_state.categories if cat['name'] == self.shared_state.selected_category),
+                {}
+            ).get('scales', [])
+        ]
+
+        # Refresh the select box with updated options
+        scale_select = self.app.query_one("#scale-select", Select)
+        scale_select.set_options(scale_options)
+        
+        # Ensure the updated name is selected
+        scale_select.value = self.shared_state.selected_scale
+
+    @on(TextSubmitted)
+    def handle_scale_description_changed(self, event: TextSubmitted) -> None:
         """Handle changes to the scale's description."""
         if self.shared_state.selected_category and self.shared_state.selected_scale:
-            # Update the scale description in the shared state
             for category in self.shared_state.categories:
                 if category['name'] == self.shared_state.selected_category:
                     for scale in category.get('scales', []):
                         if scale['name'] == self.shared_state.selected_scale:
-                            scale['description'] = event.text_area.text
+                            scale['description'] = event.text
                             break
-                    break
 
             # Update storage
             category_scale_widget = self.app.query_one(CategoryScaleWidget)
             category_scale_widget.update_category_data()
+
+            # Refresh the TextArea to show the updated description
+            self.scale_description_area.load_text(event.text)
+            self.scale_description_area.refresh()
+
+            self.app.notify("Edit saved in local storage")
