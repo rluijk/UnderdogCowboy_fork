@@ -74,6 +74,7 @@ class SessionManager(MessageEmitterMixin):
         if screen_name:
             screen_data = self.current_session_data.screens.get(screen_name)
             if screen_data:
+                # agent on key here?
                 return screen_data.data.get(key)
             else:
                 return None
@@ -95,15 +96,16 @@ class SessionManager(MessageEmitterMixin):
                 if screen_name not in self.current_session_data.screens:
                     logging.info(f"Creating new ScreenData for screen: {screen_name}")
                     self.current_session_data.screens[screen_name] = ScreenData()
+                # agent on here aswell i think right?    
                 self.current_session_data.screens[screen_name].data[key] = value
-                logging.info(f"Updated screen-specific data. New value: {self.current_session_data.screens[screen_name].data[key]}")
+                logging.info(f"Updated screen-specific data.")
                 # Log command
                 command_desc = f"update_data: {key}"
                 self.add_command_result(command_desc, {"value": value}, screen_name=screen_name)
             else:
                 logging.info("Updating shared data")
                 self.current_session_data.shared_data.data[key] = value
-                logging.info(f"Updated shared data. New value: {self.current_session_data.shared_data.data[key]}")
+                logging.info(f"Updated shared data. New value:")
                 # Log command
                 command_desc = f"update_data: {key}"
                 self.add_command_result(command_desc, {"value": value})
