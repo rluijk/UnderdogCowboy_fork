@@ -1,16 +1,16 @@
 import os
 from typing import List, Type, Union, Dict, Optional, Any
 from abc import ABC, abstractmethod
-import asyncio
 
-
-from .timeline_editor import Timeline, CommandProcessor, Message
-from .model import ModelManager
-from .config_manager import LLMConfigManager
+from .timeline_editor import Timeline, CommandProcessor
 from .agent import Agent
+
+from .model import ModelManager
+from .response import Response
+
+from .config_manager import LLMConfigManager
 from .tracing import TracingProxy
 from .intervention import InterventionManager
-from .response import Response
 
 from .exceptions import (
     AgentInitializationError,
@@ -132,7 +132,6 @@ class BasicDialogManager(DialogManager):
 
 class AgentDialogManager(DialogManager):
 
-    
     def __init__(self, agent_inputs: List[Union[Type[Agent], Agent]], model_name: Optional[str] = None, use_tracing: bool = False, **kwargs: Any) -> None:
         # Initialize the base class with tracing and any additional arguments
         super().__init__(use_tracing=use_tracing, **kwargs)

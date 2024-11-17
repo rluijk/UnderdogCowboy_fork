@@ -46,6 +46,10 @@ class LoadDialogUI(Static):
         config_manager: LLMConfigManager = LLMConfigManager()
         dialogs_dir: str = config_manager.get_general_config().get('dialog_save_path', '')
 
+        # Check if the folder exists, so we can switch to different dialog paths easily.
+        if not os.path.exists(dialogs_dir):
+            os.makedirs(dialogs_dir, exist_ok=True)
+
         dialogs = sorted([f for f in os.listdir(dialogs_dir) if f.endswith('.json')], key=str.lower)
 
         list_view = self.query_one("#dialog-list")
