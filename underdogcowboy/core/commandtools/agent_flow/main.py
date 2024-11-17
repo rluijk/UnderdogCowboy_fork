@@ -1,7 +1,13 @@
 import logging
 import yaml
 import json
+import sys
 import os
+
+# quick fix. The work, make relative imports with the "from .[folder] etc"
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+
 from typing import Dict, Set, Union
 
 from textual import on
@@ -9,6 +15,8 @@ from textual.app import App
 from textual.events import Event
 from textual.reactive import Reactive
 from textual.binding import Binding
+from dotenv import load_dotenv
+
 
 
 from underdogcowboy.core.config_manager import LLMConfigManager
@@ -21,13 +29,13 @@ from state_management.storage_interface import StorageInterface
 from state_machines.agent_assessment_state_machine import create_agent_assessment_state_machine
 from state_machines.clarity_state_machine import create_clarity_state_machine
 from state_machines.timeline_editor_state_machine import create_timeline_editor_state_machine
-from state_machines.work_sessioms_state_machine import create_works_session_state_machine
+from underdogcowboy.core.commandtools.agent_flow.state_machines.work_sessions_state_machine import create_works_session_state_machine
 
 # Screens
 from screens.agent_assessment_builder_scr import AgentAssessmentBuilderScreen
 from screens.timeline_editor_src import TimeLineEditorScreen    
 from screens.agent_clarity_src import ClarityScreen
-
+from screens.work_session_src import WorkSessionScreen
 
 # Session Initializer
 from session_initializer import initialize_shared_session_manager
@@ -45,12 +53,6 @@ from copy_paste import ClipBoardCopy
 
 # uc
 from underdogcowboy.core.timeline_editor import CommandProcessor
-
-
-# Load configuration from YAML file
-def load_config(config_path: str) -> dict:
-    with open(config_path, 'r') as file:
-        return yaml.safe_load(file)
 
 
 class MultiScreenApp(App):
@@ -156,11 +158,18 @@ class MultiScreenApp(App):
         except FileNotFoundError:
             raise FileNotFoundError(f"Configuration file not found at {config_path}")
         
+
+
         # Set up bindings from configuration file
         for screen_name, screen_data in screen_configs.items():
             # Skip non-dictionary entries like "initial_screen"
             if not isinstance(screen_data, dict):
                 continue
+
+            if screen_name.startswith("_") or screen_name in ("initial_screen", "global_bindings"):
+                logging.info(f"Skipping disabled screen: {screen_name}")
+                continue
+        
             bindings = screen_data.get("bindings", [])
             for binding in bindings:
                 self.bind(
@@ -303,35 +312,42 @@ class MultiScreenApp(App):
                 return screen
         return None
 
+def setup_logging(config):
+    """Setup logging based on the environment variable."""
+    # Load environment variables from .env file
+    load_dotenv()
+
+    if os.getenv("LOGGING_ENABLED") != "1":
+        logging.disable(logging.CRITICAL)  # Disable all logging if not enabled
+        return
+
+    log_filename = config['logging']['filename']
+    log_filepath = os.path.abspath(log_filename)
+
+    # Clear existing handlers
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+
+    logging.basicConfig(
+        filename=log_filepath,
+        level=config['logging']['level'],
+        format=config['logging']['format']
+    )
+    print(f"Logging initialized. Log file: {log_filepath}")
+
+def load_config(config_path: str) -> dict:
+    with open(config_path, 'r') as file:
+        return yaml.safe_load(file)
+
 def main():
-    import os
     config_path = os.path.join(os.path.dirname(__file__), 'config.yaml')
-
     config = load_config(config_path)
+    setup_logging(config)
 
-    try:
-        log_filename = config['logging']['filename']
-        log_filepath = os.path.abspath(log_filename)
-
-        # Clear all existing handlers to avoid interference
-        for handler in logging.root.handlers[:]:
-            logging.root.removeHandler(handler)
-
-        logging.basicConfig(
-            filename=log_filepath,
-            level=config['logging']['level'],
-            format=config['logging']['format']
-        )
-        logging.info("Logging initialized successfully")
-        print(f"Logging initialized. Log file: {log_filepath}")
-        print(f"To view the log file, use the command: tail -f {log_filepath}")
-    except Exception as e:
-        print(f"Error initializing logging: {e}")
-
-    logging.info("Starting the app...")
-
+    print("Starting the app...")
     app = MultiScreenApp(config_path=config_path)
     app.run()
 
 if __name__ == "__main__":
     main()
+    
