@@ -1,7 +1,9 @@
 import os 
 import json
 
-from typing import Optional, Dict, Any, Union, TYPE_CHECKING
+from typing import ( TYPE_CHECKING, 
+                     Union,Optional,
+                     Dict, Any )
 
 if TYPE_CHECKING:
     from .dialog_manager import DialogManager
@@ -74,8 +76,6 @@ class Agent:
         else:
             raise TypeError(f"Unsupported operation between {self.__class__.__name__} and {other_agent.__class__.__name__}")
 
-
-
     def __rshift__(self, user_input: str) -> Any:
         """
         Overloads the >> operator to send a message to the agent.
@@ -87,7 +87,6 @@ class Agent:
             Any: The agent's response.
         """
         return self.message(user_input)
-
 
     def _load_content(self) -> Optional[Dict[str, Any]]:
         try:

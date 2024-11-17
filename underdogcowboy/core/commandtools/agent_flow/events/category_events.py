@@ -16,14 +16,6 @@ class CategoryDataUpdate(Message):
     def __init__(self):
         super().__init__()
 
-        t = 0 #TODO Remove
-
-
-
-class CategorySelected(Message):
-    """Custom message to indicate a category has been selected."""
-    def __init__(self, sender, category_name: str, category_description: str = ""):
+class ScalesUpdated(Message):
+    def __init__(self):
         super().__init__()
-        self.sender = sender
-        self.category_name = category_name
-        self.category_description = category_description  # New field for description
