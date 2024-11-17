@@ -13,20 +13,20 @@ license = {text = "MIT"}
 dependencies = [
     "vertexai",
     "prompt_toolkit", 
+    "python-dotenv",
     "keyring",
     "groq",
     "langsmith",
     "reportlab",
     "pillow",
-    "requests-mock"
+    "requests-mock",
     "rich",
     "mdformat",
     "textual",
     "pyyaml",
     "pyperclip",
-    "uccli @ file:///Users/reneluijk/projects/uccli"   
-    # "uccli @ file:///C:/projects/guided-llm-cli"   
-    
+    "uccli @ file:///Users/reneluijk/projects/uccli",   
+    # "uccli @ file:///C:/projects/guided-llm-cli" ,  
 ]
 
 [project.scripts]
@@ -38,6 +38,8 @@ uc-tracing = "underdogcowboy.core.commandtools.tracing_config:main"
 uc-agent-clarity =  "underdogcowboy.core.commandtools.agent_clarity:main"
 uc-agent-pdf = "underdogcowboy.core.commandtools.agent_pdf:main"
 uc-assessment-builder = "underdogcowboy.core.commandtools.assessment_agent_builder:main"
+uc-agent-flow = "underdogcowboy.core.commandtools.agent_flow.main:main"
+
 
 [tool.setuptools.packages.find]
 where = ["."]

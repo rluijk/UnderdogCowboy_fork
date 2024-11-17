@@ -26,7 +26,8 @@ Note:
 The actual agent instances are dynamically added to this module's namespace,
 allowing direct access to them after import.
 """
-print('test')
+print('Pre Release -- Early Access Version... Nov-Dec 2024')
+print('If you do not have my Whatsapp, DM on linked-in for issues that need solving: https://www.linkedin.com/in/reneluijk/')
 import warnings
 
 

@@ -318,11 +318,11 @@ class ChatUI(Static):
         scroll_widget.scroll_end(animate=False, force=True)
         self.enable_input()
 
-    @on(CommandSubmitted)  
-    def handle_command_submission(self, event: CommandSubmitted):  
+    @on(CommandSubmitted)
+    def handle_command_submission(self, event: CommandSubmitted):
         command_parts = event.command.lower().split()
         base_command = command_parts[0]
-        
+
         if base_command == '/markdown':
             offset = 0
             folder_alias = None
@@ -338,8 +338,57 @@ class ChatUI(Static):
                     else:
                         folder_alias = command_parts[1]
             self.save_response_to_markdown(offset, folder_alias)
+        
+        elif base_command == '/setalias':
+            if len(command_parts) < 3:
+                self.app.notify("Usage: /setalias [alias] [folder_path]")
+            else:
+                alias = command_parts[1]
+                folder_path = ' '.join(command_parts[2:])
+                self.set_folder_alias(alias, folder_path)
+        
         else:
             self.app.notify("Unknown command")
+
+    def set_folder_alias(self, alias: str, folder_path: str):
+        """Set a folder alias in the YAML file."""
+        config_path = os.path.expanduser("~/.folder_aliases")
+        
+        # Ensure the directory for the YAML file exists
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+
+        # Load existing aliases from the YAML file
+        try:
+            with open(config_path, 'r') as file:
+                aliases = yaml.safe_load(file) or {}
+        except Exception as e:
+            self.app.notify(f"Error loading folder aliases: {str(e)}")
+            return
+
+        # Check if the folder exists, if not, create it
+        folder_path = os.path.expanduser(folder_path)
+        if not os.path.exists(folder_path):
+            try:
+                os.makedirs(folder_path)
+                self.app.notify(f"Folder '{folder_path}' created successfully.")
+            except Exception as e:
+                self.app.notify(f"Error creating folder '{folder_path}': {str(e)}")
+                return
+
+        # Update the alias
+        aliases[alias] = folder_path
+
+        # Write back to the YAML file
+        try:
+            with open(config_path, 'w') as file:
+                yaml.dump(aliases, file)
+            
+            # Update the current session's aliases dictionary
+            self.folder_aliases = aliases
+            self.app.notify(f"Alias '{alias}' set to '{folder_path}'")
+        except Exception as e:
+            self.app.notify(f"Error saving folder alias: {str(e)}")
+
 
 
     def save_response_to_markdown(self, offset=0, folder_alias=None):  
@@ -381,7 +430,6 @@ class ChatUI(Static):
         else:  
             self.app.notify(f"No assistant response found at offset {offset}")    
             
-
 
     def append_to_chat(self, text: str, role: str, move_to_bottom: bool = False) -> int:
         """Append a new message to the chat."""

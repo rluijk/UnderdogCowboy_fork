@@ -34,6 +34,21 @@ from events.chat_events import TextSubmitted
 from typing import Optional, List, Dict
 from textual.message import Message
 
+class LoadingIndicator(Static):
+    def __init__(self):
+        super().__init__("Loading...", id="loading-indicator")
+        self.visible = False
+
+    def show(self, message: str = "Loading...") -> None:
+        message = f" {message}"
+        self.update(message)
+        self.visible = True
+        self.refresh()
+
+    def hide(self):
+        self.visible = False
+        self.refresh()
+
 class SharedState(SessionDependentUI):
     """A shared state class to manage state across multiple widgets."""
     def __init__(self):
@@ -57,8 +72,6 @@ class SharedState(SessionDependentUI):
     @categories.setter
     def categories(self, value: List[Dict]) -> None:
         self._categories = value
-        # Emit an event when the categories list changes
-        # self.app.post_message(CategoryDataUpdate())
 
     @property
     def scales(self) -> List[Dict]:
@@ -67,8 +80,6 @@ class SharedState(SessionDependentUI):
     @scales.setter
     def scales(self, value: List[Dict]) -> None:
         self._scales = value
-        # Emit an event when the scales list changes
-        # self.app.message_post_target.post_message(ScalesUpdated())
 
     @property
     def selected_scale(self) -> Optional[str]:
@@ -77,7 +88,6 @@ class SharedState(SessionDependentUI):
     @selected_scale.setter
     def selected_scale(self, value: Optional[str]) -> None:
         self._selected_scale = value
-
 
 class CategoryScaleWidget(SessionDependentUI):
   
@@ -152,7 +162,6 @@ class CategoryScaleWidget(SessionDependentUI):
 
         # Update shared state with the loaded categories
         self.shared_state.categories = categories
-
 
     def get_or_initialize_category_data(self, agent_name: str) -> dict:
             """Retrieve or initialize category data for an agent."""
@@ -254,6 +263,9 @@ class CategoryWidget(SessionDependentUI):
 
         if selected_value == "Create Initial Categories":
             self.show_controls = False
+            # self._enable_ui()
+            self.query_one(LoadingIndicator).show(f"Creating Initial Categories for selected agent {self.agent_name_plain}")
+
             await self._create_initial_categories()
             # Emit event to notify other widgets about scale clearing
             return
@@ -276,10 +288,9 @@ class CategoryWidget(SessionDependentUI):
     async def handle_llm_call_complete(self, event: LLMCallComplete) -> None:
         """Handle LLM call completions."""
         if event.input_id == "create-initial-categories":
-            # self.app.query_one(CategoryScaleWidget).categories = event.result['categories'] 
-            # self.app.query_one(SelectCategoryWidget).categories = event.result['categories']
-            # self.categories = event.result['categories']
-
+           
+            # self._enable_ui()
+            self.query_one(LoadingIndicator).hide()
             await self._handle_initial_categories_complete(event)
 
     @on(LLMCallError)
@@ -398,20 +409,21 @@ class SelectCategoryWidget(Static):
 
     def compose(self) -> ComposeResult:
         """Compose widget layout, yielding each component."""
-        # Define the widget layout here
+        yield Label(f"""
+                Assessment Categories for output agent: {self.agent_name}
+                """)
+
         yield Select(
             options=[("create_initial", "Create Initial Categories")],
             id="category-select"
         )
-        yield Static("Loading categories...", id="loading-indicator")
+        yield LoadingIndicator()
         yield Input(placeholder="Rename selected category", id="category-input")
         yield BoundTextArea("", id="category-description-area")
         with Grid(id="grid-buttons", classes="grid-buttons"):
             yield Button("Refresh Title", id="refresh-title-button", classes="action-button")
             yield Button("Refresh Description", id="refresh-description-button", classes="action-button")
-        # yield Button("Refresh Both", id="refresh-both-button")
         yield Label("Modify Directly or use buttons for agent assistance", id="lbl_text")
-
 
     def on_mount(self) -> None:
 
@@ -438,7 +450,6 @@ class SelectCategoryWidget(Static):
         self.llm_call_manager = LLMCallManager()
         self.llm_call_manager.set_message_post_target(self)
         logging.info(f"Post target message set to: {self.llm_call_manager._message_post_target}")
-
 
     def update_category_details(self, title: str, description: str) -> None:
         """Update both title and description for the selected category."""
@@ -468,6 +479,14 @@ class SelectCategoryWidget(Static):
     async def refresh_title(self) -> None:
         """Refresh title using LLM."""
         self.is_loading = True
+        
+        # Disable UI components and show loading indicator
+        # self._disable_ui()
+        button = self.query_one("#refresh-title-button")
+        if isinstance(button, Button):
+            button.disabled = True
+        self.query_one(LoadingIndicator).show(f"Fetching new category name for {self.shared_state.selected_category}. ")
+
         try:
             config = self._llm_config_current_agent()
             if not config:
@@ -490,10 +509,18 @@ class SelectCategoryWidget(Static):
         finally:
             self.is_loading = False
 
-
     async def refresh_description(self) -> None:
         """Refresh description using LLM."""
         self.is_loading = True
+
+        # Disable UI components and show loading indicator
+        # self._disable_ui()
+        button = self.query_one("#refresh-description-button")
+        if isinstance(button, Button):
+            button.disabled = True
+
+        self.query_one(LoadingIndicator).show(f"Fetching new description for category: {self.shared_state.selected_category}. ")
+
         try:
             config = self._llm_config_current_agent()
             if not config:
@@ -573,7 +600,6 @@ class SelectCategoryWidget(Static):
             self.description_area.visible = False
             logging.info("No valid category selected.")
 
-
     # Event handlers (i dont think is actually called)
     @on(CategorySelected)
     def handle_category_selected(self, message: CategorySelected) -> None:
@@ -603,6 +629,19 @@ class SelectCategoryWidget(Static):
             except Exception as e:
                 logging.error(f"Error processing {event.input_id}: {e}")
                 self.show_error(f"Failed to process {event.input_id}")
+        
+        # Re-enable UI components and hide loading indicator
+        # self._enable_ui()
+
+        button = self.query_one("#refresh-description-button")
+        if isinstance(button, Button):
+            button.disabled = False
+
+        button = self.query_one("#refresh-title-button")
+        if isinstance(button, Button):
+            button.disabled = False
+
+        self.query_one(LoadingIndicator).hide()                
 
     @on(LLMCallError)
     async def handle_llm_call_error(self, event: LLMCallError) -> None:
@@ -610,6 +649,10 @@ class SelectCategoryWidget(Static):
         logging.error(f"LLM call error for {event.input_id}: {event.error}")
         # self.show_error(event.error)
         self.is_loading = False
+
+        # Re-enable UI components and hide loading indicator
+        self._enable_ui()
+        self.query_one(LoadingIndicator).hide()
 
     @on(Button.Pressed)
     async def handle_button_press(self, event: Button.Pressed) -> None:
@@ -652,7 +695,6 @@ class SelectCategoryWidget(Static):
             else:
                 logging.warning(f"Updated category '{event.value}' not found in select options.")
 
-
     def _refresh_select_box(self) -> None:
         """Refresh the select box with updated categories from shared state."""
         select_widget = self.app.query_one("#category-select")
@@ -660,7 +702,6 @@ class SelectCategoryWidget(Static):
         # Populate the select box with updated category names
         options = [(cat['name'], cat['name']) for cat in self.shared_state.categories]
         select_widget.set_options(options)
-
 
     @on(TextSubmitted)
     async def handle_text_submission(self, event: TextSubmitted) -> None:
@@ -683,7 +724,6 @@ class SelectCategoryWidget(Static):
             # Notify the user that the edit has been saved
             self.app.notify("Category description saved")
 
-
     def _update_storage(self) -> None:
         """Persist the updated shared state to storage."""
         updated_data = {
@@ -694,7 +734,6 @@ class SelectCategoryWidget(Static):
         all_agents_data = self.session_manager.get_data("agents", screen_name=self.screen_name) or {}
         all_agents_data[self.agent_name] = updated_data
         self.session_manager.update_data("agents", all_agents_data, self.screen_name)
-
 
     # LLM result handlers
     async def _handle_title_update(self, result: dict) -> None:
@@ -807,6 +846,8 @@ class ScaleWidget(SessionDependentUI):
     async def retrieve_scales(self) -> None:
         """Retrieve scales using LLM."""
         self.is_loading = True
+        #self._disable_ui()
+        self.query_one(LoadingIndicator).show(f"Retrieving scales for category: {self.shared_state.selected_category}")
         try:
             config = self._llm_config_current_agent()
             if not config:
@@ -833,12 +874,16 @@ class ScaleWidget(SessionDependentUI):
     async def handle_llm_call_complete(self, event: LLMCallComplete) -> None:
         """Handle LLM call completions."""
         if event.input_id == "retrieve-scales":
+            # self._enable_ui()
+            self.query_one(LoadingIndicator).hide()
             await self._handle_scales_update(event.result)
 
     @on(LLMCallError)
     async def handle_llm_call_error(self, event: LLMCallError) -> None:
         """Handle LLM call errors."""
         logging.error(f"LLM call error: {event.error}")
+        # self._enable_ui()
+        self.query_one(LoadingIndicator).hide()
         self.is_loading = False
 
     async def _handle_scales_update(self, scales: List[Dict]) -> None:
@@ -913,6 +958,7 @@ class SelectScaleWidget(Static):
         self._init_widgets()
         yield self.create_scales_button
         yield self.scale_select
+        yield LoadingIndicator()
         yield self.scale_input_box
         yield self.scale_description_area
 
@@ -945,7 +991,6 @@ class SelectScaleWidget(Static):
                 self.scale_input_box.visible = True
                 self.scale_description_area.visible = True
 
-
     @on(Input.Submitted, "#scale-input")
     def handle_scale_name_changed(self, event: Input.Submitted) -> None:
         """Handle changes to the scale's name."""
@@ -967,7 +1012,6 @@ class SelectScaleWidget(Static):
 
             # Update the select box options
             self._refresh_scale_select_box()
-
 
     def _refresh_scale_select_box(self) -> None:
         """Refresh the scale select box with updated scale names."""
