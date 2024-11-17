@@ -130,22 +130,34 @@ class TimeLineEditorScreen(SessionScreen):
     def on_dialog_selected(self, event: DialogSelected):
         self.current_dialog = event.dialog_name
         self.notify(f"Loaded Dialog: {event.dialog_name}")
+        
         dynamic_container = self.query_one("#center-dynamic-container-timeline-editor", DynamicContainer)
         dynamic_container.clear_content()
+        
         self.update_header(name=event.dialog_name.plain)
         self.load_chat_ui(self.current_dialog,"dialog")
-    
+        
+        self.state_machine.current_state = self.state_machine.states["dialog_loaded"]
+        self.query_one(StateInfo).update_state_info(self.state_machine, "")
+        self.query_one(StateButtonGrid).update_buttons()
+
+
     on(AgentSelected)
     def on_agent_selected(self, event: AgentSelected):
         self.current_agent = event.agent_name.plain
         self.agent_name_plain = event.agent_name.plain
         self.notify(f"Loaded Agent: {event.agent_name.plain}")
+       
         dynamic_container = self.query_one("#center-dynamic-container-timeline-editor", DynamicContainer)
         dynamic_container.clear_content()
         
-        # Update header with current agent and session (if available)
         self.update_header(name=event.agent_name.plain)
         self.load_chat_ui(self.agent_name_plain, "agent")
+
+        self.state_machine.current_state = self.state_machine.states["agent_loaded"]
+        self.query_one(StateInfo).update_state_info(self.state_machine, "")
+        self.query_one(StateButtonGrid).update_buttons()
+
 
     def load_chat_ui(self, name: str, type: str):
         id = 'chat-gui'
@@ -334,6 +346,12 @@ class TimeLineEditorScreen(SessionScreen):
         if action == "save_agent":
             self.save_agent()
             return
+        
+        if action == "reset":
+            self.state_machine.current_state = self.state_machine.states["initial"]
+            self.query_one(StateInfo).update_state_info(self.state_machine, "")
+            self.query_one(StateButtonGrid).update_buttons()
+
 
         dynamic_container = self.query_one("#center-dynamic-container-timeline-editor", DynamicContainer)
         dynamic_container.clear_content()

@@ -315,7 +315,7 @@ class ClarityScreen(SessionScreen):
             config_manager = LLMConfigManager() 
             message_export_path = config_manager.get_general_config().get('message_export_path', '')
         
-           # data from session analysis related
+            # data from session analysis related
             last_analysis = self.session_manager.get_data("last_analysis", screen_name=self.screen_name)
             last_feedback_output = self.session_manager.get_data("last_feedback_output", screen_name=self.screen_name)
             last_feedback_input = self.session_manager.get_data("last_feedback_input", screen_name=self.screen_name)

@@ -1,4 +1,7 @@
 import logging
+import os
+import json
+
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
@@ -8,6 +11,7 @@ from textual.css.query import NoMatches
 from uccli import StateMachine
 
 from session_manager import SessionManager
+from underdogcowboy.core.config_manager import LLMConfigManager 
 
 
 from ui_factory import UIFactory
@@ -158,6 +162,34 @@ class AgentAssessmentBuilderScreen(SessionScreen):
             self.app.query_one(StateInfo).update_state_info(self.state_machine, "")
             self.app.query_one(StateButtonGrid).update_buttons()
 
+        if action == 'export':
+           
+            config_manager = LLMConfigManager() 
+            message_export_path = config_manager.get_general_config().get('message_export_path', '')
+        
+            # data from session analysis related
+            agents_data = self.session_manager.get_data("agents", screen_name=self.screen_name)
+            categories = agents_data[self.agent_name_plain]["categories"]                
+
+            # Make json file for each data value
+            try:
+                os.makedirs(message_export_path, exist_ok=True)
+
+                data_to_export = {
+                    "categories": categories,  # Nest the array under the "categories" key
+                }
+                
+                filename = f"assessment_categories_for_{self.agent_name_plain}.json"
+                export_path = os.path.join(message_export_path, filename)
+                with open(export_path, 'w') as f:
+                    json.dump(data_to_export, f, indent=4)  # Convert nested data to JSON format
+
+            except Exception as e:
+                print(f"Error during file creation: {str(e)}")
+                self.app.notify("Export Error")
+
+
+            self.app.notify(f"Assessment structure exported to your message export folder: {message_export_path} ")
 
         dynamic_container = self.query_one("#center-dynamic-container-agent-assessment-builder", DynamicContainer)
         dynamic_container.clear_content()
@@ -183,22 +215,7 @@ class AgentAssessmentBuilderScreen(SessionScreen):
             dynamic_container.mount(CenterContent(action))
 
 
-    @on(CategorySelected)
-    def on_category_selected(self, message: CategorySelected) -> None:
-        """Handle the CategorySelected event and load the CategoryEditorUI."""
-        logging.info(f"Category selected: {message.category_name}")
-
-        dynamic_container = self.query_one("#center-dynamic-container-agent-assessment-builder", DynamicContainer)
-        dynamic_container.clear_content()
-
-        category_editor_ui = CategoryEditorUI(self.session_manager,self.screen_name,self.agent_name_plain)
-        dynamic_container.mount(category_editor_ui)
-
-        # we want to send message for the handler in the CategoryEditorUI
-        self.post_message(CategoryLoaded(message.category_name))
-
-
-    on(AgentSelected)
+    @on(AgentSelected)
     def on_agent_selected(self, event: AgentSelected):
         self.current_agent = event.agent_name.plain
         self.agent_name_plain = event.agent_name.plain
