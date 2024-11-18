@@ -1,6 +1,13 @@
 import logging
 import yaml
+import json
+import sys
 import os
+
+# quick fix. The work, make relative imports with the "from .[folder] etc"
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+
 from typing import Dict, Set, Union
 
 from textual import on
@@ -8,6 +15,9 @@ from textual.app import App
 from textual.events import Event
 from textual.reactive import Reactive
 from textual.binding import Binding
+from dotenv import load_dotenv
+
+
 
 from underdogcowboy.core.config_manager import LLMConfigManager
 
@@ -19,11 +29,13 @@ from state_management.storage_interface import StorageInterface
 from state_machines.agent_assessment_state_machine import create_agent_assessment_state_machine
 from state_machines.clarity_state_machine import create_clarity_state_machine
 from state_machines.timeline_editor_state_machine import create_timeline_editor_state_machine
+from underdogcowboy.core.commandtools.agent_flow.state_machines.work_sessions_state_machine import create_works_session_state_machine
 
 # Screens
 from screens.agent_assessment_builder_scr import AgentAssessmentBuilderScreen
 from screens.timeline_editor_src import TimeLineEditorScreen    
 from screens.agent_clarity_src import ClarityScreen
+from screens.work_session_src import WorkSessionScreen
 
 # Session Initializer
 from session_initializer import initialize_shared_session_manager
@@ -43,26 +55,16 @@ from copy_paste import ClipBoardCopy
 from underdogcowboy.core.timeline_editor import CommandProcessor
 
 
-# Load configuration from YAML file
-def load_config(config_path: str) -> dict:
-    with open(config_path, 'r') as file:
-        return yaml.safe_load(file)
-
-
 class MultiScreenApp(App):
     """Main application managing multiple screens and session synchronization."""
 
-    CSS_PATH = "./state_machine_app_candidate.tcss"
-
+    # CSS_PATH = "./state_machine_app_candidate.tcss"
+    CSS_PATH = "./v02_octa_state_machine_app_candidate.tcss"
+    ENABLE_COMMAND_PALETTE = False
 
     # Key bindings for user interactions to switch between screens or sync sessions
-    BINDINGS = [
-        Binding("t", "return_to_timeline", "TimeLine Editor", tooltip="Create new dialogs and agents"),
-        Binding("c", "return_to_clarity", "Agent Clarity"),
-        Binding("a", "return_to_agent_assessment_builder", "Agent Assessment Builder"),
-        Binding("s", "sink_sessions", "Sink Sessions to Current Screen"), 
-    ]
-
+    BINDINGS = []
+    
     # Reactive property to track if session synchronization is active
     sync_active: Reactive[bool] = Reactive(False)
     # Shared SessionManager that can be used across screens when syncing is active
@@ -72,7 +74,7 @@ class MultiScreenApp(App):
         super().__init__(**kwargs)
         # Load configuration from the YAML file
         self.config = load_config(config_path)
-        
+    
         # Initialize the storage manager to manage persistent session data
         self.storage_manager: StorageInterface = JSONStorageManager(base_dir=self.config['storage']['base_dir'])
         # Dictionary to hold SessionManagers for each screen
@@ -96,8 +98,100 @@ class MultiScreenApp(App):
 
         self.clarity_processor = None
 
-
     def on_mount(self) -> None:
+        """Mount screens when the app starts, dynamically from configuration."""
+        
+        self._initialize_bindings_from_config()
+
+        current_dir = os.path.dirname(__file__)
+        config_path = os.path.join(current_dir, "screen_config.json")
+        
+        try:
+            with open(config_path) as config_file:
+                screen_configs = json.load(config_file)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Configuration file not found at {config_path}")
+            
+        self.screen_session_managers = {}
+        self.session_screens = set()
+        
+        for screen_name, config in screen_configs.items():
+
+            # the "_" for screens in development, or we do not want active during run time. 
+            if screen_name.startswith("_") or screen_name in ("initial_screen", "global_bindings"):
+                logging.info(f"Skipping disabled screen: {screen_name}")
+                continue
+                    
+
+            session_manager = SessionManager(self.storage_manager)
+            session_manager.set_message_post_target(self)
+            self.screen_session_managers[screen_name] = session_manager
+            
+            state_machine_func = globals().get(config["state_machine"])
+            if state_machine_func is None:
+                raise ValueError(f"State machine function '{config['state_machine']}' not found.")
+            
+            screen_class = globals().get(config["screen_class"])
+            if screen_class is None:
+                raise ValueError(f"Screen class '{config['screen_class']}' not found.")
+            
+            screen_instance = screen_class(
+                state_machine=state_machine_func(),
+                session_manager=session_manager
+            )
+            
+            self.session_screens.add(screen_instance)
+            # Use a default argument in the lambda to capture the current screen_instance
+            self.install_screen(lambda screen=screen_instance: screen, name=screen_name)
+
+        # Set the initial screen dynamically from configuration
+        self.push_screen(screen_configs["initial_screen"])
+
+    def _initialize_bindings_from_config(self) -> None:
+        """Initialize bindings from configuration at startup."""
+        current_dir = os.path.dirname(__file__)
+        config_path = os.path.join(current_dir, "screen_config.json")
+        
+        try:
+            with open(config_path) as config_file:
+                screen_configs = json.load(config_file)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Configuration file not found at {config_path}")
+        
+
+
+        # Set up bindings from configuration file
+        for screen_name, screen_data in screen_configs.items():
+            # Skip non-dictionary entries like "initial_screen"
+            if not isinstance(screen_data, dict):
+                continue
+
+            if screen_name.startswith("_") or screen_name in ("initial_screen", "global_bindings"):
+                logging.info(f"Skipping disabled screen: {screen_name}")
+                continue
+        
+            bindings = screen_data.get("bindings", [])
+            for binding in bindings:
+                self.bind(
+                    binding["key"],                  # Pass keys as a positional argument
+                    action=binding["action"],
+                    description=binding["description"]
+                )
+
+            # Dynamically create the action method
+            action_name = binding["action"]
+            action_method = self.create_action_method(screen_name)
+            action_method_name = f"action_{action_name}"
+            action_method.__name__ = action_method_name
+            setattr(MultiScreenApp, action_method_name, action_method)
+            logging.info(f"Created action method: {action_method_name} for screen: {screen_name}")
+
+    def create_action_method(self,screen_name):
+        def action_method(self):
+            self.push_screen(screen_name)
+        return action_method
+
+    def __bck_on_mount(self) -> None:
         """Mount screens when the app starts."""
         # Initialize individual SessionManagers for each screen by default
         self.screen_session_managers = {
@@ -168,17 +262,16 @@ class MultiScreenApp(App):
         logging.info("Session synchronization is now disabled.")
         self.notify("Session synchronization is now disabled.", severity="info")
 
+    """ no longer needed, keep for some more testing of our screen_config.json config solution
     def action_return_to_clarity(self) -> None:
-        """Action to return to the Clarity screen."""
         self.push_screen("Clarity")
 
     def action_return_to_timeline(self) -> None:
-        """Action to navigate to the Timeline Editor screen."""
         self.push_screen("TimeLine Editor")
 
     def action_return_to_agent_assessment_builder(self) -> None:
-        """Action to navigate to the Agent Assessment Builder screen."""
         self.push_screen("Agent Assessment Builder")
+    """
 
     def action_sink_sessions(self) -> None:
         """Sink all sessions to the currently active screen's SessionManager."""
@@ -219,35 +312,42 @@ class MultiScreenApp(App):
                 return screen
         return None
 
+def setup_logging(config):
+    """Setup logging based on the environment variable."""
+    # Load environment variables from .env file
+    load_dotenv()
+
+    if os.getenv("LOGGING_ENABLED") != "1":
+        logging.disable(logging.CRITICAL)  # Disable all logging if not enabled
+        return
+
+    log_filename = config['logging']['filename']
+    log_filepath = os.path.abspath(log_filename)
+
+    # Clear existing handlers
+    for handler in logging.root.handlers[:]:
+        logging.root.removeHandler(handler)
+
+    logging.basicConfig(
+        filename=log_filepath,
+        level=config['logging']['level'],
+        format=config['logging']['format']
+    )
+    print(f"Logging initialized. Log file: {log_filepath}")
+
+def load_config(config_path: str) -> dict:
+    with open(config_path, 'r') as file:
+        return yaml.safe_load(file)
+
 def main():
-    import os
     config_path = os.path.join(os.path.dirname(__file__), 'config.yaml')
-
     config = load_config(config_path)
+    setup_logging(config)
 
-    try:
-        log_filename = config['logging']['filename']
-        log_filepath = os.path.abspath(log_filename)
-
-        # Clear all existing handlers to avoid interference
-        for handler in logging.root.handlers[:]:
-            logging.root.removeHandler(handler)
-
-        logging.basicConfig(
-            filename=log_filepath,
-            level=config['logging']['level'],
-            format=config['logging']['format']
-        )
-        logging.info("Logging initialized successfully")
-        print(f"Logging initialized. Log file: {log_filepath}")
-        print(f"To view the log file, use the command: tail -f {log_filepath}")
-    except Exception as e:
-        print(f"Error initializing logging: {e}")
-
-    logging.info("Starting the app...")
-
+    print("Starting the app...")
     app = MultiScreenApp(config_path=config_path)
     app.run()
 
 if __name__ == "__main__":
     main()
+    

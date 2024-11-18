@@ -20,6 +20,11 @@ from llm_response_markdown_renderer import LLMResponseRenderer
 # uc 
 from underdogcowboy.core.dialog_manager import AgentDialogManager
 
+# UI (called via query_one())
+from ui_components.state_button_grid_ui import StateButtonGrid 
+from ui_components.state_info_ui import StateInfo
+
+
 
 renderer = LLMResponseRenderer(
     mdformat_config_path=None,  # Provide path if you have a custom config
@@ -29,11 +34,14 @@ class AnalyzeUI(SessionDependentUI):
     
     """A UI for displaying and running analysis on an agent definition"""
 
-    def __init__(self, session_manager, screen_name, agent_name_plain):
+    def __init__(self, session_manager, state_machine, screen_name, agent_name_plain):
         super().__init__(session_manager, screen_name, agent_name_plain)
+        
         self.session_manager = session_manager
         self.llm_call_manager = LLMCallManager()
         self.llm_call_manager.set_message_post_target(self)
+        self.state_machine = state_machine
+
         logging.info(f"post target message set to: {self.llm_call_manager._message_post_target}")
 
     def compose(self) -> ComposeResult:
@@ -55,6 +63,13 @@ class AnalyzeUI(SessionDependentUI):
             self.show_result(existing_analysis)
             self.query_one("#rerun-analysis-button").remove_class("hidden")
             analyze_box.add_class("hidden")  # Hide the horizontal group
+
+            # handle statemachine, activate analysis_ready           
+            self.state_machine.current_state = self.state_machine.states["analysis_ready"]
+            self.app.query_one(StateInfo).update_state_info(self.state_machine, "")
+            self.app.query_one(StateButtonGrid).update_buttons()
+
+
         else:
             analyze_box.remove_class("hidden")  # Ensure horizontal group is visible
             self.query_one("#start-analysis-button").remove_class("hidden")  # Ensure the start button is visible
@@ -77,7 +92,7 @@ class AnalyzeUI(SessionDependentUI):
 
         current_agent = self.agent_name_plain
         if not current_agent:
-            self.show_error("No agent currently loaded. Please load an agent first.")
+            self.app.notify("No agent currently loaded. Please load an agent first.", severity="warning")
             return
 
         logging.info("Sending analysis call to LLMCallManager.")
@@ -92,8 +107,6 @@ class AnalyzeUI(SessionDependentUI):
                             The user requested an new analysis, based on your initial given analysis
                             and potentially some extra conversation after."""
 
-    
-
         asyncio.create_task(self.llm_call_manager.submit_analysis_call(
             llm_function=run_analysis,
             llm_config=llm_config,
@@ -106,12 +119,17 @@ class AnalyzeUI(SessionDependentUI):
 
         logging.info("Analysis call submitted to LLMCallManager.")
 
-
     @on(LLMCallComplete)
     async def on_llm_call_complete(self, event: LLMCallComplete) -> None:
         if event.input_id == "analysis":
             self.post_message(LLMResultReceived(sender=self, result=event.result))
             self.update_and_show_result(event.result)
+
+            # Good place to handle statemachine           
+            self.state_machine.current_state = self.state_machine.states["analysis_ready"]
+            self.app.query_one(StateInfo).update_state_info(self.state_machine, "")
+            self.app.query_one(StateButtonGrid).update_buttons()
+
             self.query_one("#loading-indicator").add_class("hidden")
             # Store the adm
             self.adm = event.adm
@@ -127,7 +145,7 @@ class AnalyzeUI(SessionDependentUI):
 
     def update_and_show_result(self, result: str) -> None:
         logging.info(f"Entering in update error: result var: {result}")
-        self.session_manager.update_data("last_analysis", result)
+        self.session_manager.update_data("last_analysis", result, screen_name=self.screen_name)
         self.show_result(result)
 
     def show_result(self, result: str) -> None:

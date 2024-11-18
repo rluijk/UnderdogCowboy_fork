@@ -1,0 +1,551 @@
+/* --- Layout Components --- */
+
+
+
+Screen {
+    layout: grid;
+    grid-size: 1;
+    grid-rows: auto 1fr auto auto;
+    height: 100%;
+    background: #5e3a2e 20%;
+}
+
+Header {
+    height: auto;
+    min-height: 3;
+    background: #5e3a2e 30%;
+    color: #ecf0f1;
+    padding: 1;
+}
+
+
+Footer {
+    height: auto;
+    background: #000000;
+    color: #ecf0f1;
+    padding: 1;
+}
+
+Collapsible {
+    background: #5e3a2e 20%;
+    border: none;
+    margin: 1 0;
+    border: none
+}
+
+
+
+/* --- Header Elements --- */
+
+Header > .header--title {
+    text-style: bold;
+    color: #faf0e8;
+}
+
+Header > .header--sub_title {
+    margin-top: 1;
+    color: #faf0e8;
+}
+
+/* --- Collapsible Elements --- */
+
+
+Collapsible > .collapsible--header {
+    background: #5e3a2e 10%;
+    padding: 1;
+    link-background-hover: green;
+}
+
+
+Collapsible > .collapsible--content {
+    padding: 1;
+}
+
+.collapsible {
+    background: red;
+}
+
+.collapsible.active {
+    color: red; /* Change color when active */
+}
+
+/* CSS styling for chat messages and buttons */
+
+.message-text {
+    padding: 1;
+    background: #f0f0f0;
+}
+
+.message-buttons {
+    margin-top: 1;
+}
+
+.message-button {
+    margin-right: 1;
+}
+
+#cancel-button{
+    background: #5e3a2e 20%;
+}
+
+#create-button{
+    background: #5e3a2e;
+    
+}
+
+/* --- Specific IDs --- */
+
+#chat-history{
+    margin: 1;
+    padding: 1;
+}
+
+#chat-textarea{
+    border: #c08e7e;
+    height: 25%;
+}
+
+#chat-textarea.-disabled{
+    border: #c08e7e 50%;
+    background: #5e3a2e 20%;
+    height: 25%;
+}
+
+
+#analyze-box {
+    layout: vertical; /* Stack the label and button vertically */
+    align: center middle; /* Center horizontally and vertically */
+    width: 100%;
+    height: auto;
+    padding: 1;
+    border: lightgrey;
+    margin-top: 0;
+}
+
+#start-analysis-button, #rerun-analysis-button {
+    height: 3;
+    align: center middle;
+    dock: bottom;
+    margin-top: 1;
+}
+
+#center-placeholder {
+    padding: 1;
+}
+
+#app-layout {
+    layout: vertical;
+    height: auto;
+    dock: bottom;
+    border-bottom: solid #4a4a4a;
+    background: #5e3a2e 20%;
+    
+}
+
+#state-info {
+    display: none;
+    height: auto;
+    padding: 1;
+    background: #5e3a2e 20%;
+    border-bottom: solid #4a4a4a;
+}
+
+#button-grid {
+    width: 100%;
+    height: auto;
+    grid-size: 3;
+    grid-gutter: 1 1;
+    padding: 0;
+    background: #5e3a2e 10%;
+    border: #5e3a2e 20%;
+    
+
+}
+
+/* --- Button Styles --- */
+
+.action-button {
+    width: 100%;
+    height: 3;
+    background: #5e3a2e;
+    color: #ffffff;
+    border-bottom: tall white 20%;
+}
+
+.action-button:hover {
+    background: #c08e7e;
+}
+
+.action-button:disabled {
+    background: #000000;
+    color: #ecf0f1;
+}
+
+.action-reset-button {
+    background: #9b6a54;
+    color: #ffffff;
+}
+
+.action-reset-button:hover {
+    background: #c08e7e;
+}
+
+.action-reset-button:disabled {
+    background: #000000;
+    color: #ecf0f1;
+}
+
+.left-side-button {
+    width: 100%;
+    height: 3;
+    background: #9b6a54;
+    color: #ffffff;
+    border-bottom: tall white 20%;
+
+}
+
+.left-side-button:hover {
+    background: #c08e7e;
+    border: none;
+}
+
+.grid-buttons{
+    grid-size: 2 1;
+    grid-gutter: 1 1;
+    padding: 1;
+    width: 100%;
+    height: auto;
+    background: #5e3a2e 20%;
+    border: none;
+    align: center top; 
+}
+
+
+/* --- Left Side Components --- */
+
+.left-side-buttons {
+    grid-size: 2 1;
+    grid-gutter: 1 1;
+    padding: 1;
+    width: 90%;
+    height: auto;
+    background: #5e3a2e 20%;
+    border: none;
+    align: center top;
+}
+
+/* --- Result Components --- */
+
+.result-label {
+    margin: 1 5 2 3;
+}
+
+.result-compose {
+    margin: 1 5 2 3;
+}
+
+.feedback-result {
+    max-height: 50;
+    overflow: auto;
+    background: #252525;
+    border-bottom: white
+}
+
+/* --- Utility Classes --- */
+
+.hidden {
+    display: none;
+}
+
+.dynamic-spacer {
+    height: 1fr;
+    min-height: 100%;
+}
+
+.left-dynamic-spacer {
+    width: 1fr;
+    layout: vertical;
+    align: center middle;
+}
+
+.center-dynamic-spacer {
+    width: 2fr;
+    background: #000000;
+}
+
+.right-dynamic-spacer {
+    width: 1fr;
+    background: #000000;
+}
+
+.agent-clarity-base{
+    border-bottom: #5e3a2e 20%;
+    background: #000000;
+}
+
+.agent-assesment-left {
+    border: #5e3a2e 20%;
+    background: #5e3a2e 20%;
+}
+
+.agent-assesment-base {
+    border-bottom: #5e3a2e 20%;
+    background: #000000;
+}
+
+.clarity-bb {
+    background: white;
+}
+
+.agent-clarity-left{
+    border: #5e3a2e 20%;
+    background: #5e3a2e 20%;
+}
+/* --- Compact Styles --- */
+
+/* General Section Styling */
+.compact-section {
+    padding: 0;
+    margin: 0;
+}
+
+/* Button Styling */
+.compact-button {
+    width: 4;
+    height: 5;
+    padding: 1 2; /* Adjust padding to fit tighter */
+    margin: 0;    /* Remove extra margin */
+}
+
+.compact-button {
+    height: 3;              /* Set a fixed height */
+    width: 1;
+    padding: 0 1;           /* Reduce padding to make it more compact */
+    margin: 0;              /* Remove margin */
+    background: #c08e7e;    /* Keep background color consistent */
+}
+
+/* Label Styling */
+.compact-label {
+    padding: 0 1; /* Compact padding */
+    margin: 0;      /* Remove unnecessary margins */
+}
+
+.compact-label {
+    padding: 1 1;           /* Reduce padding for labels */
+    margin: 0;              /* Remove margins */
+    height: 3;              /* Match height with input fields and buttons */
+}
+
+/* Checkbox Styling */
+.compact-checkbox {
+    margin: 0;
+    padding: 1 2;
+}
+
+.compact-checkbox {
+    height: 3;              /* Set checkbox height to match other elements */
+    margin: 0 1;            /* Remove extra margin */
+    padding: 0;             /* Remove padding */
+}
+
+
+
+/* Input Field Styling */
+.compact-input {
+    padding: 1 1;           /* Reduce padding inside input fields */
+    margin: 0;              /* Remove margins */
+    height: 2;              /* Match the height of the button */
+    width: 30%;             /* Set to full width within the ListItem */
+}
+
+/* --- ListItem Styling --- */
+
+ListView  {
+    background: #000000;
+    scrollbar-color: #af775f;
+    scrollbar-background: #000000;
+
+}
+
+/* ListItem Styling for compact rows */
+ListItem {
+    padding: 0;             /* Remove padding around ListItem */
+    margin: 0;              /* Remove extra margins */
+    height: 1;           /* Let height adjust based on content */
+    border-bottom: none;    /* Remove borders unless required */
+    background: #000000;
+}
+
+ListItem {
+    color: white;
+    height: auto;
+    background: #000000;
+    overflow: hidden hidden;
+}
+ListItem > :disabled {
+    background: #5e3a2e;
+}
+
+ListView:focus > ListItem.--highlight {
+    background: #2c8faa;
+}
+ListItem > Widget {
+    height: auto;
+}
+
+#session-name-input {
+    background: white;
+    border: tall #c08e7e;
+}
+
+#loading-indicator{
+    width: 100%;
+}
+
+/* Notification Styling */
+
+
+ToastRack {
+    align: right bottom;
+}
+
+Toast {
+    padding: 2;
+    background: #9ed9de;
+    color: white;
+
+}
+
+Toast.-information {
+    background: #69c8c2; /* Styling here. */
+    color: white;
+    width: 40%;
+}
+
+Toast.-warning {
+    background: #2c8faa;
+    color: white; /* Styling here. */
+    width: 40%;
+}
+
+Toast.-error {
+    background: #14425c;
+    color: white; /* Styling here. */
+}
+
+/*Toast.-information .toast--title {
+    text-style: italic;
+} */
+
+/*Toast.-warning .toast--title {
+    color: yellow; 
+} */
+
+
+/* Overall Container Styling */
+DynamicContainer {
+    border: tall #000000;
+    background: #000000;
+}
+
+
+/**** ****/
+
+
+/* CategoryScaleWidget Styling */
+CategoryScaleWidget {
+    border: none;
+    width: 100%;
+    padding: 0;
+    overflow: auto;
+    height: 90;
+}
+
+/* CategoryWidget Styling */
+CategoryWidget {
+    border: #5e3a2e;
+    width: 100%;
+    padding: 0;
+}
+
+/* SelectCategoryWidget Styling */
+SelectCategoryWidget {
+    border: #5e3a2e 20%;
+    background: #5e3a2e 20%;
+    height: 40;
+    width: 100%;
+    padding: 1;
+}
+
+/* SelectScaleWidget Styling */
+SelectScaleWidget {
+    border: #5e3a2e;
+    width: 100%;
+    padding: 1;
+    
+}
+
+
+/* ScaleWidget Styling */
+ScaleWidget {
+    border: #5e3a2e;
+    width: 100%;
+    padding: 1;
+}
+
+
+/* Button Container for Horizontal Layout */
+.button-container {
+    layout: horizontal;
+    width: 100%;
+    margin-top: 1;
+    border: green
+}
+
+/* Full Width for Select, Input, and TextArea */
+Select{ 
+    width: 100%;
+    margin: 1 0;
+    border: #5e3a2e;
+    
+}
+
+Select:focus{
+    border: #9ed9de
+}
+
+
+
+Input {
+    width: 100%;
+    margin: 1 0;
+    border: #5e3a2e
+}
+
+Input:focus {
+    border: #9ed9de;
+}
+
+
+TextArea {
+    width: 100%;
+    height: 15;
+    margin: 1 0;
+    border: #5e3a2e
+}
+
+TextArea:focus {
+    border: #9ed9de;
+}
+
+
+/* Loading Indicator Visibility */
+#loading-indicator, #scale-loading-indicator {
+    visibility: hidden;
+    margin: 1 0;
+}
+
+#loading-indicator.visible, #scale-loading-indicator.visible {
+    visibility: visible;
+}

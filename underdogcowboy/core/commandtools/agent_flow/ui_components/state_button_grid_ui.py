@@ -75,16 +75,9 @@ class StateButtonGrid(Static):
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         action = str(event.button.label)
-        if self.state_machine.transition(action):
-            logging.info(f"Action '{action}' executed. New state: {self.state_machine.current_state.name}")
-            self.post_message(ActionSelected(action))  # Emit custom event
-            #self.app.post_message(ActionSelected(action, sender=self))
-        else:
-            logging.warning(f"Action '{action}' is not allowed in current state: {self.state_machine.current_state.name}")
-
-        self.update_buttons()
-        self.parent.query_one(StateInfo).update_state_info(self.state_machine, action)
-
+        self.post_message(ActionSelected(action))
+ 
+        
     def update_buttons(self) -> None:
         """Update the buttons based on allowed actions from the state machine."""
         allowed_actions = self.state_machine.get_available_commands()

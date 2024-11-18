@@ -1,0 +1,32 @@
+{
+    "TimeLine Editor": {
+        "screen_class": "TimeLineEditorScreen",
+        "state_machine": "create_timeline_editor_state_machine",
+        "bindings": [
+            { "key": "t", "action": "return_to_timeline", "description": "TimeLine Editor" }
+        ]
+    },
+    "Clarity": {
+        "screen_class": "ClarityScreen",
+        "state_machine": "create_clarity_state_machine",
+        "bindings": [
+            { "key": "c", "action": "return_to_clarity", "description": "Agent Clarity" }
+        ]
+    },
+    "Agent Assessment Builder": {
+        "screen_class": "AgentAssessmentBuilderScreen",
+        "state_machine": "create_agent_assessment_state_machine",
+        "bindings": [
+            { "key": "a", "action": "return_to_agent_assessment_builder", "description": "Agent Assessment Builder" }
+        ]
+    },
+    "_Agent WorkSession": {
+        "screen_class": "WorkSessionScreen",
+        "state_machine": "create_works_session_state_machine",
+        "bindings": [
+            { "key": "w", "action": "return_to_agent_work_session", "description": "Agent Work Session" }
+        ]
+    },
+    
+    "initial_screen": "TimeLine Editor"
+}

@@ -1,4 +1,7 @@
 import logging
+import os
+import json
+
 from textual import on
 from textual.app import ComposeResult
 from textual.containers import Vertical, Horizontal
@@ -8,22 +11,25 @@ from textual.css.query import NoMatches
 from uccli import StateMachine
 
 from session_manager import SessionManager
+from underdogcowboy.core.config_manager import LLMConfigManager 
 
 
 from ui_factory import UIFactory
 from ui_components.session_dependent import SessionDependentUI
 from ui_components.dynamic_container import DynamicContainer
 from ui_components.state_button_grid_ui import StateButtonGrid
-from ui_components.state_info_ui import StateInfo
+from ui_components.state_info_ui import StateInfo 
 from ui_components.left_side_ui import LeftSideContainer
-from ui_components.category_list_ui import CategoryListUI
-from ui_components.category_editor_ui import CategoryEditorUI
+# from ui_components.category_list_ui import CategoryListUI
+from ui_components.category_editor_ui import CategoryEditorUI 
+from ui_components.category_scale_widget_ui_candidate import CategoryScaleWidget
 from ui_components.center_content_ui import CenterContent
 from ui_components.load_agent_ui import LoadAgentUI
 
 from events.button_events import UIButtonPressed
 from events.action_events import ActionSelected
 from events.category_events import CategorySelected, CategoryLoaded
+from events.agent_events import AgentSelected
 
 
 from screens.session_screen import SessionScreen
@@ -46,7 +52,7 @@ class AgentAssessmentBuilderScreen(SessionScreen):
     def compose(self) -> ComposeResult:
         yield Header()
         with Horizontal(id="agent-centre", classes="dynamic-spacer"):
-            yield LeftSideContainer(classes="left-dynamic-spacer")
+            yield LeftSideContainer(classes="left-dynamic-spacer agent-assessment-left")
             yield DynamicContainer(id="center-dynamic-container-agent-assessment-builder", classes="center-dynamic-spacer")
 
         with Vertical(id="app-layout"):
@@ -152,7 +158,38 @@ class AgentAssessmentBuilderScreen(SessionScreen):
         action = event.action
 
         if action == "reset":
-            self.clear_session()
+            self.state_machine.current_state = self.state_machine.states["initial"]
+            self.app.query_one(StateInfo).update_state_info(self.state_machine, "")
+            self.app.query_one(StateButtonGrid).update_buttons()
+
+        if action == 'export':
+           
+            config_manager = LLMConfigManager() 
+            message_export_path = config_manager.get_general_config().get('message_export_path', '')
+        
+            # data from session analysis related
+            agents_data = self.session_manager.get_data("agents", screen_name=self.screen_name)
+            categories = agents_data[self.agent_name_plain]["categories"]                
+
+            # Make json file for each data value
+            try:
+                os.makedirs(message_export_path, exist_ok=True)
+
+                data_to_export = {
+                    "categories": categories,  # Nest the array under the "categories" key
+                }
+                
+                filename = f"assessment_categories_for_{self.agent_name_plain}.json"
+                export_path = os.path.join(message_export_path, filename)
+                with open(export_path, 'w') as f:
+                    json.dump(data_to_export, f, indent=4)  # Convert nested data to JSON format
+
+            except Exception as e:
+                print(f"Error during file creation: {str(e)}")
+                self.app.notify("Export Error")
+
+
+            self.app.notify(f"Assessment structure exported to your message export folder: {message_export_path} ")
 
         dynamic_container = self.query_one("#center-dynamic-container-agent-assessment-builder", DynamicContainer)
         dynamic_container.clear_content()
@@ -160,7 +197,7 @@ class AgentAssessmentBuilderScreen(SessionScreen):
         # Mapping actions to their respective UI classes
         ui_class = {
             "load_agent": LoadAgentUI,
-            "list_categories" : CategoryListUI
+            "analyze" : CategoryScaleWidget # this was placeholder: CategoryListUI 
         }.get(action)
 
         if ui_class:
@@ -178,18 +215,18 @@ class AgentAssessmentBuilderScreen(SessionScreen):
             dynamic_container.mount(CenterContent(action))
 
 
-    @on(CategorySelected)
-    def on_category_selected(self, message: CategorySelected) -> None:
-        """Handle the CategorySelected event and load the CategoryEditorUI."""
-        logging.info(f"Category selected: {message.category_name}")
-
+    @on(AgentSelected)
+    def on_agent_selected(self, event: AgentSelected):
+        self.current_agent = event.agent_name.plain
+        self.agent_name_plain = event.agent_name.plain
+        self.notify(f"Loaded Agent: {event.agent_name.plain}")
         dynamic_container = self.query_one("#center-dynamic-container-agent-assessment-builder", DynamicContainer)
         dynamic_container.clear_content()
-
-        category_editor_ui = CategoryEditorUI(self.session_manager)
-        dynamic_container.mount(category_editor_ui)
-
-        # we want to send message for the handler in the CategoryEditorUI
-        self.post_message(CategoryLoaded(message.category_name))
+        
+        self.state_machine.current_state = self.state_machine.states["analysis_ready"]
+        self.app.query_one(StateInfo).update_state_info(self.state_machine, "")
+        self.app.query_one(StateButtonGrid).update_buttons()
 
 
+        self.update_header()
+        

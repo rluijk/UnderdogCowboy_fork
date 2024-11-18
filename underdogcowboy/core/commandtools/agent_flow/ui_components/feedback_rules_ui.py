@@ -72,10 +72,12 @@ class FeedbackRulesUI(SessionDependentUI):
 
         pre_prompt = "Provide feedback on how the following agent understands the rules it is under or needs to follow."
         
+        session_name = self.session_manager.current_session_name.plain
         asyncio.create_task(self.llm_call_manager.submit_llm_call_with_agent( 
             
             llm_function = send_agent_data_to_llm,
             llm_config = llm_config,
+            session_name=session_name,
             agent_name = current_agent,
             agent_type = "clarity",
             input_id = "feedback-rules",
@@ -97,7 +99,7 @@ class FeedbackRulesUI(SessionDependentUI):
             self.query_one("#loading-feedback-rules").add_class("hidden")
 
     def update_and_show_feedback(self, result: str) -> None:
-        self.session_manager.update_data("last_feedback_rules", result)
+        self.session_manager.update_data("last_feedback_rules", result, screen_name=self.screen_name)
         self.show_feedback(result)
 
     def show_feedback(self, result: str) -> None:

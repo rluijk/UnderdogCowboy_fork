@@ -22,6 +22,7 @@ GROQ_MODELS = [
 ]
 
 CLAUDE_MODELS = [
+    {'id': 'claude-3-5-sonnet-20241022', 'name': 'Claude 3.5 Sonnet (Upgrade)'},
     {'id': 'claude-3-5-sonnet-20240620', 'name': 'Claude 3.5 Sonnet'},
     {'id': 'claude-3-opus-20240229', 'name': 'Claude 3 Opus'},
     {'id': 'claude-3-sonnet-20240229', 'name': 'Claude 3 Sonnet'},
@@ -88,6 +89,13 @@ class LLMConfigManager:
         Raises:
             ValueError: If the model is not found in any provider's list.
         """
+        # Check if the input is a tuple of (provider, model_id)
+        if isinstance(model_name, tuple):
+            provider, model_id = model_name
+            # Verify that the provider and model_id exist in self.models
+            if provider in self.models and any(model['id'] == model_id for model in self.models[provider]['models']):
+                return provider
+
         # First, check if the model_name includes a provider prefix
         if ':' in model_name:
             provider, model_id = model_name.split(':', 1)
@@ -103,7 +111,6 @@ class LLMConfigManager:
                     return provider
         
         raise ValueError(f"Model '{model_name}' not found in any provider's list.")
-
 
     def load_config(self) -> Dict[str, Any]:        
         """
@@ -197,61 +204,6 @@ class LLMConfigManager:
                 credentials[prop] = value
         
         credentials['model_id'] = model_id or self.config[provider]['selected_model']
-        return credentials
-
-
-    def __bck__get_credentials(self, provider: str) -> Dict[str, Any]:
-        if provider not in self.config or not self.config[provider].get('configured', False):
-            print(f"No stored credentials found for {provider}. Please enter them now.")
-            self.config[provider] = {}
-            for prop, details in self.models[provider].items():
-                if prop != 'models':
-                    if details['input_type'] == 'password':
-                        value = getpass(details['question'])
-                        keyring.set_password("underdogcowboy", f"{provider}_{prop}", value)
-                        self.config[provider][prop] = "KEYRING_STORED"
-                    else:
-                        value = input(f"{details['question']} (default: {details.get('default', 'N/A')}): ")
-                        if not value and 'default' in details:
-                            value = details['default']
-                        self.config[provider][prop] = value
-            
-            # Model selection
-            print(f"Available models for {provider}:")
-            for i, model in enumerate(self.models[provider]['models'], 1):
-                print(f"{i}. {model['name']} ({model['id']})")
-            while True:
-                try:
-                    choice = int(input("Select a model (enter the number): "))
-                    if 1 <= choice <= len(self.models[provider]['models']):
-                        selected_model = self.models[provider]['models'][choice - 1]
-                        self.config[provider]['selected_model'] = selected_model['id']
-                        break
-                    else:
-                        print("Invalid choice. Please try again.")
-                except ValueError:
-                    print("Please enter a valid number.")
-            
-            self.config[provider]['configured'] = True
-            self.save_config()
-
-        credentials = {}
-        for prop, details in self.models[provider].items():
-            if prop != 'models':
-                if details['input_type'] ==  'password':
-                    value = keyring.get_password("underdogcowboy", f"{provider}_{prop}")
-                else:
-                    value = self.config[provider].get(prop)
-                if not value and 'default' in details:
-                    value = details['default']
-                credentials[prop] = value
-        
-        if ':' in provider:
-            provider, model_id = provider.split(':', 1)
-        else:
-            model_id = self.config[provider]['selected_model']
-        
-        credentials['model_id'] = model_id
         return credentials
 
     def get_general_config(self) -> Dict[str, Any]:

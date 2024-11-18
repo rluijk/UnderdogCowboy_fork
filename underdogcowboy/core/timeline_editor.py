@@ -979,7 +979,7 @@ class CommandProcessor:
                 # print(f"[blue]{model_response}[/blue]")
                 renderer.process_and_render(model_response, title="LLM Response")
                 
-    def _process_message(self, user_input):
+    def _process_message(self, user_input): # used by adm
         """
         Core logic for processing a message (including file inputs) and getting a model response.
         
@@ -989,6 +989,12 @@ class CommandProcessor:
         Returns:
             tuple: (model_response, error_message)
         """        
+
+        def print_conversation_to_file(conversation, filename="conversation_log.json"):
+            # Write the conversation to a JSON file for easy debugging
+            with open(filename, "w") as f:
+                json.dump(conversation, f, indent=2)
+                
         system_message = self.timeline.get_system_message()
         
         conversation = []
@@ -1010,6 +1016,9 @@ class CommandProcessor:
 
         conversation.append(user_message)
         self.timeline.add_message('user', user_input)
+
+        # Print conversation to file for debugging
+        # print_conversation_to_file(conversation, "conversation_log.json")
 
         try:
             model_response = self.model.generate_content(conversation)

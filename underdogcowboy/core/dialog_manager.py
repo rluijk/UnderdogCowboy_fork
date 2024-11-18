@@ -1,16 +1,16 @@
 import os
 from typing import List, Type, Union, Dict, Optional, Any
 from abc import ABC, abstractmethod
-import asyncio
 
-
-from .timeline_editor import Timeline, CommandProcessor, Message
-from .model import ModelManager
-from .config_manager import LLMConfigManager
+from .timeline_editor import Timeline, CommandProcessor
 from .agent import Agent
+
+from .model import ModelManager
+from .response import Response
+
+from .config_manager import LLMConfigManager
 from .tracing import TracingProxy
 from .intervention import InterventionManager
-from .response import Response
 
 from .exceptions import (
     AgentInitializationError,
@@ -132,7 +132,6 @@ class BasicDialogManager(DialogManager):
 
 class AgentDialogManager(DialogManager):
 
-    
     def __init__(self, agent_inputs: List[Union[Type[Agent], Agent]], model_name: Optional[str] = None, use_tracing: bool = False, **kwargs: Any) -> None:
         # Initialize the base class with tracing and any additional arguments
         super().__init__(use_tracing=use_tracing, **kwargs)
@@ -188,9 +187,13 @@ class AgentDialogManager(DialogManager):
                         raise ModelConfigurationError("Failed to select or configure the model.")
 
                 # Get the provider for the selected model
-                provider = self.config_manager.get_provider_from_model(self.model_name)    
+                provider = self.config_manager.get_provider_from_model(self.model_name)   
+                
+                # Ensure only the model ID part is passed to the initializer
+                model_id = self.model_name[1] if isinstance(self.model_name, tuple) else self.model_name
+
                 # Initialize the model with the given provider and model ID
-                model = ModelManager.initialize_model_with_id(provider, self.model_name)
+                model = ModelManager.initialize_model_with_id(provider, model_id)
                 timeline = Timeline()
                 
                 # Use the agent's content as the initial timeline content
@@ -234,3 +237,4 @@ class AgentDialogManager(DialogManager):
     def get_agents(self) -> List[Agent]:
         # Return the list of agents managed by this dialog manager
         return self.agents
+
