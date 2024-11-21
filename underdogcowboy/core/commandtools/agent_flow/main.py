@@ -344,6 +344,15 @@ def main():
     config = load_config(config_path)
     setup_logging(config)
 
+    # initial check for default model to have the API Key, if not ask for it.
+    # should also take care of insert in json.
+    config = load_config(config_path)
+    default_provider = config['llm']['default_provider']
+    config_manager = LLMConfigManager()
+    config_manager.get_credentials(default_provider)
+          
+
+
     print("Starting the app...")
     app = MultiScreenApp(config_path=config_path)
     app.run()

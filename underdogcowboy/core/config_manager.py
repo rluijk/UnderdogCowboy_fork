@@ -43,6 +43,7 @@ class LLMConfigManager:
         Sets up the configuration file path and loads existing configurations.
         Also defines the structure for different LLM models and their required credentials.
         """
+        self.default_model_id = CLAUDE_MODELS[0] # for agent_flow
         self.config_file: Path = Path.home() / '.underdogcowboy' / 'config.json'
         self.config: Dict[str, Any] = self.load_config()
         self.models: Dict[str, Dict[str, Any]] = {
@@ -125,7 +126,6 @@ class LLMConfigManager:
             return config
         return {}
 
-
     def save_config(self) -> None:
         """
         Save the current configuration to the JSON file.
@@ -149,8 +149,77 @@ class LLMConfigManager:
         self.config_file.parent.mkdir(parents=True, exist_ok=True)
         with open(self.config_file, 'w') as f:
             json.dump(safe_config, f, indent=2)
-    
+
     def get_credentials(self, provider: str) -> Dict[str, Any]:
+        if ':' in provider:
+            provider, model_id = provider.split(':', 1)
+        else:
+            model_id = None
+
+        # Ensure config file exists and has basic structure
+        if not self.config_file.exists():
+            self.config_file.parent.mkdir(parents=True, exist_ok=True)
+            self.config = {}
+            print(f"Creating new configuration file at {self.config_file}")
+
+        # Initialize provider config if not exists or ensure all properties from model definition exist
+        needs_config = False
+        if provider not in self.config:
+            self.config[provider] = {}
+            needs_config = True
+        else:
+            # Check if any required properties from model definition are missing
+            for prop, details in self.models[provider].items():
+                if prop != 'models':
+                    if details['input_type'] == 'password':
+                        if not keyring.get_password("underdogcowboy", f"{provider}_{prop}"):
+                            needs_config = True
+                            break
+                    elif prop not in self.config[provider]:
+                        needs_config = True
+                        break
+
+        if needs_config:
+            print(f"Configuring {provider} settings.")
+            
+            # Initialize provider config if not exists
+            if provider not in self.config:
+                self.config[provider] = {}
+
+            # Handle API key first
+            api_key_details = self.models[provider]['api_key']
+            if 'api_key' not in self.config[provider] or not keyring.get_password("underdogcowboy", f"{provider}_api_key"):
+                value = getpass(api_key_details['question'])
+                keyring.set_password("underdogcowboy", f"{provider}_api_key", value)
+                self.config[provider]['api_key'] = "KEYRING_STORED"
+
+            # Set default values for other properties if not already set
+            for prop, details in self.models[provider].items():
+                if prop not in ['models', 'api_key'] and prop not in self.config[provider]:
+                    if 'default' in details:
+                        self.config[provider][prop] = details['default']
+
+            # Set the model_id
+            self.config[provider]['selected_model'] = model_id or self.default_model_id
+            self.config[provider]['configured'] = True
+            self.save_config()
+
+        # Gather credentials including any defaults from model definition
+        credentials = {}
+        for prop, details in self.models[provider].items():
+            if prop != 'models':
+                if details['input_type'] == 'password':
+                    value = keyring.get_password("underdogcowboy", f"{provider}_{prop}")
+                else:
+                    value = self.config[provider].get(prop)
+                if not value and 'default' in details:
+                    value = details['default']
+                credentials[prop] = value
+
+        credentials['model_id'] = model_id or self.config[provider]['selected_model']
+        return credentials        
+    
+    def __bck__get_credentials(self, provider: str) -> Dict[str, Any]:
         if ':' in provider:
             provider, model_id = provider.split(':', 1)
         else:

@@ -365,8 +365,16 @@ class ChatUI(Static):
             self.app.notify(f"Error loading folder aliases: {str(e)}")
             return
 
-        # Check if the folder exists, if not, create it
+        # Expand user path
         folder_path = os.path.expanduser(folder_path)
+
+        # If the path is relative, use the export path as base
+        if not os.path.isabs(folder_path):
+            config_manager = LLMConfigManager()
+            export_path = config_manager.get_general_config().get('message_export_path', '')
+            folder_path = os.path.join(export_path, folder_path)
+
+        # Check if the folder exists, if not, create it
         if not os.path.exists(folder_path):
             try:
                 os.makedirs(folder_path)
