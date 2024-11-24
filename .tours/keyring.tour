@@ -1,0 +1,56 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "keyring",
+  "steps": [
+    {
+      "file": "underdogcowboy/core/model.py",
+      "description": "This most likely is duplicate, and should be removed",
+      "line": 115
+    },
+    {
+      "file": "underdogcowboy/core/commandtools/agent_flow/config.yaml",
+      "description": "add this to the init of the config manager",
+      "line": 17
+    },
+    {
+      "file": "underdogcowboy/core/model.py",
+      "description": "This function should work with the config manager, instead of doing this here. ",
+      "line": 65,
+      "selection": {
+        "start": {
+          "line": 66,
+          "character": 4
+        },
+        "end": {
+          "line": 81,
+          "character": 73
+        }
+      }
+    },
+    {
+      "file": "underdogcowboy/core/model.py",
+      "description": "STARTING POINT:\n- key ring should be optional setting, because many security questions asked  on windows, that might confuse people\n- we want to set it as optional, we dont want to throw it away, since it is a nice feature.\n- the model classes show(ed) miss coupling, that is fixed, but it looked like it was redundant call, check the tour for specifics. I think it can be removed, but double check first.",
+      "line": 13
+    },
+    {
+      "file": "underdogcowboy/core/config_manager.py",
+      "description": "We wantt to have keyring as optional, and we will set it in the yaml file for bool config (flag)",
+      "line": 4
+    },
+    {
+      "file": "underdogcowboy/core/config_manager.py",
+      "description": "We want this to be False for now, but also from the yaml file for the config",
+      "line": 46
+    },
+    {
+      "file": "underdogcowboy/core/config_manager.py",
+      "description": "Keyring is one way, simple in json is the other way.",
+      "line": 183
+    },
+    {
+      "file": "underdogcowboy/core/config_manager.py",
+      "description": "This method can become the way we can swap existing configuration to or from Keyring to or from json",
+      "line": 130
+    }
+  ]
+}

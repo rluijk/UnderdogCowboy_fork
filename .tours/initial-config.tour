@@ -1,0 +1,26 @@
+{
+  "$schema": "https://aka.ms/codetour-schema",
+  "title": "initial config",
+  "steps": [
+    {
+      "file": "underdogcowboy/core/commandtools/agent_flow/main.py",
+      "description": "For people to start the agent_flow TUI, a default model has been selected for them, and they need to provide the corresponding API key, before the app can launch properly.",
+      "line": 349,
+      "selection": {
+        "start": {
+          "line": 350,
+          "character": 4
+        },
+        "end": {
+          "line": 352,
+          "character": 53
+        }
+      }
+    },
+    {
+      "file": "underdogcowboy/core/config_manager.py",
+      "description": "Here is where we ask the user for the API Key. ",
+      "line": 190
+    }
+  ]
+}
