@@ -38,7 +38,6 @@ from screens.agent_clarity_src import ClarityScreen
 from screens.work_session_src import WorkSessionScreen
 
 # Session Initializer
-from session_initializer import initialize_shared_session_manager
 from session_manager import SessionManager
 
 # Configs

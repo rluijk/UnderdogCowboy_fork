@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "underdogcowboy"
-version = "0.1.13"
+version = "0.1.14"
 description = "Underdog Cowboy (UC): Wrangle Your LLMs with a Smile"
 readme = "README.md"
 requires-python = ">=3.7"
@@ -25,8 +25,6 @@ dependencies = [
     "textual",
     "pyyaml",
     "pyperclip",
-    "uccli @ file:///Users/reneluijk/projects/uccli",   
-    # "uccli @ file:///C:/projects/guided-llm-cli" ,  
 ]
 
 [project.scripts]
@@ -40,10 +38,9 @@ uc-agent-pdf = "underdogcowboy.core.commandtools.agent_pdf:main"
 uc-assessment-builder = "underdogcowboy.core.commandtools.assessment_agent_builder:main"
 uc-agent-flow = "underdogcowboy.core.commandtools.agent_flow.main:main"
 
-
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["underdogcowboy*"]
+include = ["underdogcowboy*", "uccli*"]
 
 [tool.setuptools.package-data]
 "underdogcowboy.agents" = ["*.json"]
