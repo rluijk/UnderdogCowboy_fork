@@ -1,0 +1,51 @@
+2024-11-24 15:38:17,786 - INFO - llm_manager.py:20 - Default LLM set to Claude 3.5 Sonnet (claude-3-5-sonnet-20241022)
+2024-11-24 15:38:17,787 - INFO - message_mixin.py:11 - post target message set to: MultiScreenApp(title='MultiScreenApp', classes={'-dark-mode'}, pseudo_classes={'focus', 'dark'})
+2024-11-24 15:38:17,787 - DEBUG - selector_events.py:64 - Using selector: KqueueSelector
+2024-11-24 15:38:17,822 - INFO - main.py:186 - Created action method: action_return_to_timeline for screen: TimeLine Editor
+2024-11-24 15:38:17,833 - INFO - main.py:186 - Created action method: action_return_to_clarity for screen: Clarity
+2024-11-24 15:38:17,833 - INFO - main.py:186 - Created action method: action_return_to_agent_assessment_builder for screen: Agent Assessment Builder
+2024-11-24 15:38:17,833 - INFO - main.py:169 - Skipping disabled screen: _Agent WorkSession
+2024-11-24 15:38:17,836 - INFO - message_mixin.py:11 - post target message set to: MultiScreenApp(title='MultiScreenApp', classes={'-dark-mode'}, pseudo_classes={'focus', 'dark'})
+2024-11-24 15:38:17,856 - INFO - message_mixin.py:11 - post target message set to: MultiScreenApp(title='MultiScreenApp', classes={'-dark-mode'}, pseudo_classes={'focus', 'dark'})
+2024-11-24 15:38:17,858 - INFO - llm_manager.py:20 - Default LLM set to Claude 3.5 Sonnet (Upgrade) (claude-3-5-sonnet-20241022)
+2024-11-24 15:38:17,858 - INFO - agent_clarity_src.py:91 - CSS path set to: None. Able to read CSS as textual.
+2024-11-24 15:38:17,858 - INFO - message_mixin.py:11 - post target message set to: MultiScreenApp(title='MultiScreenApp', classes={'-dark-mode'}, pseudo_classes={'focus', 'dark'})
+2024-11-24 15:38:17,858 - INFO - main.py:121 - Skipping disabled screen: _Agent WorkSession
+2024-11-24 15:38:17,858 - INFO - main.py:121 - Skipping disabled screen: initial_screen
+2024-11-24 15:38:17,883 - INFO - timeline_editor_src.py:96 - TimeLineEditorScreen on_mount called
+2024-11-24 15:38:22,656 - INFO - load_dialog_ui.py:105 - Load button pressed, selected dialog: storylineexploration
+2024-11-24 15:38:22,656 - INFO - dialog_events.py:11 - DialogSelected message created with agent_name: storylineexploration
+2024-11-24 15:38:22,664 - INFO - ui_factory.py:50 - Resolving UI class: create_chat_ui, Action function: None
+2024-11-24 15:38:22,664 - INFO - chat_ui.py:86 - Init of ChatUI
+2024-11-24 15:38:22,664 - INFO - message_mixin.py:11 - post target message set to: DialogChatUI()
+2024-11-24 15:38:22,679 - INFO - chat_ui.py:129 - Loaded command processor for file: storylineexploration.json
+2024-11-24 15:38:27,112 - INFO - chat_ui.py:48 - Submitting message: test
+2024-11-24 15:38:27,146 - INFO - llm_call_manager.py:114 - Submitting LLM call for input_id: 20
+2024-11-24 15:38:27,146 - INFO - llm_call_manager.py:126 - LLM call for input_id 20 has been queued
+2024-11-24 15:38:27,184 - INFO - llm_call_manager.py:30 - Handling Task
+2024-11-24 15:38:27,184 - DEBUG - model.py:327 - Entering request to Anthropic API
+2024-11-24 15:38:31,944 - DEBUG - model.py:329 - Response received from Anthropic API
+2024-11-24 15:38:31,944 - INFO - llm_events.py:7 - LLMCallComplete: input_id 20
+2024-11-24 15:38:31,945 - INFO - llm_call_manager.py:41 - Used post_message to send LLMCallComplete with input_id 20
+2024-11-24 15:38:31,945 - DEBUG - llm_call_manager.py:46 - _handle Task post (after) send self.post_message
+2024-11-24 16:07:14,512 - INFO - llm_manager.py:20 - Default LLM set to Claude 3.5 Sonnet (claude-3-5-sonnet-20241022)
+2024-11-24 16:07:14,512 - INFO - message_mixin.py:11 - post target message set to: MultiScreenApp(title='MultiScreenApp', classes={'-dark-mode'})
+2024-11-24 16:07:14,512 - DEBUG - selector_events.py:64 - Using selector: KqueueSelector
+2024-11-24 16:07:14,520 - INFO - main.py:186 - Created action method: action_return_to_timeline for screen: TimeLine Editor
+2024-11-24 16:07:14,520 - INFO - main.py:186 - Created action method: action_return_to_clarity for screen: Clarity
+2024-11-24 16:07:14,520 - INFO - main.py:186 - Created action method: action_return_to_agent_assessment_builder for screen: Agent Assessment Builder
+2024-11-24 16:07:14,520 - INFO - main.py:169 - Skipping disabled screen: _Agent WorkSession
+2024-11-24 16:07:14,520 - INFO - message_mixin.py:11 - post target message set to: MultiScreenApp(title='MultiScreenApp', classes={'-dark-mode'})
+2024-11-24 16:07:14,521 - INFO - message_mixin.py:11 - post target message set to: MultiScreenApp(title='MultiScreenApp', classes={'-dark-mode'})
+2024-11-24 16:07:14,522 - INFO - llm_manager.py:20 - Default LLM set to Claude 3.5 Sonnet (Upgrade) (claude-3-5-sonnet-20241022)
+2024-11-24 16:07:14,522 - INFO - agent_clarity_src.py:91 - CSS path set to: None. Able to read CSS as textual.
+2024-11-24 16:07:14,522 - INFO - message_mixin.py:11 - post target message set to: MultiScreenApp(title='MultiScreenApp', classes={'-dark-mode'})
+2024-11-24 16:07:14,522 - INFO - main.py:121 - Skipping disabled screen: _Agent WorkSession
+2024-11-24 16:07:14,522 - INFO - main.py:121 - Skipping disabled screen: initial_screen
+2024-11-24 16:07:14,538 - INFO - timeline_editor_src.py:96 - TimeLineEditorScreen on_mount called
+2024-11-24 16:07:20,805 - INFO - load_agent_ui.py:101 - Load button pressed, selected agent: textual_prompt_part_builder
+2024-11-24 16:07:20,805 - INFO - agent_events.py:10 - AgentSelected message created with agent_name: textual_prompt_part_builder
+2024-11-24 16:07:20,806 - INFO - ui_factory.py:50 - Resolving UI class: create_chat_ui, Action function: None
+2024-11-24 16:07:20,806 - INFO - chat_ui.py:86 - Init of ChatUI
+2024-11-24 16:07:20,806 - INFO - message_mixin.py:11 - post target message set to: AgentChatUI()
+2024-11-24 16:07:20,826 - INFO - chat_ui.py:129 - Loaded command processor for file: textual_prompt_part_builder.json

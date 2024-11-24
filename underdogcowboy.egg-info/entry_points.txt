@@ -1,0 +1,10 @@
+[console_scripts]
+timelineeditor = underdogcowboy.run_timeline_editor:main
+uc-agent-clarity = underdogcowboy.core.commandtools.agent_clarity:main
+uc-agent-flow = underdogcowboy.core.commandtools.agent_flow.main:main
+uc-agent-pdf = underdogcowboy.core.commandtools.agent_pdf:main
+uc-assessment-builder = underdogcowboy.core.commandtools.assessment_agent_builder:main
+uc-llm = underdogcowboy.core.commandtools.llm_config:main
+uc-poke = underdogcowboy.core.commandtools.poke:main
+uc-timelineeditor = underdogcowboy.run_timeline_editor:main
+uc-tracing = underdogcowboy.core.commandtools.tracing_config:main
