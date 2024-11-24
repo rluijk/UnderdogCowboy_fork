@@ -13,3 +13,6 @@ logging:
   filename: "pre-release-nov-dec-2024.log"  # Filename for logging output
   level: "DEBUG"  # Logging level (e.g., DEBUG, INFO, WARNING, ERROR)
   format: "%(asctime)s - %(levelname)s - %(filename)s:%(lineno)d - %(message)s"  # Updated format
+
+security:
+  use_key_ring: False

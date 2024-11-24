@@ -1,4 +1,7 @@
 import json
+import os
+import yaml
+
 from pathlib import Path
 from getpass import getpass
 import keyring
@@ -29,6 +32,12 @@ CLAUDE_MODELS = [
     {'id': 'claude-3-haiku-20240307', 'name': 'Claude 3 Haiku'},
 ]
 
+def load_config() -> dict:
+    config_path = os.path.join(os.path.dirname(__file__), 'commandtools/agent_flow/config.yaml')
+
+    with open(config_path, 'r') as file:
+        return yaml.safe_load(file)
+
 class LLMConfigManager:
     """
     A class for managing configurations for various Language Learning Models (LLMs).
@@ -43,6 +52,10 @@ class LLMConfigManager:
         Sets up the configuration file path and loads existing configurations.
         Also defines the structure for different LLM models and their required credentials.
         """
+
+        config = load_config()
+        self.use_key_ring = config['security']['use_key_ring']
+
         self.default_model_id = CLAUDE_MODELS[0] # for agent_flow
         self.config_file: Path = Path.home() / '.underdogcowboy' / 'config.json'
         self.config: Dict[str, Any] = self.load_config()
@@ -125,6 +138,9 @@ class LLMConfigManager:
                 config = json.load(f)
             return config
         return {}
+
+    def swap_config_style() -> None:
+        pass
 
     def save_config(self) -> None:
         """

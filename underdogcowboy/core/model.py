@@ -62,7 +62,24 @@ class ConfigurableModel(ABC):
     def initialize_model(self):
         pass
 
-    def configure_model(self):
+    """ configure_model does not do anything already done by the 
+     config manager.  """    
+    def __bck__02_configure_model(self):
+        """
+        Configure the model settings by prompting for required information.
+        Uses the existing configuration management functionality from config_manager.
+        """
+        print(f"Configuring {self.provider_type} provider:")
+        
+        # Get current credentials to trigger configuration if needed
+        credentials = self.config_manager.get_credentials(self.provider_type)
+        
+        # The get_credentials method will have updated the configuration
+        # and handled all the necessary prompts and storage
+        
+        print(f"{self.provider_type} provider configuration completed.")
+
+    def __bck__01_configure_model(self):
         print(f"Configuring {self.provider_type} provider:")
         for prop, details in self.config_manager.models[self.provider_type].items():
             if prop not in self.config or not self.config[prop]:
@@ -97,7 +114,7 @@ class AnthropicModel(ConfigurableModel):
             if missing_or_empty_fields:
                 print(f"Warning: Missing or empty fields: {', '.join(missing_or_empty_fields)}")
                 print(f"Starting configuration process for {self.provider_type} provider.")
-                self.configure_model()
+                # self.configure_model()
                 self.config = self.config_manager.get_credentials(self.provider_type)
             
             self.api_key = self.config['api_key']
@@ -214,13 +231,9 @@ class AnthropicModel(ConfigurableModel):
         formatted_conversation = []
 
         # Regular expression to find file paths in text
-        image_path_pattern = r'(/[\w\-/\.]+\.(png|jpg|jpeg|gif|bmp))'
+        image_path_pattern = r'(/[\w\-/\. ]+\.(png|jpg|jpeg|gif|bmp))'
         # Instantiate the preprocessor
         # preprocessor = GoogleDocsMarkdownPreprocessor()
-
-
-
-
 
         for message in conversation:
             role = message['role']
@@ -420,7 +433,7 @@ class VertexAIModel(ConfigurableModel):
             if missing_or_empty_fields:
                 print(f"Warning: Missing or empty fields: {', '.join(missing_or_empty_fields)}")
                 print(f"Starting configuration process for {self.provider_type} provider.")
-                self.configure_model()
+                # self.configure_model()
                 self.config = self.config_manager.get_credentials(self.provider_type)
 
             self.project_id = self.config['project_id']
@@ -477,7 +490,7 @@ class GroqModel(ConfigurableModel):
             if missing_or_empty_fields:
                 print(f"Warning: Missing or empty fields: {', '.join(missing_or_empty_fields)}")
                 print(f"Starting configuration process for {self.provider_type} provider.")
-                self.configure_model()
+                # self.configure_model()
                 self.config = self.config_manager.get_credentials(self.provider_type)
             
             self.api_key = self.config['api_key']
