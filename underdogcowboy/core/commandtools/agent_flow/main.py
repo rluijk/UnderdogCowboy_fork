@@ -17,8 +17,6 @@ from textual.reactive import Reactive
 from textual.binding import Binding
 from dotenv import load_dotenv
 
-
-
 from underdogcowboy.core.config_manager import LLMConfigManager
 
 """ imports clarity system """
