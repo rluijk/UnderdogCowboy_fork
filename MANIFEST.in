@@ -1,0 +1,9 @@
+# Include the main underdogcowboy package
+recursive-include underdogcowboy *
+
+# Include the uccli package
+recursive-include uccli *
+
+# Exclude unwanted files
+prune **/__pycache__
+global-exclude *.py[cod]
