@@ -17,6 +17,11 @@ from events.button_events import UIButtonPressed
 
 from ui_components.autoselect_list_view_ui import AutoSelectListView
 
+import platform
+
+def is_windows():
+    return platform.system() == "Windows"
+
 class LoadAgentUI(Static):
     """A UI for getting an agent selected for the build-in agent to assess"""
     def compose(self):
@@ -98,6 +103,13 @@ class LoadAgentUI(Static):
             selected_item = self.query_one("#agent-list").highlighted_child
             if selected_item:
                 selected_agent = selected_item.children[0].render()  # Get the text from the Label
+                
+                if is_windows():
+                    # win fix?
+                    selected_agent = selected_agent._renderable.plain
+                else:
+                    selected_agent = selected_agent.plain
+                    
                 logging.info(f"Load button pressed, selected agent: {selected_agent}")
                 self.post_message(AgentSelected(selected_agent))
         elif event.button.id == "cancel-button":
