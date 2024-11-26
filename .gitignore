@@ -34,3 +34,4 @@ session_data.db
 /.vscode
 .vscode/launch.json
 /underdogcowboy/tests
+.vscode/launch.json
