@@ -32,7 +32,7 @@ CLAUDE_MODELS = [
     {'id': 'claude-3-haiku-20240307', 'name': 'Claude 3 Haiku'},
 ]
 
-def load_config() -> dict:
+def load_config_yml() -> dict:
     config_path = os.path.join(os.path.dirname(__file__), 'commandtools/agent_flow/config.yaml')
 
     with open(config_path, 'r') as file:
@@ -53,8 +53,8 @@ class LLMConfigManager:
         Also defines the structure for different LLM models and their required credentials.
         """
 
-        config = load_config()
-        self.use_key_ring = config['security']['use_key_ring']
+        yml_config = load_config_yml()
+        self.use_key_ring = yml_config['security']['use_key_ring']
 
         self.default_model_id = CLAUDE_MODELS[0] # for agent_flow
         self.config_file: Path = Path.home() / '.underdogcowboy' / 'config.json'
@@ -88,7 +88,8 @@ class LLMConfigManager:
             'langsmith_api_key': {'question': 'Enter your LangSmith API key:', 'input_type': 'password'},
         }
 
-        self.migrate_config()  
+        self.migrate_config()
+        self.get_general_config()  
 
     def get_provider_from_model(self, model_name: str) -> str:
         """
