@@ -155,8 +155,49 @@ class MultiScreenApp(App):
         except FileNotFoundError:
             raise FileNotFoundError(f"Configuration file not found at {config_path}")
         
+        # Set up bindings from configuration file
+        for screen_name, screen_data in screen_configs.items():
+            # Skip non-dictionary entries like "initial_screen"
+            if not isinstance(screen_data, dict):
+                continue
+
+            if screen_name.startswith("_") or screen_name in ("initial_screen", "global_bindings"):
+                logging.info(f"Skipping disabled screen: {screen_name}")
+                continue
+        
+            bindings = screen_data.get("bindings", [])
+            for binding in bindings:
+                action_name = binding["action"]
+                self.bind(
+                    binding["key"],                  # Pass keys as a positional argument
+                    action=action_name,
+                    description=binding["description"]
+                )
+
+                # Dynamically create the action method for each binding
+                action_method = self.create_action_method(screen_name)
+                action_method_name = f"action_{action_name}"
+                action_method.__name__ = action_method_name
+
+                # Check if the method already exists to avoid overwriting
+                if not hasattr(MultiScreenApp, action_method_name):
+                    setattr(MultiScreenApp, action_method_name, action_method)
+                    logging.info(f"Created action method: {action_method_name} for screen: {screen_name}")
+                else:
+                    logging.warning(f"Action method {action_method_name} already exists. Skipping creation.")
 
 
+    def __bck_initialize_bindings_from_config(self) -> None:
+        """Initialize bindings from configuration at startup."""
+        current_dir = os.path.dirname(__file__)
+        config_path = os.path.join(current_dir, "screen_config.json")
+        
+        try:
+            with open(config_path) as config_file:
+                screen_configs = json.load(config_file)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Configuration file not found at {config_path}")
+        
         # Set up bindings from configuration file
         for screen_name, screen_data in screen_configs.items():
             # Skip non-dictionary entries like "initial_screen"
@@ -183,6 +224,7 @@ class MultiScreenApp(App):
             setattr(MultiScreenApp, action_method_name, action_method)
             logging.info(f"Created action method: {action_method_name} for screen: {screen_name}")
 
+        
     def create_action_method(self,screen_name):
         def action_method(self):
             self.push_screen(screen_name)
