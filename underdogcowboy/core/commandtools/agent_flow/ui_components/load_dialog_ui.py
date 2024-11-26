@@ -20,6 +20,12 @@ from ui_components.autoselect_list_view_ui import AutoSelectListView
 # UC
 from underdogcowboy.core.config_manager import LLMConfigManager 
 
+import platform
+
+def is_windows():
+    return platform.system() == "Windows"
+
+
 class LoadDialogUI(Static):
     """A UI for getting an dialog selected """
     def compose(self):
@@ -102,6 +108,14 @@ class LoadDialogUI(Static):
             selected_item = self.query_one("#dialog-list").highlighted_child
             if selected_item:
                 selected_dialog = selected_item.children[0].render()  # Get the text from the Label
+
+                if is_windows():
+                    # win fix?
+                    selected_dialog = selected_dialog._renderable.plain
+                else:
+                    selected_dialog = selected_dialog.plain
+
+
                 logging.info(f"Load button pressed, selected dialog: {selected_dialog}")
                 self.post_message(DialogSelected(selected_dialog))
         elif event.button.id == "cancel-button":
