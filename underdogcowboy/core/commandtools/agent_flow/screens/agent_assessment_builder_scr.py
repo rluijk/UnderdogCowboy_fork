@@ -20,7 +20,6 @@ from ui_components.dynamic_container import DynamicContainer
 from ui_components.state_button_grid_ui import StateButtonGrid
 from ui_components.state_info_ui import StateInfo 
 from ui_components.left_side_ui import LeftSideContainer
-# from ui_components.category_list_ui import CategoryListUI
 from ui_components.category_editor_ui import CategoryEditorUI 
 from ui_components.category_scale_widget_ui_candidate import CategoryScaleWidget
 from ui_components.center_content_ui import CenterContent
@@ -171,6 +170,7 @@ class AgentAssessmentBuilderScreen(SessionScreen):
             agents_data = self.session_manager.get_data("agents", screen_name=self.screen_name)
             categories = agents_data[self.agent_name_plain]["categories"]                
 
+        
             # Make json file for each data value
             try:
                 os.makedirs(message_export_path, exist_ok=True)
@@ -217,9 +217,12 @@ class AgentAssessmentBuilderScreen(SessionScreen):
 
     @on(AgentSelected)
     def on_agent_selected(self, event: AgentSelected):
-        self.current_agent = event.agent_name.plain
-        self.agent_name_plain = event.agent_name.plain
-        self.notify(f"Loaded Agent: {event.agent_name.plain}")
+        agent_name_str = str(event.agent_name)
+        self.current_agent = agent_name_str
+        self.agent_name_plain = agent_name_str
+        
+        self.notify(f"Loaded Agent: {agent_name_str}")
+
         dynamic_container = self.query_one("#center-dynamic-container-agent-assessment-builder", DynamicContainer)
         dynamic_container.clear_content()
         

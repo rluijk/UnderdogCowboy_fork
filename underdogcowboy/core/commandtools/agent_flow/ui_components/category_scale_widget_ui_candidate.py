@@ -314,7 +314,8 @@ class CategoryWidget(SessionDependentUI):
          
             llm_config, current_agent = config
             pre_prompt = "prompt to get initial categories"
-            session_name = self.session_manager.current_session_name.plain
+            session_name = str(self.session_manager.current_session_name)
+            
             await self.llm_call_manager.submit_llm_call_with_agent(
                 llm_function=run_category_call,
                 llm_config=llm_config,
@@ -493,7 +494,7 @@ class SelectCategoryWidget(Static):
                 return
             
             llm_config, current_agent = config
-            session_name = self.session_manager.current_session_name.plain
+            session_name = str(self.session_manager.current_session_name)
           
             await self.llm_call_manager.submit_llm_call_with_agent_with_id_and_sesssion(
                 llm_function=run_category_title_change,
@@ -527,7 +528,7 @@ class SelectCategoryWidget(Static):
                 return
                                 
             llm_config, current_agent = config
-            session_name = self.session_manager.current_session_name.plain
+            session_name = str(self.session_manager.current_session_name)
             
             await self.llm_call_manager.submit_llm_call_with_agent_with_id_and_sesssion(
                 llm_function=run_category_description_change,
@@ -854,7 +855,7 @@ class ScaleWidget(SessionDependentUI):
                 return
 
             llm_config, current_agent = config
-            session_name = self.session_manager.current_session_name.plain
+            session_name = str(self.session_manager.current_session_name)
 
             await self.llm_call_manager.submit_llm_call_with_agent_with_id_and_sesssion(
                 llm_function=run_scale_call,
