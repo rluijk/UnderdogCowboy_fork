@@ -133,30 +133,33 @@ class TimeLineEditorScreen(SessionScreen):
         
         dynamic_container = self.query_one("#center-dynamic-container-timeline-editor", DynamicContainer)
         dynamic_container.clear_content()
+
+        dialog_name = str(event.dialog_name) 
+        self.update_header(name=dialog_name)
         
-        self.update_header(name=event.dialog_name.plain)
         self.load_chat_ui(self.current_dialog,"dialog")
         
         self.state_machine.current_state = self.state_machine.states["dialog_loaded"]
         self.query_one(StateInfo).update_state_info(self.state_machine, "")
         self.query_one(StateButtonGrid).update_buttons()
 
-
-    on(AgentSelected)
+    @on(AgentSelected)
     def on_agent_selected(self, event: AgentSelected):
-        self.current_agent = event.agent_name.plain
-        self.agent_name_plain = event.agent_name.plain
-        self.notify(f"Loaded Agent: {event.agent_name.plain}")
-       
+        agent_name_str = str(event.agent_name)
+        self.current_agent = agent_name_str
+        self.agent_name_plain = agent_name_str
+        self.notify(f"Loaded Agent: {agent_name_str}")
+    
         dynamic_container = self.query_one("#center-dynamic-container-timeline-editor", DynamicContainer)
         dynamic_container.clear_content()
         
-        self.update_header(name=event.agent_name.plain)
-        self.load_chat_ui(self.agent_name_plain, "agent")
+        self.update_header(name=agent_name_str)
+        self.load_chat_ui(agent_name_str, "agent")
 
         self.state_machine.current_state = self.state_machine.states["agent_loaded"]
         self.query_one(StateInfo).update_state_info(self.state_machine, "")
         self.query_one(StateButtonGrid).update_buttons()
+
 
 
     def load_chat_ui(self, name: str, type: str):

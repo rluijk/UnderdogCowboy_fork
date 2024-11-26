@@ -183,15 +183,17 @@ class ClarityScreen(SessionScreen):
 
     def on_agent_selected(self, event: AgentSelected):
 
-        self.current_agent = event.agent_name.plain
-        self.agent_name_plain = event.agent_name.plain
-        self.notify(f"Loaded Agent: {event.agent_name.plain}")
+        agent_name_str = str(event.agent_name)
+        self.current_agent = agent_name_str
+        self.agent_name_plain = agent_name_str
+        self.notify(f"Loaded Agent: {agent_name_str}")
+
 
         dynamic_container = self.query_one("#center-dynamic-container-clarity", DynamicContainer)
         dynamic_container.clear_content()
         
         # Update header with current agent and session (if available)
-        self.update_header(agent_name=event.agent_name.plain)
+        self.update_header(agent_name=agent_name_str)
         
         # Transition of the statemachine 
         self.state_machine.current_state = self.state_machine.states["agent_loaded"]

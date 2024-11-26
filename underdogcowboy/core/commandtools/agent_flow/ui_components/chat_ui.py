@@ -499,13 +499,13 @@ class DialogChatUI(ChatUI):
 
     def save_dialog(self):  
         logging.info("Executing save_dialog logic in DialogChatUI.")  
-        filename = f"{self.da_name}.json"  
+        name = str(self.da_name)  
+        filename = f"{name}.json"  
           
-        name = self.da_name.plain  
         description = "Saved Dialog from ChatUI" 
 
         self.processor.save_timeline_without_prompt(filename, name=name, description=description)  
-        self.app.notify(f"Dialog '{self.da_name}' saved successfully.")  
+        self.app.notify(f"Dialog '{name}' saved successfully.")  
 
 class AgentChatUI(ChatUI):  
     
