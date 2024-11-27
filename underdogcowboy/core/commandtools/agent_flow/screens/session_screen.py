@@ -45,7 +45,7 @@ class SessionScreen(Screen):
         try:
             if is_windows():
                 # win fix?
-                session_name = event.session_name._renderable.plain
+                session_name = event.session_name #._renderable.plain
             else:
                 session_name = event.session_name.plain     
 
