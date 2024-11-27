@@ -1,5 +1,5 @@
-# screens/session_screen.py
 
+import platform
 from textual.screen import Screen
 from textual.geometry import Region
 
@@ -12,12 +12,17 @@ from textual import on
 class SessionScreen(Screen):
     """Base class for session-related screens."""
 
-    """ removing endless recursion loops (windows error) """
+    """Removing endless recursion loops (Windows error)"""
     @property
     def region(self) -> Region:
         # Avoid recursion by not accessing properties that depend on region
-        width, height = self.get_screen_size()
-        return Region(0, 0, width, height)
+        if platform.system() == "Windows":
+            # Hardcode dimensions on Windows
+            return Region(0, 0, 80, 24)  # Adjust dimensions as needed
+        else:
+            # Use the normal method on other platforms
+            width, height = self.get_screen_size()
+            return Region(0, 0, width, height)
 
     def get_screen_size(self) -> tuple[int, int]:
         """Get the size of the screen without causing recursion."""
