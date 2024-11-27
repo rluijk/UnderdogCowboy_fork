@@ -15,9 +15,18 @@ class SessionScreen(Screen):
     """ removing endless recursion loops (windows error) """
     @property
     def region(self) -> Region:
-        # Return the full screen region to avoid recursion
-        return Region(0, 0, self.app.size.width, self.app.size.height)
+        # Avoid recursion by not accessing properties that depend on region
+        width, height = self.get_screen_size()
+        return Region(0, 0, width, height)
 
+    def get_screen_size(self) -> tuple[int, int]:
+        """Get the size of the screen without causing recursion."""
+        if self.app and self.app._driver and self.app._driver._size:
+            return self.app._driver._size
+        else:
+            # Provide default size if driver is not yet initialized
+            return (80, 24)
+        
     def __init__(
         self,
         storage_interface: StorageInterface = None,
