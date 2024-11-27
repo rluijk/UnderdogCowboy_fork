@@ -153,7 +153,7 @@ class TimeLineEditorScreen(SessionScreen):
         dynamic_container = self.query_one("#center-dynamic-container-timeline-editor", DynamicContainer)
         dynamic_container.clear_content()
         
-        self.update_header(name=agent_name_str)
+        self.update_header()
         self.load_chat_ui(agent_name_str, "agent")
 
         self.state_machine.current_state = self.state_machine.states["agent_loaded"]
