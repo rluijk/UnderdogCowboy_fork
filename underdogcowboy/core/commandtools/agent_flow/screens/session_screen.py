@@ -1,6 +1,8 @@
 # screens/session_screen.py
 
 from textual.screen import Screen
+from textual.geometry import Region
+
 from session_manager import SessionManager
 from state_management.storage_interface import StorageInterface
 from state_management.json_storage_manager import JSONStorageManager
@@ -9,6 +11,12 @@ from textual import on
 
 class SessionScreen(Screen):
     """Base class for session-related screens."""
+
+    """ removing endless recursion loops (windows error) """
+    @property
+    def region(self) -> Region:
+        # Return the full screen region to avoid recursion
+        return Region(0, 0, self.app.size.width, self.app.size.height)
 
     def __init__(
         self,
