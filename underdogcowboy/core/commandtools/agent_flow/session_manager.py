@@ -17,6 +17,12 @@ from exceptions import (
     SessionDoesNotExistError
 )
 
+import platform
+
+def is_windows():
+    return platform.system() == "Windows"
+
+
 class SessionManager(MessageEmitterMixin):
     """Handles loading, creating, and saving sessions using the storage abstraction layer."""
     
@@ -41,6 +47,11 @@ class SessionManager(MessageEmitterMixin):
 
     def load_session(self, session_name: str):
         try:
+      
+            if is_windows():
+                # win fix?
+                session_name = session_name._renderable.plain
+      
             self.current_session_data = self.storage.load_session(session_name)
             self.current_session_name = session_name
             logging.info(f"Session '{session_name}' loaded successfully.")
