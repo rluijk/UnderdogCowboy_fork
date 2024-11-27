@@ -23,24 +23,6 @@ class SessionScreen(Screen):
         self.state_machine = state_machine
         self.storage_interface = storage_interface or JSONStorageManager()
         self.session_manager = session_manager or SessionManager(self.storage_interface)
-        self._screen_size = (80, 24)  # Default size
-
-    async def on_mount(self) -> None:
-        # Update the screen size when the app is initialized
-        if self.app and self.app.size:
-            self._screen_size = (self.app.size.width, self.app.size.height)
-
-
-    @property
-    def region(self) -> Region:
-        # Use the stored screen size without accessing self.app
-        width, height = self._screen_size
-        return Region(0, 0, width, height)
-
-    async def on_resize(self, event) -> None:
-        # Update the screen size when the terminal is resized
-        if self.app and self.app.size:
-            self._screen_size = (self.app.size.width, self.app.size.height)
 
     def set_session_manager(self, new_session_manager: SessionManager):
         """Set a new SessionManager and update the UI accordingly."""
