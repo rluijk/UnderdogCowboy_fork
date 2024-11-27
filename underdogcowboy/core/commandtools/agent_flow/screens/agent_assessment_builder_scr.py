@@ -48,6 +48,10 @@ class AgentAssessmentBuilderScreen(SessionScreen):
         self.screen_name = "AgentAssessmentBuilderScreen"
         self._pending_session_manager = None
 
+        self.update_ui_retry_count = 0
+        self.max_update_ui_retries = 5
+
+
     def compose(self) -> ComposeResult:
         yield Header()
         with Horizontal(id="agent-centre", classes="dynamic-spacer"):
@@ -97,19 +101,15 @@ class AgentAssessmentBuilderScreen(SessionScreen):
             self.query_one(StateButtonGrid).update_buttons()
             self.update_header()
         except NoMatches:
-            logging.warning("Dynamic container not found; scheduling UI update later.")
-            self.call_later(self.update_ui_after_session_load)
+            if self.update_ui_retry_count < self.max_update_ui_retries:
+                logging.warning("Dynamic container not found; scheduling UI update later.")
+                self.update_ui_retry_count += 1
+                self.call_later(self.update_ui_after_session_load)
+            else:
+                logging.error("Dynamic container not found after multiple attempts. Aborting UI update.")
 
     def update_header(self, session_name=None, agent_name=None):
-        """Updates the header to reflect the current session and agent."""
-        if not session_name:
-            session_name = self.session_manager.current_session_name
-        if not agent_name:
-            agent_name = "Agent Assessment Builder"
-        self.sub_title = f"{agent_name}"
-        if session_name:
-            self.sub_title += f" - Active Session: {session_name}"
-        self.refresh(layout=True)
+       pass
 
     @on(UIButtonPressed)
     def handle_ui_button_pressed(self, event: UIButtonPressed) -> None:

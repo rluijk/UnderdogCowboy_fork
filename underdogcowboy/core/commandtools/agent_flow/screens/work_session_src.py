@@ -96,7 +96,9 @@ class WorkSessionScreen(SessionScreen):
             self.call_later(self.set_session_manager, session_manager)
 
     def update_header(self, session_name=None, agent_name=None):
-        self.refresh(layout=True)            
+        pass
+        
+        # Removed self.refresh(layout=True) to prevent potential recursion
 
     @on(UIButtonPressed)
     def handle_ui_button_pressed(self, event: UIButtonPressed) -> None:

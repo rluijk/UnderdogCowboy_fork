@@ -80,6 +80,10 @@ class TimeLineEditorScreen(SessionScreen):
         self.processor = None
         self.storage = TimelineStorage()
 
+        self.update_ui_retry_count = 0
+        self.max_update_ui_retries = 5
+
+
     def compose(self) -> ComposeResult:
         yield Header()
         with Horizontal(id="agent-centre", classes="dynamic-spacer"):
@@ -112,15 +116,11 @@ class TimeLineEditorScreen(SessionScreen):
             self._pending_session_manager = new_session_manager
 
 
-    def update_header(self, session_name=None, name=None):
-        if not session_name:
-            session_name = self.session_manager.current_session_name
-        if not name:
-            name = ""
-        self.sub_title = f"{name}"
-        if session_name:
-            self.sub_title += f" - Active Session: {session_name}"
-        self.refresh(layout=True)
+    def update_header(self, session_name=None, agent_name=None):
+        pass
+        
+        # Removed self.refresh(layout=True) to prevent potential recursion
+
 
     def action_toggle_task_panel(self) -> None:
         collapsible = self.query_one("#state-info-collapsible", Collapsible)
@@ -135,7 +135,7 @@ class TimeLineEditorScreen(SessionScreen):
         dynamic_container.clear_content()
 
         dialog_name = str(event.dialog_name) 
-        self.update_header(name=dialog_name)
+        self.update_header()
         
         self.load_chat_ui(self.current_dialog,"dialog")
         
@@ -226,8 +226,14 @@ class TimeLineEditorScreen(SessionScreen):
             self.query_one(StateButtonGrid).update_buttons()
             self.update_header()
         except NoMatches:
-            logging.warning("Dynamic container not found; scheduling UI update later.")
-            self.call_later(self.update_ui_after_session_load)
+            if self.update_ui_retry_count < self.max_update_ui_retries:
+                logging.warning("Dynamic container not found; scheduling UI update later.")
+                self.update_ui_retry_count += 1
+                self.call_later(self.update_ui_after_session_load)
+            else:
+                logging.error("Dynamic container not found after multiple attempts. Aborting UI update.")
+
+
 
     @on(NewAgentCreated)
     def create_new_agent(self, event: NewAgentCreated):
