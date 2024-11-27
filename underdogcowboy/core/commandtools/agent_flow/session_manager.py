@@ -50,7 +50,7 @@ class SessionManager(MessageEmitterMixin):
       
             if is_windows():
                 # win fix?
-                session_name = session_name._renderable.plain
+                session_name = session_name # ._renderable.plain
       
             self.current_session_data = self.storage.load_session(session_name)
             self.current_session_name = session_name
