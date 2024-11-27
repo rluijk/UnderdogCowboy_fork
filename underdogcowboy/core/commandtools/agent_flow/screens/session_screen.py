@@ -9,6 +9,9 @@ from state_management.json_storage_manager import JSONStorageManager
 from events.session_events import SessionSyncStopped, SessionSelected, NewSessionCreated
 from textual import on
 
+# Evaluate the platform once at module load time
+IS_WINDOWS = platform.system() == "Windows"
+
 class SessionScreen(Screen):
     """Base class for session-related screens."""
 
@@ -16,7 +19,7 @@ class SessionScreen(Screen):
     @property
     def region(self) -> Region:
         # Avoid recursion by not accessing properties that depend on region
-        if platform.system() == "Windows":
+        if IS_WINDOWS:
             # Hardcode dimensions on Windows
             return Region(0, 0, 80, 24)  # Adjust dimensions as needed
         else:
