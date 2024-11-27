@@ -8,6 +8,12 @@ from state_management.json_storage_manager import JSONStorageManager
 from events.session_events import SessionSyncStopped, SessionSelected, NewSessionCreated
 from textual import on
 
+import platform
+
+def is_windows():
+    return platform.system() == "Windows"
+
+
 class SessionScreen(Screen):
     """Base class for session-related screens."""
 
@@ -37,9 +43,15 @@ class SessionScreen(Screen):
     def on_session_selected(self, event: SessionSelected):
         """Handle session selection and notify the main app."""
         try:
-            self.session_manager.load_session(event.session_name)
-            self.notify(f"Session '{event.session_name}' loaded successfully")
-            self.update_header(session_name=event.session_name)
+            if is_windows():
+                # win fix?
+                session_name = event.session_name._renderable.plain
+            else:
+                session_name = event.session_name.plain     
+
+            self.session_manager.load_session(session_name)
+            self.notify(f"Session '{session_name}' loaded successfully")
+            self.update_header(session_name=session_name)
             self.update_ui_after_session_load()
             # Correctly emit the custom message using 'post_message()'
             self.emit_sync_stopped()
