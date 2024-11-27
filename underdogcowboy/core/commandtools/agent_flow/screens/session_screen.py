@@ -1,5 +1,4 @@
 
-import platform
 from textual.screen import Screen
 from textual.geometry import Region
 
@@ -9,32 +8,9 @@ from state_management.json_storage_manager import JSONStorageManager
 from events.session_events import SessionSyncStopped, SessionSelected, NewSessionCreated
 from textual import on
 
-# Evaluate the platform once at module load time
-IS_WINDOWS = platform.system() == "Windows"
-
 class SessionScreen(Screen):
     """Base class for session-related screens."""
 
-    """Removing endless recursion loops (Windows error)"""
-    @property
-    def region(self) -> Region:
-        # Avoid recursion by not accessing properties that depend on region
-        if IS_WINDOWS:
-            # Hardcode dimensions on Windows
-            return Region(0, 0, 80, 24)  # Adjust dimensions as needed
-        else:
-            # Use the normal method on other platforms
-            width, height = self.get_screen_size()
-            return Region(0, 0, width, height)
-
-    def get_screen_size(self) -> tuple[int, int]:
-        """Get the size of the screen without causing recursion."""
-        if self.app and self.app._driver and self.app._driver._size:
-            return self.app._driver._size
-        else:
-            # Provide default size if driver is not yet initialized
-            return (80, 24)
-        
     def __init__(
         self,
         storage_interface: StorageInterface = None,
@@ -47,6 +23,24 @@ class SessionScreen(Screen):
         self.state_machine = state_machine
         self.storage_interface = storage_interface or JSONStorageManager()
         self.session_manager = session_manager or SessionManager(self.storage_interface)
+        self._screen_size = (80, 24)  # Default size
+
+    async def on_mount(self) -> None:
+        # Update the screen size when the app is initialized
+        if self.app and self.app.size:
+            self._screen_size = (self.app.size.width, self.app.size.height)
+
+
+    @property
+    def region(self) -> Region:
+        # Use the stored screen size without accessing self.app
+        width, height = self._screen_size
+        return Region(0, 0, width, height)
+
+    async def on_resize(self, event) -> None:
+        # Update the screen size when the terminal is resized
+        if self.app and self.app.size:
+            self._screen_size = (self.app.size.width, self.app.size.height)
 
     def set_session_manager(self, new_session_manager: SessionManager):
         """Set a new SessionManager and update the UI accordingly."""
