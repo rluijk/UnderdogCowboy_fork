@@ -83,6 +83,13 @@ class TimeLineEditorScreen(SessionScreen):
         self.update_ui_retry_count = 0
         self.max_update_ui_retries = 5
 
+        self.on_agent_selected_retry_count = 0
+        self.max_on_agent_selected_retries = 5  # Adjust as needed
+
+        self.on_dialog_selected_retry_count = 0
+        self.max_on_dialog_selected_retries = 5  # Adjust as needed
+
+
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -126,8 +133,41 @@ class TimeLineEditorScreen(SessionScreen):
         collapsible = self.query_one("#state-info-collapsible", Collapsible)
         collapsible.collapsed = not collapsible.collapsed
 
-    on(DialogSelected)
+    @on(DialogSelected)
     def on_dialog_selected(self, event: DialogSelected):
+        try:
+            dialog_name_str = str(event.dialog_name)
+            self.current_dialog = dialog_name_str
+            self.notify(f"Loaded Dialog: {dialog_name_str}")
+            
+            dynamic_container = self.get_dynamic_container()
+            if not dynamic_container:
+                raise NoMatches
+
+            dynamic_container.clear_content()
+
+            self.update_header()
+            self.load_chat_ui(self.current_dialog, "dialog")
+
+            self.state_machine.current_state = self.state_machine.states["dialog_loaded"]
+            self.query_one(StateInfo).update_state_info(self.state_machine, "")
+            self.query_one(StateButtonGrid).update_buttons()
+
+            # Reset retry counter upon successful execution
+            self.on_dialog_selected_retry_count = 0
+
+        except NoMatches:
+            if self.on_dialog_selected_retry_count < self.max_on_dialog_selected_retries:
+                logging.warning("Dynamic container not found in on_dialog_selected; scheduling retry.")
+                self.on_dialog_selected_retry_count += 1
+                self.call_later(lambda: self.on_dialog_selected(event))
+            else:
+                logging.error("Dynamic container not found after multiple attempts in on_dialog_selected. Aborting action.")
+                self.notify("Failed to load dialog due to UI issues.", severity="error")
+
+
+    #on(DialogSelected)
+    def __bck__on_dialog_selected(self, event: DialogSelected):
         self.current_dialog = event.dialog_name
         self.notify(f"Loaded Dialog: {event.dialog_name}")
         
@@ -143,8 +183,48 @@ class TimeLineEditorScreen(SessionScreen):
         self.query_one(StateInfo).update_state_info(self.state_machine, "")
         self.query_one(StateButtonGrid).update_buttons()
 
+
+    def get_dynamic_container(self):
+        try:
+            return self.query_one("#center-dynamic-container-timeline-editor", DynamicContainer)
+        except NoMatches:
+            return None
+
     @on(AgentSelected)
     def on_agent_selected(self, event: AgentSelected):
+        try:
+            agent_name_str = str(event.agent_name)
+            self.current_agent = agent_name_str
+            self.agent_name_plain = agent_name_str
+            self.notify(f"Loaded Agent: {agent_name_str}")
+        
+            dynamic_container = self.get_dynamic_container()
+            if not dynamic_container:
+                raise NoMatches
+
+            dynamic_container.clear_content()
+            
+            self.update_header()
+            self.load_chat_ui(agent_name_str, "agent")
+    
+            self.state_machine.current_state = self.state_machine.states["agent_loaded"]
+            self.query_one(StateInfo).update_state_info(self.state_machine, "")
+            self.query_one(StateButtonGrid).update_buttons()
+
+            # Reset retry counter upon successful execution
+            self.on_agent_selected_retry_count = 0
+
+        except NoMatches:
+            if self.on_agent_selected_retry_count < self.max_on_agent_selected_retries:
+                logging.warning("Dynamic container not found in on_agent_selected; scheduling retry.")
+                self.on_agent_selected_retry_count += 1
+                self.call_later(lambda: self.on_agent_selected(event))
+            else:
+                logging.error("Dynamic container not found after multiple attempts in on_agent_selected. Aborting action.")
+                self.notify("Failed to load agent due to UI issues.", severity="error")
+
+    # @on(AgentSelected)
+    def __bck_on_agent_selected(self, event: AgentSelected):
         agent_name_str = str(event.agent_name)
         self.current_agent = agent_name_str
         self.agent_name_plain = agent_name_str

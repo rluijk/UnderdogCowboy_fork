@@ -91,6 +91,10 @@ class ClarityScreen(SessionScreen):
         self.update_ui_retry_count = 0
         self.max_update_ui_retries = 5
 
+        self.on_agent_selected_retry_count = 0
+        self.max_on_agent_selected_retries = 5  # Adjust as needed
+
+
         logging.info(f"CSS path set to: {self.CSS_PATH}. Able to read CSS as textual.")
 
 
@@ -169,29 +173,41 @@ class ClarityScreen(SessionScreen):
             else:
                 logging.error("Dynamic container not found after multiple attempts. Aborting UI update.")
 
-
-    def __bck__update_ui_after_session_load(self):
+    def on_agent_selected(self, event: AgentSelected):
         try:
+            agent_name_str = str(event.agent_name)
+            self.current_agent = agent_name_str
+            self.agent_name_plain = agent_name_str
+            self.notify(f"Loaded Agent: {agent_name_str}")
+
             dynamic_container = self.query_one("#center-dynamic-container-clarity", DynamicContainer)
             dynamic_container.clear_content()
-
-            stored_state = self.session_manager.get_data("current_state", screen_name=self.screen_name)
-            if stored_state and stored_state in self.state_machine.states:
-                self.state_machine.current_state = self.state_machine.states[stored_state]
-            else:
-                self.state_machine.current_state = self.state_machine.states["initial"]
-
+            
+            # Update header with current agent and session (if available)
+            self.update_header()
+            
+            # Transition of the state machine 
+            self.state_machine.current_state = self.state_machine.states["agent_loaded"]
             self.query_one(StateInfo).update_state_info(self.state_machine, "")
             self.query_one(StateButtonGrid).update_buttons()
+            
+            # Store the current agent in the session data
+            self.session_manager.update_data("current_agent", self.current_agent, screen_name=self.screen_name)
+            
+            # Reset retry counter upon successful execution
+            self.on_agent_selected_retry_count = 0
 
-            self.update_header()
         except NoMatches:
-            logging.warning("Dynamic container not found; scheduling UI update later.")
-            self.call_later(self.update_ui_after_session_load)
+            if self.on_agent_selected_retry_count < self.max_on_agent_selected_retries:
+                logging.warning("Dynamic container not found in on_agent_selected; scheduling retry.")
+                self.on_agent_selected_retry_count += 1
+                self.call_later(lambda: self.on_agent_selected(event))
+            else:
+                logging.error("Dynamic container not found after multiple attempts in on_agent_selected. Aborting action.")
+                self.notify("Failed to load agent due to UI issues.", severity="error")
 
 
-
-    def on_agent_selected(self, event: AgentSelected):
+    def __bck__on_agent_selected(self, event: AgentSelected):
 
         agent_name_str = str(event.agent_name)
         self.current_agent = agent_name_str
