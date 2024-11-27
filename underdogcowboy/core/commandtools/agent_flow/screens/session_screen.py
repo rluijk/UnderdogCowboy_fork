@@ -51,7 +51,7 @@ class SessionScreen(Screen):
 
             self.session_manager.load_session(session_name)
             self.notify(f"Session '{session_name}' loaded successfully")
-            self.update_header(session_name=session_name)
+            # self.update_header(session_name=session_name)
             self.update_ui_after_session_load()
             # Correctly emit the custom message using 'post_message()'
             self.emit_sync_stopped()
