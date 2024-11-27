@@ -114,6 +114,66 @@ class MultiScreenApp(App):
         
         for screen_name, config in screen_configs.items():
 
+            # Skip disabled screens (those starting with "_" or specific names)
+            if screen_name.startswith("_") or screen_name in ("initial_screen", "global_bindings"):
+                logging.info(f"Skipping disabled screen: {screen_name}")
+                continue
+                    
+            # Initialize a SessionManager for the screen
+            session_manager = SessionManager(self.storage_manager)
+            session_manager.set_message_post_target(self)
+            self.screen_session_managers[screen_name] = session_manager
+            
+            # Retrieve the state machine function and screen class from globals
+            state_machine_func = globals().get(config["state_machine"])
+            if state_machine_func is None:
+                raise ValueError(f"State machine function '{config['state_machine']}' not found.")
+            
+            screen_class = globals().get(config["screen_class"])
+            if screen_class is None:
+                raise ValueError(f"Screen class '{config['screen_class']}' not found.")
+            
+            # Define a factory function that creates a new instance of the screen
+            def screen_factory(sc=screen_class, sm=session_manager, sm_func=state_machine_func):
+                return sc(
+                    state_machine=sm_func(),
+                    session_manager=sm
+                )
+            
+            # Optional: Log the creation of each screen
+            logging.debug(f"Installing screen: {screen_name} using {screen_class.__name__}")
+            
+            # Install the screen using the factory function
+            self.install_screen(screen_factory, name=screen_name)
+
+        # Set the initial screen dynamically from configuration
+        initial_screen = screen_configs.get("initial_screen")
+        if initial_screen:
+            self.push_screen(initial_screen)
+        else:
+            logging.warning("No initial_screen defined in configuration.")
+
+
+
+    def __bck__on_mount(self) -> None:
+        """Mount screens when the app starts, dynamically from configuration."""
+        
+        self._initialize_bindings_from_config()
+
+        current_dir = os.path.dirname(__file__)
+        config_path = os.path.join(current_dir, "screen_config.json")
+        
+        try:
+            with open(config_path) as config_file:
+                screen_configs = json.load(config_file)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Configuration file not found at {config_path}")
+            
+        self.screen_session_managers = {}
+        self.session_screens = set()
+        
+        for screen_name, config in screen_configs.items():
+
             # the "_" for screens in development, or we do not want active during run time. 
             if screen_name.startswith("_") or screen_name in ("initial_screen", "global_bindings"):
                 logging.info(f"Skipping disabled screen: {screen_name}")
@@ -187,96 +247,12 @@ class MultiScreenApp(App):
                     logging.warning(f"Action method {action_method_name} already exists. Skipping creation.")
 
 
-    def __bck_initialize_bindings_from_config(self) -> None:
-        """Initialize bindings from configuration at startup."""
-        current_dir = os.path.dirname(__file__)
-        config_path = os.path.join(current_dir, "screen_config.json")
-        
-        try:
-            with open(config_path) as config_file:
-                screen_configs = json.load(config_file)
-        except FileNotFoundError:
-            raise FileNotFoundError(f"Configuration file not found at {config_path}")
-        
-        # Set up bindings from configuration file
-        for screen_name, screen_data in screen_configs.items():
-            # Skip non-dictionary entries like "initial_screen"
-            if not isinstance(screen_data, dict):
-                continue
-
-            if screen_name.startswith("_") or screen_name in ("initial_screen", "global_bindings"):
-                logging.info(f"Skipping disabled screen: {screen_name}")
-                continue
-        
-            bindings = screen_data.get("bindings", [])
-            for binding in bindings:
-                self.bind(
-                    binding["key"],                  # Pass keys as a positional argument
-                    action=binding["action"],
-                    description=binding["description"]
-                )
-
-            # Dynamically create the action method
-            action_name = binding["action"]
-            action_method = self.create_action_method(screen_name)
-            action_method_name = f"action_{action_name}"
-            action_method.__name__ = action_method_name
-            setattr(MultiScreenApp, action_method_name, action_method)
-            logging.info(f"Created action method: {action_method_name} for screen: {screen_name}")
-
         
     def create_action_method(self,screen_name):
         def action_method(self):
             self.push_screen(screen_name)
         return action_method
 
-    def __bck_on_mount(self) -> None:
-        """Mount screens when the app starts."""
-        # Initialize individual SessionManagers for each screen by default
-        self.screen_session_managers = {
-            "TimeLine Editor": SessionManager(self.storage_manager),
-            "Clarity": SessionManager(self.storage_manager),
-            "Agent Assessment Builder": SessionManager(self.storage_manager),
-        }
-
-        # Register each SessionManager to post messages to this app
-        for session_manager in self.screen_session_managers.values():
-            session_manager.set_message_post_target(self)  # Register with the app to post messages
-
-        # Create screen instances with appropriate state machines and session managers
-        timeline_editor_screen = TimeLineEditorScreen(
-            state_machine=create_timeline_editor_state_machine(),
-            session_manager=self.screen_session_managers["TimeLine Editor"]
-        )
-        clarity_screen = ClarityScreen(
-            state_machine=create_clarity_state_machine(),
-            session_manager=self.screen_session_managers["Clarity"]
-        )
-        agent_assessment_builder_screen = AgentAssessmentBuilderScreen(
-            state_machine=create_agent_assessment_state_machine(),
-            session_manager=self.screen_session_managers["Agent Assessment Builder"]
-        )
-
-        # Add session-related screens to the set for managing sessions easily
-        self.session_screens.update({
-            timeline_editor_screen,
-            clarity_screen,
-            agent_assessment_builder_screen,
-        })
-
-        # Install screens in the application with their respective names
-        # The `install_screen` method is used to register each screen with the application. 
-        # This makes it possible to switch to the specified screen by its name during runtime. 
-        # The lambda function ensures that a new instance of the screen is created when needed.
-        # We use `install_screen` this way because we are running async code using a combination 
-        # of `asyncio` and `concurrent.futures.ThreadPoolExecutor`. This allows us to run 
-        # processes in the background while keeping screens responsive and ensuring they come back in an activated state.
-        self.install_screen(lambda: timeline_editor_screen, name="TimeLine Editor")
-        self.install_screen(lambda: clarity_screen, name="Clarity")
-        self.install_screen(lambda: agent_assessment_builder_screen, name="Agent Assessment Builder")
-        
-        # Start with the Clarity screen as the main app screen
-        self.push_screen("Clarity")
 
     def get_current_llm_config(self):
         """Fetch the current LLM config from LLMManager."""
@@ -300,17 +276,6 @@ class MultiScreenApp(App):
         self.sync_active = False
         logging.info("Session synchronization is now disabled.")
         self.notify("Session synchronization is now disabled.", severity="info")
-
-    """ no longer needed, keep for some more testing of our screen_config.json config solution
-    def action_return_to_clarity(self) -> None:
-        self.push_screen("Clarity")
-
-    def action_return_to_timeline(self) -> None:
-        self.push_screen("TimeLine Editor")
-
-    def action_return_to_agent_assessment_builder(self) -> None:
-        self.push_screen("Agent Assessment Builder")
-    """
 
     def action_sink_sessions(self) -> None:
         """Sink all sessions to the currently active screen's SessionManager."""
