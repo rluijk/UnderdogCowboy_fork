@@ -73,7 +73,8 @@ class MultiScreenApp(App):
         super().__init__(**kwargs)
         # Load configuration from the YAML file
         self.config = load_config(config_path)
-    
+        self.screen_map = {}  
+
         # Initialize the storage manager to manage persistent session data
         self.storage_manager: StorageInterface = JSONStorageManager(base_dir=self.config['storage']['base_dir'])
         # Dictionary to hold SessionManagers for each screen
@@ -103,6 +104,17 @@ class MultiScreenApp(App):
             return
         self.sync_active = True
 
+    def install_screen(self, factory, name):
+        if name in self.screen_map:  # Check if the screen is already registered
+            logging.warning(f"Screen '{name}' already installed.")
+            return
+        super().install_screen(factory, name=name)
+
+    def push_screen(self, screen_name: str) -> None:
+        if self.screen and self.screen.name == screen_name:
+            logging.debug(f"Screen '{screen_name}' is already active. Skipping push.")
+            return
+        super().push_screen(screen_name)
 
     def on_mount(self) -> None:
         """Mount screens when the app starts, dynamically from configuration."""
@@ -165,6 +177,8 @@ class MultiScreenApp(App):
             self.push_screen(initial_screen)
         else:
             logging.warning("No initial_screen defined in configuration.")
+
+
 
     def _initialize_bindings_from_config(self) -> None:
         """Initialize bindings from configuration at startup."""
