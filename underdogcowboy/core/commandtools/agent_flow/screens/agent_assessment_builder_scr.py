@@ -51,6 +51,10 @@ class AgentAssessmentBuilderScreen(SessionScreen):
         self.update_ui_retry_count = 0
         self.max_update_ui_retries = 5
 
+        self.handle_ui_button_pressed_retry_count = 0
+        self.max_handle_ui_button_pressed_retries = 5  # Adjust as needed
+
+
 
     def compose(self) -> ComposeResult:
         yield Header()
@@ -85,10 +89,20 @@ class AgentAssessmentBuilderScreen(SessionScreen):
         else:
             self._pending_session_manager = new_session_manager
 
+    def get_dynamic_container(self):
+        try:
+            return self.query_one("#center-dynamic-container-agent-assessment-builder", DynamicContainer)
+        except NoMatches:
+            return None
+
+
     def update_ui_after_session_load(self):
         """Updates the UI after loading session data."""
         try:
-            dynamic_container = self.query_one("#center-dynamic-container-agent-assessment-builder", DynamicContainer)
+            dynamic_container = self.get_dynamic_container()
+            if not dynamic_container:
+                raise NoMatches
+
             dynamic_container.clear_content()
 
             stored_state = self.session_manager.get_data("current_state", screen_name=self.screen_name)
@@ -113,6 +127,55 @@ class AgentAssessmentBuilderScreen(SessionScreen):
 
     @on(UIButtonPressed)
     def handle_ui_button_pressed(self, event: UIButtonPressed) -> None:
+        """Handles button presses and dynamically loads UI components based on button actions."""
+        try:
+            logging.debug(f"Handler 'handle_ui_button_pressed' invoked with button_id: {event.button_id}")
+            
+            dynamic_container = self.get_dynamic_container()
+            if not dynamic_container:
+                raise NoMatches
+
+            dynamic_container.clear_content()
+
+            ui_class, action = self.ui_factory.ui_factory(event.button_id)
+
+            if ui_class:
+                if event.button_id == "load-session" and not self.session_manager.list_sessions():
+                    self.notify("No sessions available. Create a new session first.", severity="warning")
+                else:
+                    # Check if ui_class is a subclass of SessionDependentUI
+                    if issubclass(ui_class, SessionDependentUI):
+                        ui_instance = ui_class(
+                            session_manager=self.session_manager,
+                            screen_name=self.screen_name,
+                            agent_name_plain=self.agent_name_plain
+                        )
+                    else:
+                        ui_instance = ui_class()
+
+                    dynamic_container.load_content(ui_instance)
+
+            if action:
+                action()
+
+            # Reset retry counter upon successful execution
+            self.handle_ui_button_pressed_retry_count = 0
+
+        except NoMatches:
+            if self.handle_ui_button_pressed_retry_count < self.max_handle_ui_button_pressed_retries:
+                logging.warning("Dynamic container not found in handle_ui_button_pressed; scheduling retry.")
+                self.handle_ui_button_pressed_retry_count += 1
+                self.call_later(lambda: self.handle_ui_button_pressed(event))
+            else:
+                logging.error("Dynamic container not found after multiple attempts in handle_ui_button_pressed. Aborting action.")
+                self.notify("Failed to load UI component due to UI issues.", severity="error")
+        except ValueError as e:
+            logging.error(f"Error: {e}")
+            self.notify(f"An error occurred: {e}", severity="error")
+   
+
+    #@on(UIButtonPressed)
+    def __bck__handle_ui_button_pressed(self, event: UIButtonPressed) -> None:
         """Handles button presses and dynamically loads UI components based on button actions."""
         logging.debug(f"Handler 'handle_ui_button_pressed' invoked with button_id: {event.button_id}")
         dynamic_container = self.query_one("#center-dynamic-container-agent-assessment-builder", DynamicContainer)
