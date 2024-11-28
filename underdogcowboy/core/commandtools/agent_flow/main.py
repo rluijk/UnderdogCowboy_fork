@@ -63,11 +63,13 @@ class MultiScreenApp(App):
     BINDINGS = []
     
     # Reactive property to track if session synchronization is active
-    sync_active: Reactive[bool] = Reactive(False)
+    # sync_active: Reactive[bool] = Reactive(False)
+    
+    
     # Shared SessionManager that can be used across screens when syncing is active
     shared_session_manager: SessionManager = None
 
-    def __init__(self, config_path: str, **kwargs):
+    def __init__(self, config_path: str, **kwargs): 
         super().__init__(**kwargs)
         # Load configuration from the YAML file
         self.config = load_config(config_path)
@@ -94,6 +96,13 @@ class MultiScreenApp(App):
         self.clipboard_content.set_message_post_target(self)
 
         self.clarity_processor = None
+
+        self.sync_active: Reactive[bool] = Reactive(False)
+        # Ensure no unintended triggers:
+        if self.sync_active:
+            return
+        self.sync_active = True
+
 
     def on_mount(self) -> None:
         """Mount screens when the app starts, dynamically from configuration."""
@@ -123,7 +132,7 @@ class MultiScreenApp(App):
             session_manager = SessionManager(self.storage_manager)
             session_manager.set_message_post_target(self)
             self.screen_session_managers[screen_name] = session_manager
-            
+
             # Retrieve the state machine function and screen class from globals
             state_machine_func = globals().get(config["state_machine"])
             if state_machine_func is None:
@@ -133,18 +142,22 @@ class MultiScreenApp(App):
             if screen_class is None:
                 raise ValueError(f"Screen class '{config['screen_class']}' not found.")
             
-            # Define a factory function that creates a new instance of the screen
-            def screen_factory(sc=screen_class, sm=session_manager, sm_func=state_machine_func):
-                return sc(
-                    state_machine=sm_func(),
-                    session_manager=sm
-                )
+            # Define a factory function that creates a new instance of the screen            
+            def screen_factory(sc, sm, sm_func):
+                def factory():
+                    return sc(state_machine=sm_func(), session_manager=sm)
+                return factory
+
+            
             
             # Optional: Log the creation of each screen
             logging.debug(f"Installing screen: {screen_name} using {screen_class.__name__}")
             
             # Install the screen using the factory function
-            self.install_screen(screen_factory, name=screen_name)
+            # self.install_screen(screen_factory, name=screen_name)
+            # Install the screen using the factory function
+            self.install_screen(screen_factory(screen_class, session_manager, state_machine_func), name=screen_name)
+
 
         # Set the initial screen dynamically from configuration
         initial_screen = screen_configs.get("initial_screen")
@@ -152,57 +165,6 @@ class MultiScreenApp(App):
             self.push_screen(initial_screen)
         else:
             logging.warning("No initial_screen defined in configuration.")
-
-
-
-    def __bck__on_mount(self) -> None:
-        """Mount screens when the app starts, dynamically from configuration."""
-        
-        self._initialize_bindings_from_config()
-
-        current_dir = os.path.dirname(__file__)
-        config_path = os.path.join(current_dir, "screen_config.json")
-        
-        try:
-            with open(config_path) as config_file:
-                screen_configs = json.load(config_file)
-        except FileNotFoundError:
-            raise FileNotFoundError(f"Configuration file not found at {config_path}")
-            
-        self.screen_session_managers = {}
-        self.session_screens = set()
-        
-        for screen_name, config in screen_configs.items():
-
-            # the "_" for screens in development, or we do not want active during run time. 
-            if screen_name.startswith("_") or screen_name in ("initial_screen", "global_bindings"):
-                logging.info(f"Skipping disabled screen: {screen_name}")
-                continue
-                    
-
-            session_manager = SessionManager(self.storage_manager)
-            session_manager.set_message_post_target(self)
-            self.screen_session_managers[screen_name] = session_manager
-            
-            state_machine_func = globals().get(config["state_machine"])
-            if state_machine_func is None:
-                raise ValueError(f"State machine function '{config['state_machine']}' not found.")
-            
-            screen_class = globals().get(config["screen_class"])
-            if screen_class is None:
-                raise ValueError(f"Screen class '{config['screen_class']}' not found.")
-            
-            screen_instance = screen_class(
-                state_machine=state_machine_func(),
-                session_manager=session_manager
-            )
-            
-            self.session_screens.add(screen_instance)
-            # Use a default argument in the lambda to capture the current screen_instance
-            self.install_screen(lambda screen=screen_instance: screen, name=screen_name)
-
-        # Set the initial screen dynamically from configuration
-        self.push_screen(screen_configs["initial_screen"])
 
     def _initialize_bindings_from_config(self) -> None:
         """Initialize bindings from configuration at startup."""
@@ -247,12 +209,11 @@ class MultiScreenApp(App):
                     logging.warning(f"Action method {action_method_name} already exists. Skipping creation.")
 
 
-        
-    def create_action_method(self,screen_name):
-        def action_method(self):
-            self.push_screen(screen_name)
+    def create_action_method(self, screen_name):
+        def action_method(*args, **kwargs):  # Accept any arguments
+            if self.screen.name != screen_name:  # Avoid re-pushing the current screen
+                self.push_screen(screen_name)
         return action_method
-
 
     def get_current_llm_config(self):
         """Fetch the current LLM config from LLMManager."""
