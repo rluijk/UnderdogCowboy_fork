@@ -104,17 +104,24 @@ class MultiScreenApp(App):
             return
         self.sync_active = True
 
-    def install_screen(self, factory, name):
-        if name in self.screen_map:  # Check if the screen is already registered
-            logging.warning(f"Screen '{name}' already installed.")
+    def install_screen(self, factory, name: str) -> None:
+        """Register a screen factory in screen_map."""
+        if name in self.screen_map:
+            logging.warning(f"Screen '{name}' is already installed.")
             return
+        self.screen_map[name] = factory  # Register factory
         super().install_screen(factory, name=name)
 
     def push_screen(self, screen_name: str) -> None:
+        """Push a screen if it is registered."""
+        if screen_name not in self.screen_map:
+            logging.error(f"Screen '{screen_name}' not found in screen_map.")
+            return
         if self.screen and self.screen.name == screen_name:
-            logging.debug(f"Screen '{screen_name}' is already active. Skipping push.")
+            logging.debug(f"Screen '{screen_name}' is already active.")
             return
         super().push_screen(screen_name)
+
 
     def on_mount(self) -> None:
         """Mount screens when the app starts, dynamically from configuration."""
