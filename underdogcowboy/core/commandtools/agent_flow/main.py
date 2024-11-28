@@ -186,7 +186,6 @@ class MultiScreenApp(App):
             logging.warning("No initial_screen defined in configuration.")
 
 
-
     def _initialize_bindings_from_config(self) -> None:
         """Initialize bindings from configuration at startup."""
         current_dir = os.path.dirname(__file__)
@@ -227,14 +226,13 @@ class MultiScreenApp(App):
                     setattr(MultiScreenApp, action_method_name, action_method)
                     logging.info(f"Created action method: {action_method_name} for screen: {screen_name}")
                 else:
-                    logging.warning(f"Action method {action_method_name} already exists. Skipping creation.")
-
-
+                    logging.warning(f"Action method {action_method_name} already exists. Skipping creation.")    
     def create_action_method(self, screen_name):
         def action_method(*args, **kwargs):  # Accept any arguments
-            if self.screen.name != screen_name:  # Avoid re-pushing the current screen
-                self.push_screen(screen_name)
+            if self.screen and self.screen.name != screen_name:
+                self.switch_screen(screen_name)
         return action_method
+
 
     def get_current_llm_config(self):
         """Fetch the current LLM config from LLMManager."""

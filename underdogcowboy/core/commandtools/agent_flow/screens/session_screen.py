@@ -19,13 +19,14 @@ class SessionScreen(Screen):
 
     def __init__(
         self,
+        name: str = None,  
         storage_interface: StorageInterface = None,
         state_machine: 'StateMachine' = None,  # Replace 'StateMachine' with your actual type
         session_manager: SessionManager = None,
         *args,
         **kwargs
     ):
-        super().__init__(*args, **kwargs)
+        super().__init__(name=name, *args, **kwargs) 
         self.state_machine = state_machine
         self.storage_interface = storage_interface or JSONStorageManager()
         self.session_manager = session_manager or SessionManager(self.storage_interface)

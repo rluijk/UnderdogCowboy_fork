@@ -62,13 +62,15 @@ class TimeLineEditorScreen(SessionScreen):
     ]
 
     def __init__(self,
+                 name: str = "timeline_editor", 
                  state_machine: StateMachine = None,
                  session_manager: SessionManager = None,
                  *args, **kwargs
                  ):
         
-        super().__init__(*args, **kwargs)
-
+        #super().__init__(*args, **kwargs)
+        super().__init__(name=name, state_machine=state_machine, session_manager=session_manager, *args, **kwargs)
+        
         self.title = "Timeline Editor"
         self.state_machine = state_machine or create_timeline_editor_state_machine()
         self.session_manager = session_manager
