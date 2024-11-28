@@ -59,11 +59,12 @@ class ClarityScreen(SessionScreen):
     # CSS_PATH = "../state_machine_app_candidate_missing.css"
 
     def __init__(self, 
+                 name: str = "clarity_screen",
                  state_machine: StateMachine = None, 
                  session_manager: SessionManager = None,
                  *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
+        super().__init__(name=name, state_machine=state_machine, session_manager=session_manager, *args, **kwargs)
+        
         self.state_machine = state_machine or create_clarity_state_machine()
         self.session_manager = session_manager  
         self.ui_factory = UIFactory(self)

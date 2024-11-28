@@ -39,8 +39,9 @@ class AgentAssessmentBuilderScreen(SessionScreen):
     """A screen for the agent assessment builder."""
     # CSS_PATH = "../state_machine_app.css"
 
-    def __init__(self, state_machine: StateMachine = None, session_manager: SessionManager = None, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, name: str = "agent_assessment_builder", state_machine: StateMachine = None, session_manager: SessionManager = None, *args, **kwargs):
+        # super().__init__(*args, **kwargs)
+        super().__init__(name=name, state_machine=state_machine, session_manager=session_manager, *args, **kwargs)
         self.title = "Agent Assessment Builder"
         self.state_machine = state_machine or create_agent_assessment_state_machine()
         self.session_manager = session_manager
