@@ -102,7 +102,7 @@ class LoadAgentUI(Static):
         if event.button.id == "load-button":
             selected_item = self.query_one("#agent-list").highlighted_child
             if selected_item:
-                selected_dialog = selected_item.children[0].renderable     
+                selected_agent = selected_item.children[0].renderable     
                 logging.info(f"Load button pressed, selected agent: {selected_agent}")
                 self.post_message(AgentSelected(selected_agent))
         elif event.button.id == "cancel-button":
