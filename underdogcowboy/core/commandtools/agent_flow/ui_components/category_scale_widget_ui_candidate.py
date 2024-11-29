@@ -580,15 +580,21 @@ class SelectCategoryWidget(Static):
                 self.description_area.load_text(category_data.get('description', '')) 
                 self.refresh_title_button.visible = True
                 self.refresh_description_button.visible= True
+                self.refresh_title_button.refresh()
+                self.refresh_description_button.refresh()
             else:
                 self.input_box.value = ""
                 self.description_area.load_text("")
                 self.refresh_title_button.visible = False
                 self.refresh_description_button.visible = False
+                self.refresh_title_button.refresh()
+                self.refresh_description_button.refresh()
 
             # Make input fields visible
             self.input_box.visible = True
             self.description_area.visible = True
+            self.input_box.refresh()
+            self.description_area.refresh()
 
             # Handle scales
             scale_widget = self.app.query_one(ScaleWidget)
@@ -599,6 +605,9 @@ class SelectCategoryWidget(Static):
             self.shared_state.selected_category = None
             self.input_box.visible = False
             self.description_area.visible = False
+            self.input_box.refresh()
+            self.description_area.refresh()
+
             logging.info("No valid category selected.")
 
     # Event handlers (i dont think is actually called)
@@ -637,10 +646,12 @@ class SelectCategoryWidget(Static):
         button = self.query_one("#refresh-description-button")
         if isinstance(button, Button):
             button.disabled = False
+            button.refresh()
 
         button = self.query_one("#refresh-title-button")
         if isinstance(button, Button):
             button.disabled = False
+            button.refresh()
 
         self.query_one(LoadingIndicator).hide()                
 
@@ -911,6 +922,12 @@ class ScaleWidget(SessionDependentUI):
         self.scale_components.scale_input_box.visible = False
         self.scale_components.scale_description_area.visible = False
 
+        self.scale_components.scale_select.refresh()
+        self.scale_components.create_scales_button.refresh()
+        self.scale_components.scale_input_box.refresh()
+        self.scale_components.scale_description_area.refresh()
+
+
     def _show_scales(self) -> None:
         """Display the scales in the select box if a category is selected."""
         if self.shared_state.selected_category and self.scales:
@@ -918,14 +935,23 @@ class ScaleWidget(SessionDependentUI):
             self.scale_components.scale_select.set_options(scale_options)
             self.scale_components.scale_select.visible = True
             self.scale_components.create_scales_button.visible = False
+            self.scale_components.scale_select.refresh()
+            self.scale_components.create_scales_button.refresh()
+
+
         else:
             # If no category is selected or no scales exist, hide the select box
             self.scale_components.scale_select.visible = False
+            self.scale_components.scale_select.refresh()
+            
             
     def _show_create_scales_button(self) -> None:
         """Show the button to create initial scales if none exist."""
         self.scale_components.create_scales_button.visible = True
         self.scale_components.scale_select.visible = False
+        self.scale_components.create_scales_button.refresh()
+        self.scale_components.scale_select.refresh()
+
 
     def _llm_config_current_agent(self) -> Optional[Tuple[Dict[str, Any], str]]:
         """Get the LLM configuration."""
@@ -991,6 +1017,9 @@ class SelectScaleWidget(Static):
                 self.scale_description_area.load_text(scale_data.get('description', ''))
                 self.scale_input_box.visible = True
                 self.scale_description_area.visible = True
+                self.scale_input_box.refresh()
+                self.scale_description_area.refresh()
+
 
     @on(Input.Submitted, "#scale-input")
     def handle_scale_name_changed(self, event: Input.Submitted) -> None:
