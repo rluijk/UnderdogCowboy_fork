@@ -107,15 +107,7 @@ class LoadDialogUI(Static):
         if event.button.id == "load-button":
             selected_item = self.query_one("#dialog-list").highlighted_child
             if selected_item:
-                selected_dialog = selected_item.children[0].render()  # Get the text from the Label
-
-                if is_windows():
-                    # win fix?
-                    selected_dialog = selected_dialog._renderable.plain
-                else:
-                    selected_dialog = selected_dialog.plain
-
-
+                selected_dialog = selected_item.children[0].renderable
                 logging.info(f"Load button pressed, selected dialog: {selected_dialog}")
                 self.post_message(DialogSelected(selected_dialog))
         elif event.button.id == "cancel-button":

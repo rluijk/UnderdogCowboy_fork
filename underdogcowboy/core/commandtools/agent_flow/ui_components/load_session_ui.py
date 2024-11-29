@@ -51,7 +51,7 @@ class LoadSessionUI(Static):
         if event.button.id == "load-button":
             selected_item = self.query_one("#session-list").highlighted_child
             if selected_item:
-                selected_session = selected_item.children[0].render()  # Get the text from the Label
+                selected_session = selected_item.children[0].renderable
                 logging.info(f"Load button pressed, selected session: {selected_session}")
                 self.post_message(SessionSelected(selected_session))
         elif event.button.id == "cancel-button":
