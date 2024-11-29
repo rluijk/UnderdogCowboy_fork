@@ -315,14 +315,18 @@ class TimeLineEditorScreen(SessionScreen):
             else:
                 logging.error("Dynamic container not found after multiple attempts. Aborting UI update.")
 
-
-
     @on(NewAgentCreated)
     def create_new_agent(self, event: NewAgentCreated):
-        # Create agent in file system. 
-        self._save_new_agent(event.agent_name)        
-        dynamic_container: DynamicContainer = self.query_one("#center-dynamic-container-timeline-editor", DynamicContainer)
-        dynamic_container.clear_content()
+        # Attempt to create agent in file system.
+        try:
+            self._save_new_agent(event.agent_name)
+            dynamic_container: DynamicContainer = self.query_one(
+                "#center-dynamic-container-timeline-editor", DynamicContainer
+            )
+            dynamic_container.clear_content()
+        except InvalidAgentNameError as e:
+            # Use self.app.notify to inform the user about the invalid agent name.
+            self.app.notify(f"Invalid agent name: {e.agent_name}", severity="error")
 
     @on(NewDialogCreated)
     def create_new_dialog(self, event: NewDialogCreated):
@@ -342,73 +346,6 @@ class TimeLineEditorScreen(SessionScreen):
             self.storage.save_new_agent(agent_name)
         except ValueError as e:
             raise InvalidAgentNameError(agent_name) from e   
-
-    def __back___save_new_dialog(self,dialog_path, name):
-        
-        # Create the directory if it doesn't exist
-        os.makedirs(dialog_path, exist_ok=True)
-        file_path = os.path.join(dialog_path, f"{name}.json")        
-        
-        # Metadata now includes name and description
-        metadata = {
-            "frozenSegments": [],
-            "startMode": 'interactive',
-            "name": name,
-            "description": ""
-        }
-        
-        # Prepare the data dictionary with additional metadata
-        data = {
-            "history": [],
-            "metadata": metadata,
-            "system_message": ""
-        }
-        # Writing to file
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)    
-
-    def __bck___save_new_agent(self, agent_name):
-        """Saves the current dialog as a user-defined agent."""
-    
-
-        # Remove extension if present
-        filename_no_ext, ext = os.path.splitext(agent_name)
-
-        # Python module name validation
-        if not re.match(r"^[a-zA-Z_][a-zA-Z0-9_]*$", filename_no_ext):
-            raise InvalidAgentNameError(filename_no_ext)
-
-
-        # File path construction
-        agents_dir = os.path.expanduser("~/.underdogcowboy/agents")
-    
-        # Create the directory if it doesn't exist
-        os.makedirs(agents_dir, exist_ok=True)
-        file_path = os.path.join(agents_dir, f"{filename_no_ext}.json")
-        
-
-        # Metadata now includes name and description
-        metadata = {
-            "frozenSegments": [],
-            "startMode": 'interactive',
-            "name": filename_no_ext,
-            "description": ""
-        }
-
-        # Prepare the data dictionary with additional metadata
-        data = {
-            "history": [],
-            "metadata": metadata,
-            "system_message": ""
-        }
-
-        # Writing to file
-        with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=4)
-
-        # Reload agents to make the new agent available
-        # from underdogcowboy import _reload_agents
-        #_reload_agents() 
 
     def save_dialog(self):
         try:
