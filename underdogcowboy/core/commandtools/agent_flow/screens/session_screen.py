@@ -45,10 +45,10 @@ class SessionScreen(Screen):
         """Handle session selection and notify the main app."""
         try:
             if is_windows():
-                # win fix?
-                session_name = event.session_name._renderable.plain
+                # win fix?             
+                session_name = event.session_name.renderable
             else:
-                session_name = event.session_name.plain     
+                session_name = str(event.session_name)     
 
             self.session_manager.load_session(session_name)
             self.notify(f"Session '{session_name}' loaded successfully")
