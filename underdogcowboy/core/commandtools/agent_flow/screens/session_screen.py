@@ -44,14 +44,9 @@ class SessionScreen(Screen):
     def on_session_selected(self, event: SessionSelected):
         """Handle session selection and notify the main app."""
         try:
-            if is_windows():
-                # win fix?             
-                session_name = event.session_name.renderable
-            else:
-                session_name = str(event.session_name)     
-
+            session_name = str(event.session_name)     
             self.session_manager.load_session(session_name)
-            self.notify(f"Session '{session_name}' loaded successfully")
+            self.notify(f"Session {session_name} loaded successfully")
             # self.update_header(session_name=session_name)
             self.update_ui_after_session_load()
             # Correctly emit the custom message using 'post_message()'
