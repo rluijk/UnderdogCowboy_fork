@@ -78,6 +78,8 @@ class Agent:
         self.dialog_manager: Optional['DialogManager'] = None
         self.response = None
 
+        # FAISS 
+
         # FAISS index attributes
         self.index = None
         self.index_path = None
@@ -86,27 +88,11 @@ class Agent:
         self.model = get_cached_model()
         # Initialize FAISS index
         self._initialize_or_create_index()
+
+        # picks up file references send via messages, and adds them to the Rag System
+        self.auto_index_file_refs = True # decide on the option set: set via config (yaml), init, during use, via load of meta data agent
+
     
-     
-    def __rshift__(self, other: Union[str, 'Agent']) -> Any:
-        """
-        Overloads the >> operator to send a message to the agent.
-
-        Args:
-            other (Union[str, Agent]): The user's message or another agent.
-
-        Returns:
-            Any: The agent's response.
-        """
-        if isinstance(other, Agent):
-            # If 'other' is an Agent, use its last response
-            message = other.get_last_response()
-        else:
-            # If 'other' is a string, use it directly
-            message = other
-
-        return self.message(message)
-
     def __or__(self, other_agent):
         """
         Overloads the | operator to perform operations between agents.
@@ -154,6 +140,11 @@ class Agent:
     def message(self, user_input: str) -> Any:
         if self.dialog_manager is None:
             raise ValueError("Agent is not registered with a dialog manager")
+        # do we put file detection for automatic rag integration of files given of types our
+        # rag can implement?
+        if self.auto_index_file_refs:
+            # passing meta data an extra argument, with the message, time etc?
+            pass 
 
         self.response = self.dialog_manager.message(self, user_input)
         return self.response    
