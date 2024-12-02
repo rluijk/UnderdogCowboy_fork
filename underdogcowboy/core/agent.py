@@ -254,7 +254,7 @@ class Agent:
                 "chunk_index": i
             }
 
-        # Save metadata to disk for persistence!
+        # Save metadata to disk for persistence
         self._save_metadata()
 
     def _save_metadata(self, metadata_path=None) -> None:
