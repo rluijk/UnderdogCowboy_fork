@@ -82,6 +82,7 @@ class LLMConfigManager:
         self.general_config: Dict[str, Dict[str, Any]] = {
             'dialog_save_path': {'question': 'Enter the path to save dialogs:', 'input_type': 'path', 'default': str(Path.home() / 'llm_dialogs')},
             'message_export_path': {'question': 'Enter the path to export messages:', 'input_type': 'path', 'default': str(Path.home() / 'llm_exports')},
+            'project_path': {'question': 'Enter the path your root project folder:', 'input_type': 'path', 'default': str(Path.home() / 'llm_projects')},
         }
         self.tracing_config: Dict[str, Dict[str, Any]] = {
             'use_langsmith': {'question': 'Use LangSmith for tracing? (yes/no):', 'input_type': 'boolean', 'default': 'no'},
@@ -296,19 +297,26 @@ class LLMConfigManager:
         """
         Retrieve or prompt for general configuration settings.
 
-        If settings are not already stored, this method will prompt the user to enter them.
+        Dynamically updates the configuration to include new properties
+        that may not have been present in previous configurations.
 
         Returns:
             dict: A dictionary containing the general configuration settings.
         """
-        if 'general' not in self.config or not self.config['general'].get('configured', False):
-            print("No stored general configuration found. Please enter them now.")
+        if 'general' not in self.config:
             self.config['general'] = {}
-            for prop, details in self.general_config.items():
+        
+        updated = False
+
+        for prop, details in self.general_config.items():
+            if prop not in self.config['general']:
                 value = input(f"{details['question']} (default: {details.get('default', 'N/A')}): ")
                 if not value and 'default' in details:
                     value = details['default']
                 self.config['general'][prop] = value
+                updated = True
+
+        if updated:
             self.config['general']['configured'] = True
             self.save_config()
 
