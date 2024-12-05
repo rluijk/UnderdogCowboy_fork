@@ -417,8 +417,6 @@ class AnthropicModel(ConfigurableModel):
             return f"Error: {response.status_code}, {response.text}"
 
 
-
-
 class VertexAIModel(ConfigurableModel):
     def __init__(self, model_id):
         super().__init__("google-vertex", model_id)
