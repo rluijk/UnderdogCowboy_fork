@@ -1,9 +1,10 @@
+import os
 import logging
 import datetime
 from typing import Any, List, Dict
 from state_management.storage_interface import StorageInterface
 from state_management.shared_data import SessionData, ScreenData
-
+from underdogcowboy.core.config_manager import LLMConfigManager
 # Events / Mixins
 from events.message_mixin import MessageEmitterMixin
 
@@ -19,10 +20,6 @@ from exceptions import (
 
 import platform
 
-def is_windows():
-    return platform.system() == "Windows"
-
-
 class SessionManager(MessageEmitterMixin):
     """Handles loading, creating, and saving sessions using the storage abstraction layer."""
     
@@ -31,9 +28,91 @@ class SessionManager(MessageEmitterMixin):
         self.storage = storage
         self.current_session_name: str = None
         self.current_session_data: SessionData = None  # Holds the current session data
+        self.config_manager: LLMConfigManager = LLMConfigManager()
 
-        
     def create_session(self, session_name: str):
+        """
+        Create a new session and initialize its folder within the project path.
+
+        Args:
+            session_name (str): The name of the session to create.
+
+        Raises:
+            ValueError: If session creation fails.
+        """
+        try:
+            # Retrieve the project path from the config manager
+            project_path = self.config_manager.get_general_config().get("project_path")
+            if not project_path:
+                raise ValueError("Project path is not configured. Please set it in the general configuration.")
+
+            # Ensure the project path exists
+            os.makedirs(project_path, exist_ok=True)
+
+            # Create a folder for the session
+            session_folder = os.path.join(project_path, session_name)
+            os.makedirs(session_folder, exist_ok=True)
+
+            # Create the session in the storage layer
+            self.current_session_data = self.storage.create_session(session_name)
+            self.current_session_name = session_name
+
+            logging.info(f"Session '{session_name}' created successfully at '{session_folder}'.")
+            self.post_message(SessionStateChanged(self, session_active=True, session_name=session_name))
+
+        except ValueError as e:
+            logging.error(f"Error creating session '{session_name}': {str(e)}")
+            raise
+
+        except OSError as e:
+            logging.error(f"Filesystem error creating session folder '{session_name}': {str(e)}")
+            raise
+
+    def load_session(self, session_name: str):
+        """
+        Load an existing session and ensure its folder exists in the project path.
+
+        Args:
+            session_name (str): The name of the session to load.
+
+        Raises:
+            SessionDoesNotExistError: If the session does not exist in storage.
+            StorageOperationError: If an error occurs during storage operations.
+        """
+        try:
+            # Load session data from storage
+            self.current_session_data = self.storage.load_session(session_name)
+            self.current_session_name = session_name
+
+            # Retrieve the project path from the config manager
+            project_path = self.config_manager.get_general_config().get("project_path")
+            if not project_path:
+                raise ValueError("Project path is not configured. Please set it in the general configuration.")
+
+            # Ensure the session folder exists
+            session_folder = os.path.join(project_path, session_name)
+            if not os.path.exists(session_folder):
+                os.makedirs(session_folder, exist_ok=True)
+                logging.info(f"Session folder '{session_folder}' was missing and has been created.")
+
+            logging.info(f"Session '{session_name}' loaded successfully.")
+            self.post_message(SessionStateChanged(self, session_active=True, session_name=session_name))
+
+        except SessionDoesNotExistError as e:
+            logging.error(str(e))
+            raise
+        except StorageOperationError as e:
+            logging.error(str(e))
+            raise
+        except OSError as e:
+            logging.error(f"Filesystem error when checking/creating session folder for '{session_name}': {str(e)}")
+            raise
+        except Exception as e:
+            logging.error(f"Unexpected error when loading session '{session_name}': {str(e)}")
+            raise StorageOperationError(f"Failed to load session '{session_name}'") from e
+
+
+    def __bck__create_session(self, session_name: str):
         try:
             self.current_session_data = self.storage.create_session(session_name)
             self.current_session_name = session_name
@@ -44,14 +123,9 @@ class SessionManager(MessageEmitterMixin):
             logging.error(f"Error creating session '{session_name}': {str(e)}")
             raise
 
-
-    def load_session(self, session_name: str):
+    def __bck__load_session(self, session_name: str):
         try:
-      
-            if is_windows():
-                # win fix?
-                session_name = session_name # ._renderable.plain
-      
+            
             self.current_session_data = self.storage.load_session(session_name)
             self.current_session_name = session_name
             logging.info(f"Session '{session_name}' loaded successfully.")
@@ -67,7 +141,6 @@ class SessionManager(MessageEmitterMixin):
             logging.error(f"Unexpected error when loading session '{session_name}': {str(e)}")
             raise StorageOperationError(f"Failed to load session '{session_name}'") from e
     
-
     def save_current_session(self):
         if self.current_session_data and self.current_session_name:
             self.storage.save_session(self.current_session_name, self.current_session_data)
