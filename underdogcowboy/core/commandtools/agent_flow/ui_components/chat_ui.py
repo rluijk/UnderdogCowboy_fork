@@ -397,8 +397,6 @@ class ChatUI(Static):
         except Exception as e:
             self.app.notify(f"Error saving folder alias: {str(e)}")
 
-
-
     def save_response_to_markdown(self, offset=0, folder_alias=None):  
         
         config_manager = LLMConfigManager()  

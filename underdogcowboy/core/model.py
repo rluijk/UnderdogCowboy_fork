@@ -231,7 +231,9 @@ class AnthropicModel(ConfigurableModel):
         formatted_conversation = []
 
         # Regular expression to find file paths in text
-        image_path_pattern = r'(/[\w\-/\. ]+\.(png|jpg|jpeg|gif|bmp))'
+        image_path_pattern = r'(/[\w\-/\. ]+\.(png|jpg|jpeg|gif|bmp))' # not on windows?
+        # text_file_pattern = r'(?:[a-zA-Z]:)?[/\\][\w\-. /\\]+\.(txt|log|md|csv|json|yaml|yml|xml)'
+
         # Instantiate the preprocessor
         # preprocessor = GoogleDocsMarkdownPreprocessor()
 

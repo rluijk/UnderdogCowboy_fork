@@ -1,11 +1,12 @@
 import os 
 import json
+import re
 
 import faiss
 import numpy as np
 from sentence_transformers import SentenceTransformer
 from pathlib import Path
-
+import mimetypes
 
 from typing import ( TYPE_CHECKING, 
                      Union,Optional,
@@ -13,6 +14,7 @@ from typing import ( TYPE_CHECKING,
 
 if TYPE_CHECKING:
     from .dialog_manager import DialogManager
+
 
 
 
@@ -138,16 +140,61 @@ class Agent:
             return None
     
     def message(self, user_input: str) -> Any:
+        """
+        Handle incoming messages, extract file paths, and process them for indexing.
+
+        Args:
+            user_input (str): The user's message, potentially containing file paths.
+
+        Returns:
+            Any: The agent's response.
+        """
         if self.dialog_manager is None:
             raise ValueError("Agent is not registered with a dialog manager")
-        # do we put file detection for automatic rag integration of files given of types our
-        # rag can implement?
-        if self.auto_index_file_refs:
-            # passing meta data an extra argument, with the message, time etc?
-            pass 
 
+        if self.auto_index_file_refs:
+            # Extract file paths from the message
+            file_paths = self._extract_text_file_paths(user_input)
+            for file_path in file_paths:
+                if os.path.exists(file_path) and self._is_text_file(file_path):
+                    print(f"Indexing file: {file_path}")
+                    self.add_file_to_index(file_path)
+                else:
+                    print(f"Skipped file: {file_path} (nonexistent or not a text file)")
+
+        # Process the message through the dialog manager
         self.response = self.dialog_manager.message(self, user_input)
-        return self.response    
+        return self.response
+
+    def _extract_text_file_paths(self, text: str) -> list[str]:
+        """
+        Extract potential file paths from a given text.
+
+        Args:
+            text (str): The input text.
+
+        Returns:
+            list[str]: List of extracted file paths.
+        """
+        # Regex pattern to match Unix-style absolute file paths with 
+        pattern = r'(/[\w\-/\. ]+\.(md|txt))' # not on windows?
+
+        # Find all matches in the text
+        return re.findall(pattern, text)
+
+     
+    def _is_text_file(self, file_path: str) -> bool:
+        """
+        Determine if the provided file is a text file based on MIME type.
+
+        Args:
+            file_path (str): The path to the file.
+
+        Returns:
+            bool: True if the file is a text file, False otherwise.
+        """
+        mime_type, _ = mimetypes.guess_type(file_path)
+        return mime_type and mime_type.startswith("text")
 
     def get_last_response(self) -> Optional[str]:
         """
