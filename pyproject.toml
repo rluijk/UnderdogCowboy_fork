@@ -26,6 +26,7 @@ dependencies = [
     "pyyaml",
     "pyperclip",
     "uccli>=0.0.5.1",
+    "pywin32; platform_system == 'Windows'"
 ]
 
 [project.scripts]
