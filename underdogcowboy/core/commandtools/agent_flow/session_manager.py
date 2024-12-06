@@ -1,6 +1,8 @@
 import os
 import logging
 import datetime
+import yaml
+
 from typing import Any, List, Dict
 from state_management.storage_interface import StorageInterface
 from state_management.shared_data import SessionData, ScreenData
@@ -19,6 +21,17 @@ from exceptions import (
 )
 
 import platform
+
+# Windows-specific import for creating .lnk shortcuts
+if platform.system() == "Windows":
+    from win32com.client import Dispatch
+
+# Load configuration from YAML file
+def load_config() -> dict:
+    config_path = os.path.join(os.path.dirname(__file__), 'config.yaml')
+
+    with open(config_path, 'r') as file:
+        return yaml.safe_load(file)
 
 class SessionManager(MessageEmitterMixin):
     """Handles loading, creating, and saving sessions using the storage abstraction layer."""
@@ -57,6 +70,12 @@ class SessionManager(MessageEmitterMixin):
             self.current_session_data = self.storage.create_session(session_name)
             self.current_session_name = session_name
 
+            # short cut preparation
+            session_shortcut_folder_path = os.path.join(project_path, session_name)
+            yaml_config = load_config() 
+            real_session_file_path = f"{yaml_config["storage"]["base_dir"]}/{session_name}.json"
+            self.create_session_shortcut(session_name, session_shortcut_folder_path, real_session_file_path)
+
             logging.info(f"Session '{session_name}' created successfully at '{session_folder}'.")
             self.post_message(SessionStateChanged(self, session_active=True, session_name=session_name))
 
@@ -90,10 +109,15 @@ class SessionManager(MessageEmitterMixin):
                 raise ValueError("Project path is not configured. Please set it in the general configuration.")
 
             # Ensure the session folder exists
-            session_folder = os.path.join(project_path, session_name)
-            if not os.path.exists(session_folder):
-                os.makedirs(session_folder, exist_ok=True)
-                logging.info(f"Session folder '{session_folder}' was missing and has been created.")
+            session_shortcut_folder_path = os.path.join(project_path, session_name)
+            if not os.path.exists(session_shortcut_folder_path):
+                os.makedirs(session_shortcut_folder_path, exist_ok=True)
+                logging.info(f"Session folder '{session_shortcut_folder_path}' was missing and has been created.")
+
+            # Load YAML config and create the shortcut
+            yaml_config = load_config() 
+            real_session_file_path = f"{yaml_config["storage"]["base_dir"]}/{session_name}.json"
+            self.create_session_shortcut(session_name, session_shortcut_folder_path, real_session_file_path)
 
             logging.info(f"Session '{session_name}' loaded successfully.")
             self.post_message(SessionStateChanged(self, session_active=True, session_name=session_name))
@@ -111,6 +135,50 @@ class SessionManager(MessageEmitterMixin):
             logging.error(f"Unexpected error when loading session '{session_name}': {str(e)}")
             raise StorageOperationError(f"Failed to load session '{session_name}'") from e
 
+
+    def create_session_shortcut(self,session_name, session_shortcut_folder_path, real_session_file_path):
+        """
+        Create a shortcut to the session JSON file in the session folder.
+
+        Args:
+            session_name (str): The name of the session.
+            session_folder (str): The path to the session's folder.
+            session_file_path (str): The full path to the session JSON file.
+
+        Raises:
+            ValueError: If inputs are invalid.
+            OSError: If shortcut creation fails.
+        """
+        try:
+            # Determine shortcut path
+            shortcut_path = os.path.join(session_shortcut_folder_path, f"{session_name}.lnk" if platform.system() == "Windows" else f"{session_name}.json")
+
+            # Check if the session file exists
+            real_session_file_path = os.path.expanduser(real_session_file_path)
+            if not os.path.exists(real_session_file_path):
+                logging.warning(f"Session file '{real_session_file_path}' does not exist yet.")
+            else:
+                # Remove existing shortcut if it exists
+                if os.path.exists(shortcut_path):
+                    os.remove(shortcut_path)
+
+                # Create shortcut based on platform
+                if platform.system() in ["Darwin", "Linux"]:  # macOS and Linux
+                    os.symlink(real_session_file_path, shortcut_path)
+                    logging.info(f"Symlink created at '{shortcut_path}' pointing to '{real_session_file_path}'.")
+                elif platform.system() == "Windows":
+                    # Use Windows API to create a .lnk file
+                    shell = Dispatch('WScript.Shell')
+                    shortcut = shell.CreateShortcut(shortcut_path)
+                    shortcut.TargetPath = real_session_file_path
+                    shortcut.Save()
+                    logging.info(f"Windows shortcut created at '{shortcut_path}' pointing to '{real_session_file_path}'.")
+                else:
+                    raise ValueError(f"Unsupported platform: {platform.system()}")
+
+        except Exception as e:
+            logging.error(f"Failed to create shortcut for session '{session_name}': {e}")
+            raise
 
     def __bck__create_session(self, session_name: str):
         try:
