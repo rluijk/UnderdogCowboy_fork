@@ -122,8 +122,88 @@ class MultiScreenApp(App):
             return
         super().push_screen(screen_name)
 
-
     def on_mount(self) -> None:
+        """Mount screens when the app starts, dynamically from configuration."""
+
+        self._initialize_bindings_from_config()
+
+        # Load default configuration
+        current_dir = os.path.dirname(__file__)
+        default_config_path = os.path.join(current_dir, "screen_config.json")
+
+        try:
+            with open(default_config_path) as config_file:
+                screen_configs = json.load(config_file)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Configuration file not found at {default_config_path}")
+
+        # Load user-defined screens
+        user_config_path = os.path.expanduser("~/.underdogcowboy/screens/user_defined_screens.json")
+        if not os.path.exists(user_config_path):
+            # Create the directory and an empty user-defined screens file
+            user_config_dir = os.path.dirname(user_config_path)
+            os.makedirs(user_config_dir, exist_ok=True)
+            with open(user_config_path, "w") as user_file:
+                user_file.write("{}")  # Create an empty JSON object
+            logging.info(f"User-defined screen file created at {user_config_path}.")
+
+        # Load and merge user-defined screens
+        try:
+            with open(user_config_path) as user_file:
+                user_configs = json.load(user_file)
+                # Merge user-defined screens into the main configuration
+                screen_configs.update(user_configs)
+                logging.info(f"User-defined screens loaded and merged from {user_config_path}")
+        except json.JSONDecodeError as e:
+            logging.error(f"Failed to parse user-defined screens file: {e}")
+
+        # Initialize screen management structures
+        self.screen_session_managers = {}
+        self.session_screens = set()
+
+        # Register each screen in the configuration
+        for screen_name, config in screen_configs.items():
+
+            # Skip disabled screens (those starting with "_" or specific names)
+            if screen_name.startswith("_") or screen_name in ("initial_screen", "global_bindings"):
+                logging.info(f"Skipping disabled screen: {screen_name}")
+                continue
+                    
+            # Initialize a SessionManager for the screen
+            session_manager = SessionManager(self.storage_manager)
+            session_manager.set_message_post_target(self)
+            self.screen_session_managers[screen_name] = session_manager
+
+            # Retrieve the state machine function and screen class from globals
+            state_machine_func = globals().get(config["state_machine"])
+            if state_machine_func is None:
+                raise ValueError(f"State machine function '{config['state_machine']}' not found.")
+            
+            screen_class = globals().get(config["screen_class"])
+            if screen_class is None:
+                raise ValueError(f"Screen class '{config['screen_class']}' not found.")
+            
+            # Define a factory function that creates a new instance of the screen            
+            def screen_factory(sc, sm, sm_func):
+                def factory():
+                    return sc(state_machine=sm_func(), session_manager=sm)
+                return factory
+
+            # Log and install the screen
+            logging.debug(f"Installing screen: {screen_name} using {screen_class.__name__}")
+            self.install_screen(screen_factory(screen_class, session_manager, state_machine_func), name=screen_name)
+
+        # Set the initial screen dynamically from configuration
+        initial_screen = screen_configs.get("initial_screen")
+        if initial_screen:
+            self.push_screen(initial_screen)
+        else:
+            logging.warning("No initial_screen defined in configuration.")
+
+
+
+
+    def __bck__on_mount(self) -> None:
         """Mount screens when the app starts, dynamically from configuration."""
         
         self._initialize_bindings_from_config()
@@ -186,7 +266,7 @@ class MultiScreenApp(App):
             logging.warning("No initial_screen defined in configuration.")
 
 
-    def _initialize_bindings_from_config(self) -> None:
+    def __bck___initialize_bindings_from_config(self) -> None:
         """Initialize bindings from configuration at startup."""
         current_dir = os.path.dirname(__file__)
         config_path = os.path.join(current_dir, "screen_config.json")
@@ -226,7 +306,62 @@ class MultiScreenApp(App):
                     setattr(MultiScreenApp, action_method_name, action_method)
                     logging.info(f"Created action method: {action_method_name} for screen: {screen_name}")
                 else:
-                    logging.warning(f"Action method {action_method_name} already exists. Skipping creation.")    
+                        logging.warning(f"Action method {action_method_name} already exists. Skipping creation.")    
+
+    def _initialize_bindings_from_config(self) -> None:
+        """Initialize bindings from configuration at startup."""
+        current_dir = os.path.dirname(__file__)
+        default_config_path = os.path.join(current_dir, "screen_config.json")
+        user_config_path = os.path.expanduser("~/.underdogcowboy/screens/user_defined_screens.json")
+
+        # Load default configuration
+        try:
+            with open(default_config_path) as default_file:
+                screen_configs = json.load(default_file)
+        except FileNotFoundError:
+            raise FileNotFoundError(f"Configuration file not found at {default_config_path}")
+
+        # Load user-defined configuration and merge if it exists
+        if os.path.exists(user_config_path):
+            try:
+                with open(user_config_path) as user_file:
+                    user_configs = json.load(user_file)
+                    screen_configs.update(user_configs)
+            except json.JSONDecodeError as e:
+                logging.error(f"Failed to parse user-defined screens file: {e}")
+
+        # Set up bindings from the merged configuration
+        for screen_name, screen_data in screen_configs.items():
+            # Skip non-dictionary entries like "initial_screen"
+            if not isinstance(screen_data, dict):
+                continue
+
+            if screen_name.startswith("_") or screen_name in ("initial_screen", "global_bindings"):
+                logging.info(f"Skipping disabled screen: {screen_name}")
+                continue
+
+            bindings = screen_data.get("bindings", [])
+            for binding in bindings:
+                action_name = binding["action"]
+                self.bind(
+                    binding["key"],                  # Pass keys as a positional argument
+                    action=action_name,
+                    description=binding["description"]
+                )
+
+                # Dynamically create the action method for each binding
+                action_method = self.create_action_method(screen_name)
+                action_method_name = f"action_{action_name}"
+                action_method.__name__ = action_method_name
+
+                # Check if the method already exists to avoid overwriting
+                if not hasattr(MultiScreenApp, action_method_name):
+                    setattr(MultiScreenApp, action_method_name, action_method)
+                    logging.info(f"Created action method: {action_method_name} for screen: {screen_name}")
+                else:
+                    logging.warning(f"Action method {action_method_name} already exists. Skipping creation.")
+
+
     def create_action_method(self, screen_name):
         def action_method(*args, **kwargs):  # Accept any arguments
             if self.screen and self.screen.name != screen_name:
