@@ -62,14 +62,18 @@ from ui_components.dynamic_container import DynamicContainer
 from ui_components.state_button_grid_ui import StateButtonGrid
 from ui_components.state_info_ui import StateInfo
 
-def generate_compose(dynamic_container_component=None, dynamic_container_id="center-dynamic-container", screen_type=None):
+# dynamic for json config of the UI
+from underdogcowboy.ui_components_registry import get_ui_component
+
+
+
+def generate_compose(dynamic_container_id="center-dynamic-container", screen_type=None):
     """
-    Dynamically generate the compose method for a screen.
+    Generate a basic compose method for a screen.
 
     Parameters:
-    - dynamic_container_component (str): The name of the component to render in the DynamicContainer.
-    - dynamic_container_id (str): The ID for the DynamicContainer, defined in the JSON.
-    - screen_type (str): The type of the screen (e.g., "session_based").
+    - dynamic_container_id (str): ID for the DynamicContainer, defined in JSON.
+    - screen_type (str): Screen type (e.g., "session_based").
 
     Returns:
     - A dynamically generated compose method.
@@ -87,13 +91,7 @@ def generate_compose(dynamic_container_component=None, dynamic_container_id="cen
             with Horizontal(id="agent-centre", classes="dynamic-spacer"):
                 yield DynamicContainer(id=dynamic_container_id, classes="center-dynamic-spacer")
 
-        # Load the dynamic component if specified
-        if dynamic_container_component:
-            component_class = globals().get(dynamic_container_component)
-            if component_class:
-                self.query_one(f"#{dynamic_container_id}").mount(component_class())
-
-        # Task Panel with State Info and State Button Grid
+        # Task Panel
         with Vertical(id="app-layout"):
             with Collapsible(title="Task Panel", id="state-info-collapsible", collapsed=False):
                 yield StateInfo(id="state-info")
@@ -103,6 +101,41 @@ def generate_compose(dynamic_container_component=None, dynamic_container_id="cen
         yield Footer(id="footer", name="footer")
 
     return compose
+
+def generate_on_mount(screen_name, dynamic_container_component=None, dynamic_container_id=None):
+    def on_mount(self):
+        logging.info(f"{screen_name} on_mount called")
+
+        # Update state info and header
+        state_info = self.query_one("#state-info", StateInfo)
+        state_info.update_state_info(self.state_machine, "")
+        self.update_header()
+
+        # Handle pending session manager
+        if self._pending_session_manager:
+            session_manager = self._pending_session_manager
+            self._pending_session_manager = None
+            self.call_later(self.set_session_manager, session_manager)
+
+        # Defer mounting the dynamic container component
+        if dynamic_container_component and dynamic_container_id:
+            def mount_component():
+                try:
+                    container = self.query_one(f"#{dynamic_container_id}")
+                    component_class = get_ui_component(dynamic_container_component)
+                    if container and component_class:
+                        container.mount(component_class())
+                        logging.info(f"Component {dynamic_container_component} mounted in {dynamic_container_id}")
+                    else:
+                        logging.warning(f"Failed to mount {dynamic_container_component} in {dynamic_container_id}")
+                except Exception as e:
+                    logging.error(f"Error during component mounting: {e}")
+
+            self.call_later(mount_component)
+
+    return on_mount
+
+
 
 
 class MultiScreenApp(App):
@@ -220,11 +253,18 @@ class MultiScreenApp(App):
 
             # Generate and attach the compose method
             compose_method = generate_compose(
-                dynamic_container_component=dynamic_container_component,
                 dynamic_container_id=dynamic_container_id,
                 screen_type=config.get("screen_type", None)
             )
             setattr(screen_class, "compose", compose_method)
+
+            # Generate and attach the on_mount method
+            on_mount_method = generate_on_mount(
+                screen_name=screen_name,
+                dynamic_container_component=dynamic_container_component,
+                dynamic_container_id=dynamic_container_id
+            )
+            setattr(screen_class, "on_mount", on_mount_method)
 
             # Define screen factory
             def screen_factory(sc, sm, sm_func):
