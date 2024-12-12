@@ -83,6 +83,17 @@ from .core.llm_response_markdown import LLMResponseRenderer
 # moved to new file, less clutering in the __init__.py
 from .core.specialized_agents import SPECIALIZED_AGENTS
 
+# Import the UI components registry
+from .ui_components_registry import UI_COMPONENTS, get_ui_component
+
+# Make UI_COMPONENTS available globally
+globals()["UI_COMPONENTS"] = UI_COMPONENTS
+globals()["get_ui_component"] = get_ui_component
+
+logger.debug("UI components registry added to global namespace")
+
+
+
 def agent_factory(filename, package, is_user_defined=False):
     """
     Creates an appropriate Agent instance based on the filename.
