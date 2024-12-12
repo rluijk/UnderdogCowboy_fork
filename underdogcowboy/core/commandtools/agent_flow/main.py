@@ -52,6 +52,59 @@ from copy_paste import ClipBoardCopy
 from underdogcowboy.core.timeline_editor import CommandProcessor
 
 
+from textual.app import ComposeResult
+from textual.containers import Vertical, Horizontal
+from textual.widgets import Header, Footer, Collapsible
+
+from ui_components.left_side_ui import LeftSideContainer
+from ui_components.dynamic_container import DynamicContainer
+
+from ui_components.state_button_grid_ui import StateButtonGrid
+from ui_components.state_info_ui import StateInfo
+
+def generate_compose(dynamic_container_component=None, dynamic_container_id="center-dynamic-container", screen_type=None):
+    """
+    Dynamically generate the compose method for a screen.
+
+    Parameters:
+    - dynamic_container_component (str): The name of the component to render in the DynamicContainer.
+    - dynamic_container_id (str): The ID for the DynamicContainer, defined in the JSON.
+    - screen_type (str): The type of the screen (e.g., "session_based").
+
+    Returns:
+    - A dynamically generated compose method.
+    """
+    def compose(self) -> ComposeResult:
+        # Header
+        yield Header()
+
+        # Horizontal layout with optional LeftSideContainer
+        if screen_type == "session_based":
+            with Horizontal(id="agent-centre", classes="dynamic-spacer"):
+                yield LeftSideContainer(classes="left-dynamic-spacer")
+                yield DynamicContainer(id=dynamic_container_id, classes="center-dynamic-spacer")
+        else:
+            with Horizontal(id="agent-centre", classes="dynamic-spacer"):
+                yield DynamicContainer(id=dynamic_container_id, classes="center-dynamic-spacer")
+
+        # Load the dynamic component if specified
+        if dynamic_container_component:
+            component_class = globals().get(dynamic_container_component)
+            if component_class:
+                self.query_one(f"#{dynamic_container_id}").mount(component_class())
+
+        # Task Panel with State Info and State Button Grid
+        with Vertical(id="app-layout"):
+            with Collapsible(title="Task Panel", id="state-info-collapsible", collapsed=False):
+                yield StateInfo(id="state-info")
+                yield StateButtonGrid(self.state_machine, id="button-grid", state_machine_active_on_mount=True)
+
+        # Footer
+        yield Footer(id="footer", name="footer")
+
+    return compose
+
+
 class MultiScreenApp(App):
     """Main application managing multiple screens and session synchronization."""
 
@@ -64,7 +117,6 @@ class MultiScreenApp(App):
     
     # Reactive property to track if session synchronization is active
     # sync_active: Reactive[bool] = Reactive(False)
-    
     
     # Shared SessionManager that can be used across screens when syncing is active
     shared_session_manager: SessionManager = None
@@ -122,63 +174,68 @@ class MultiScreenApp(App):
             return
         super().push_screen(screen_name)
 
-
     def on_mount(self) -> None:
         """Mount screens when the app starts, dynamically from configuration."""
-        
+
         self._initialize_bindings_from_config()
 
+        # Load and merge configurations
         current_dir = os.path.dirname(__file__)
-        config_path = os.path.join(current_dir, "screen_config.json")
-        
-        try:
-            with open(config_path) as config_file:
-                screen_configs = json.load(config_file)
-        except FileNotFoundError:
-            raise FileNotFoundError(f"Configuration file not found at {config_path}")
-            
-        self.screen_session_managers = {}
-        self.session_screens = set()
-        
-        for screen_name, config in screen_configs.items():
+        default_config_path = os.path.join(current_dir, "screen_config.json")
+        user_config_path = os.path.expanduser("~/.underdogcowboy/screens/user_defined_screens.json")
 
-            # Skip disabled screens (those starting with "_" or specific names)
-            if screen_name.startswith("_") or screen_name in ("initial_screen", "global_bindings"):
-                logging.info(f"Skipping disabled screen: {screen_name}")
+        try:
+            with open(default_config_path) as default_file, open(user_config_path) as user_file:
+                screen_configs = json.load(default_file)
+                screen_configs.update(json.load(user_file))
+        except FileNotFoundError:
+            raise FileNotFoundError("Screen configuration file(s) not found.")
+        except json.JSONDecodeError as e:
+            logging.error(f"Invalid JSON in screen configuration: {e}")
+            return
+
+        # Register each screen
+        for screen_name, config in screen_configs.items():
+            if screen_name in ("initial_screen", "global_bindings") or screen_name.startswith("_"):
                 continue
-                    
-            # Initialize a SessionManager for the screen
+
+            # Initialize SessionManager
             session_manager = SessionManager(self.storage_manager)
             session_manager.set_message_post_target(self)
             self.screen_session_managers[screen_name] = session_manager
 
-            # Retrieve the state machine function and screen class from globals
+            # Retrieve screen and state machine details
             state_machine_func = globals().get(config["state_machine"])
             if state_machine_func is None:
                 raise ValueError(f"State machine function '{config['state_machine']}' not found.")
-            
+
             screen_class = globals().get(config["screen_class"])
             if screen_class is None:
                 raise ValueError(f"Screen class '{config['screen_class']}' not found.")
-            
-            # Define a factory function that creates a new instance of the screen            
+
+            # Extract dynamic container configuration
+            dynamic_container_config = config.get("dynamic_container", {})
+            dynamic_container_id = dynamic_container_config.get("id", "center-dynamic-container")
+            dynamic_container_component = dynamic_container_config.get("component")
+
+            # Generate and attach the compose method
+            compose_method = generate_compose(
+                dynamic_container_component=dynamic_container_component,
+                dynamic_container_id=dynamic_container_id,
+                screen_type=config.get("screen_type", None)
+            )
+            setattr(screen_class, "compose", compose_method)
+
+            # Define screen factory
             def screen_factory(sc, sm, sm_func):
                 def factory():
                     return sc(state_machine=sm_func(), session_manager=sm)
                 return factory
 
-            
-            
-            # Optional: Log the creation of each screen
-            logging.debug(f"Installing screen: {screen_name} using {screen_class.__name__}")
-            
-            # Install the screen using the factory function
-            # self.install_screen(screen_factory, name=screen_name)
-            # Install the screen using the factory function
+            # Install the screen
             self.install_screen(screen_factory(screen_class, session_manager, state_machine_func), name=screen_name)
 
-
-        # Set the initial screen dynamically from configuration
+        # Set the initial screen
         initial_screen = screen_configs.get("initial_screen")
         if initial_screen:
             self.push_screen(initial_screen)
@@ -186,18 +243,30 @@ class MultiScreenApp(App):
             logging.warning("No initial_screen defined in configuration.")
 
 
+
     def _initialize_bindings_from_config(self) -> None:
         """Initialize bindings from configuration at startup."""
         current_dir = os.path.dirname(__file__)
-        config_path = os.path.join(current_dir, "screen_config.json")
-        
+        default_config_path = os.path.join(current_dir, "screen_config.json")
+        user_config_path = os.path.expanduser("~/.underdogcowboy/screens/user_defined_screens.json")
+
+        # Load default configuration
         try:
-            with open(config_path) as config_file:
-                screen_configs = json.load(config_file)
+            with open(default_config_path) as default_file:
+                screen_configs = json.load(default_file)
         except FileNotFoundError:
-            raise FileNotFoundError(f"Configuration file not found at {config_path}")
-        
-        # Set up bindings from configuration file
+            raise FileNotFoundError(f"Configuration file not found at {default_config_path}")
+
+        # Load user-defined configuration and merge if it exists
+        if os.path.exists(user_config_path):
+            try:
+                with open(user_config_path) as user_file:
+                    user_configs = json.load(user_file)
+                    screen_configs.update(user_configs)
+            except json.JSONDecodeError as e:
+                logging.error(f"Failed to parse user-defined screens file: {e}")
+
+        # Set up bindings from the merged configuration
         for screen_name, screen_data in screen_configs.items():
             # Skip non-dictionary entries like "initial_screen"
             if not isinstance(screen_data, dict):
@@ -206,7 +275,7 @@ class MultiScreenApp(App):
             if screen_name.startswith("_") or screen_name in ("initial_screen", "global_bindings"):
                 logging.info(f"Skipping disabled screen: {screen_name}")
                 continue
-        
+
             bindings = screen_data.get("bindings", [])
             for binding in bindings:
                 action_name = binding["action"]
@@ -226,7 +295,9 @@ class MultiScreenApp(App):
                     setattr(MultiScreenApp, action_method_name, action_method)
                     logging.info(f"Created action method: {action_method_name} for screen: {screen_name}")
                 else:
-                    logging.warning(f"Action method {action_method_name} already exists. Skipping creation.")    
+                    logging.warning(f"Action method {action_method_name} already exists. Skipping creation.")
+
+
     def create_action_method(self, screen_name):
         def action_method(*args, **kwargs):  # Accept any arguments
             if self.screen and self.screen.name != screen_name:
