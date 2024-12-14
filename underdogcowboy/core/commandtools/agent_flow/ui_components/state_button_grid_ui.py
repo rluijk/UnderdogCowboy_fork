@@ -16,6 +16,51 @@ from events.action_events import ActionSelected
 from events.session_events import SessionStateChanged
 
 
+import importlib.util
+import os
+
+def dynamic_import(file_path: str, function_name: str, parameters: dict):
+    """
+    Dynamically imports a module from the given file path and retrieves a callable for a specified function
+    with its parameters pre-applied.
+
+    Args:
+        file_path (str): The full path to the Python file.
+        function_name (str): The name of the function to retrieve.
+        parameters (dict): The parameters to pass to the function.
+
+    Returns:
+        A callable object that, when executed, runs the function with the given parameters.
+    """
+    try:
+        # Ensure the file exists
+        if not os.path.isfile(file_path):
+            raise ImportError(f"File not found: {file_path}")
+
+        # Extract module name from the file name
+        module_name = os.path.splitext(os.path.basename(file_path))[0]
+
+        # Dynamically load the module
+        module_spec = importlib.util.spec_from_file_location(module_name, file_path)
+        module = importlib.util.module_from_spec(module_spec)
+        module_spec.loader.exec_module(module)
+
+        # Ensure the function exists in the module
+        if not hasattr(module, function_name):
+            raise ImportError(f"Function '{function_name}' not found in module {module_name}")
+
+        # Retrieve the function object
+        func = getattr(module, function_name)
+
+        # Return a callable that delays execution
+        def delayed_execution():
+            return func(**parameters)
+
+        return delayed_execution
+
+    except (ImportError, AttributeError, ValueError, FileNotFoundError, TypeError) as e:
+        raise ImportError(f"Failed to retrieve function '{function_name}' from {file_path}: {e}")
+
 class StateButtonGrid(Static):
     def __init__(self, state_machine: StateMachine, *args, state_machine_active_on_mount=False, **kwargs):
         super().__init__(*args, **kwargs)
@@ -73,10 +118,53 @@ class StateButtonGrid(Static):
         else:
             self.update_buttons() 
 
-    def on_button_pressed(self, event: Button.Pressed) -> None:
+    def __bck__on_button_pressed(self, event: Button.Pressed) -> None:
         action = str(event.button.label)
         self.post_message(ActionSelected(action))
- 
+    
+
+    def on_button_pressed(self, event: Button.Pressed) -> None:
+        """
+        Handle button pressed events. Executes associated function if defined in the current state.
+
+        Args:
+            event (Button.Pressed): The button press event.
+        """
+        action = str(event.button.label)
+
+        # Post the action message to notify other parts of the system
+        self.post_message(ActionSelected(action))
+
+        # Check if the current state has a function to execute
+        current_state = self.state_machine.current_state
+        
+        if current_state.function_spec:
+            try:
+                # Import the module dynamically
+                function_name = next(iter(current_state.function_spec.keys()))
+                function_location = current_state.function_spec[function_name]['location']
+                function_params = current_state.function_spec[function_name]['parameters']
+
+                # Dynamically import and retrieve the callable
+                func_callable = dynamic_import(function_location, function_name, function_params)
+
+                if not func_callable:
+                    raise ImportError(f"Failed to retrieve callable for function '{function_name}' from '{function_location}'")
+
+                # Execute the callable
+                result = func_callable()  # Executes the function with pre-applied parameters
+
+                # Notify success
+                self.app.notify(f"Result '{result}' successfully executed.", severity="info")
+
+            except Exception as e:
+                # Notify failure
+                self.app.notify(f"Error executing action '{action}': {str(e)}", severity="error")
+        else:
+            # Notify no function found
+            self.app.notify(f"No action defined for '{action}' in the current state.", severity="warning")
+
+
         
     def update_buttons(self) -> None:
         """Update the buttons based on allowed actions from the state machine."""
