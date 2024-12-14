@@ -66,6 +66,50 @@ from ui_components.state_info_ui import StateInfo
 from underdogcowboy.ui_components_registry import get_ui_component
 
 
+from uccli import StateMachine
+from state_machines.state_ui import UIState
+
+import json
+
+def create_state_machine_from_json(state_machine_config: dict) -> StateMachine:
+    """
+    Create a StateMachine object from a JSON configuration, including function unpacking.
+
+    Args:
+        state_machine_config (dict): JSON configuration for the state machine.
+
+    Returns:
+        StateMachine: The dynamically created state machine.
+    """
+    # Create all states
+    states = {}
+    for state_name, state_data in state_machine_config["states"].items():
+        state = UIState(state_name)
+
+        # Check for and store functions associated with the state
+        if "function" in state_data:
+            function_spec = state_data["function"]
+            state.function_spec = function_spec  # Store the function spec directly on the state
+
+        states[state_name] = state
+
+    # Add transitions to each state
+    for state_name, state_data in state_machine_config["states"].items():
+        for transition_name, target_state in state_data["transitions"].items():
+            states[state_name].add_transition(transition_name, states[target_state])
+
+    # Define the initial state
+    initial_state = states[state_machine_config["initial_state"]]
+
+    # Create the state machine
+    state_machine = StateMachine(initial_state)
+
+    # Add all states to the state machine
+    for state in states.values():
+        state_machine.add_state(state)
+
+    return state_machine
+
 
 def generate_compose(dynamic_container_id="center-dynamic-container", screen_type=None):
     """
@@ -136,8 +180,6 @@ def generate_on_mount(screen_name, dynamic_container_component=None, dynamic_con
     return on_mount
 
 
-
-
 class MultiScreenApp(App):
     """Main application managing multiple screens and session synchronization."""
 
@@ -206,7 +248,7 @@ class MultiScreenApp(App):
             logging.debug(f"Screen '{screen_name}' is already active.")
             return
         super().push_screen(screen_name)
-
+    
     def on_mount(self) -> None:
         """Mount screens when the app starts, dynamically from configuration."""
 
@@ -237,11 +279,15 @@ class MultiScreenApp(App):
             session_manager.set_message_post_target(self)
             self.screen_session_managers[screen_name] = session_manager
 
-            # Retrieve screen and state machine details
-            state_machine_func = globals().get(config["state_machine"])
-            if state_machine_func is None:
-                raise ValueError(f"State machine function '{config['state_machine']}' not found.")
+            # Retrieve state machine configuration
+            state_machine_config = config.get("state_machine")
+            if not state_machine_config:
+                raise ValueError(f"State machine configuration missing for screen '{screen_name}'")
 
+            # Create the state machine directly from the JSON configuration
+            state_machine = create_state_machine_from_json(state_machine_config)
+
+            # Retrieve screen class
             screen_class = globals().get(config["screen_class"])
             if screen_class is None:
                 raise ValueError(f"Screen class '{config['screen_class']}' not found.")
@@ -267,13 +313,13 @@ class MultiScreenApp(App):
             setattr(screen_class, "on_mount", on_mount_method)
 
             # Define screen factory
-            def screen_factory(sc, sm, sm_func):
+            def screen_factory(sc, sm, sm_obj):
                 def factory():
-                    return sc(state_machine=sm_func(), session_manager=sm)
+                    return sc(state_machine=sm_obj, session_manager=sm)
                 return factory
 
             # Install the screen
-            self.install_screen(screen_factory(screen_class, session_manager, state_machine_func), name=screen_name)
+            self.install_screen(screen_factory(screen_class, session_manager, state_machine), name=screen_name)
 
         # Set the initial screen
         initial_screen = screen_configs.get("initial_screen")
@@ -281,8 +327,6 @@ class MultiScreenApp(App):
             self.push_screen(initial_screen)
         else:
             logging.warning("No initial_screen defined in configuration.")
-
-
 
     def _initialize_bindings_from_config(self) -> None:
         """Initialize bindings from configuration at startup."""
