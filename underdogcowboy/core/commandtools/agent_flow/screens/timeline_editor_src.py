@@ -82,6 +82,8 @@ class TimeLineEditorScreen(SessionScreen):
         self.processor = None
         self.storage = TimelineStorage()
 
+        self.is_current_screen = False
+
         self.update_ui_retry_count = 0
         self.max_update_ui_retries = 5
 
@@ -90,20 +92,6 @@ class TimeLineEditorScreen(SessionScreen):
 
         self.on_dialog_selected_retry_count = 0
         self.max_on_dialog_selected_retries = 5  # Adjust as needed
-
-
-
-    def compose(self) -> ComposeResult:
-        yield Header()
-        with Horizontal(id="agent-centre", classes="dynamic-spacer"):
-            yield DynamicContainer(id="center-dynamic-container-timeline-editor", classes="center-dynamic-spacer")        
-
-        with Vertical(id="app-layout"):
-            with Collapsible(title="Task Panel", id="state-info-collapsible", collapsed=False):                  
-                yield StateInfo(id="state-info")
-                yield StateButtonGrid(self.state_machine, id="button-grid", state_machine_active_on_mount=True)  
-                
-        yield Footer(id="footer", name="footer")
 
     def on_mount(self) -> None:
         logging.info("TimeLineEditorScreen on_mount called")

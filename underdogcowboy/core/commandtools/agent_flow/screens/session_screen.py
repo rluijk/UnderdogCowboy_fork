@@ -47,10 +47,11 @@ class SessionScreen(Screen):
             session_name = str(event.session_name)     
             self.session_manager.load_session(session_name)
             self.notify(f"Session {session_name} loaded successfully")
+            self.app.set_selected_session_screen(self)
             # self.update_header(session_name=session_name)
             self.update_ui_after_session_load()
             # Correctly emit the custom message using 'post_message()'
-            self.emit_sync_stopped()
+            # self.emit_sync_stopped()
         except ValueError as e:
             self.notify(f"Error loading session: {str(e)}", severity="error")
 

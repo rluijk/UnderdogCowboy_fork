@@ -117,12 +117,7 @@ class StateButtonGrid(Static):
                 button.disabled = True
         else:
             self.update_buttons() 
-
-    def __bck__on_button_pressed(self, event: Button.Pressed) -> None:
-        action = str(event.button.label)
-        self.post_message(ActionSelected(action))
     
-
     def on_button_pressed(self, event: Button.Pressed) -> None:
         """
         Handle button pressed events. Executes associated function if defined in the current state.
@@ -137,35 +132,51 @@ class StateButtonGrid(Static):
 
         # Check if the current state has a function to execute
         current_state = self.state_machine.current_state
-        
+
         if current_state.function_spec:
             try:
-                # Import the module dynamically
+                # Extract the function name and its specification
                 function_name = next(iter(current_state.function_spec.keys()))
-                function_location = current_state.function_spec[function_name]['location']
-                function_params = current_state.function_spec[function_name]['parameters']
-
+                function_spec = current_state.function_spec[function_name]
+                
+                # Retrieve the required fields with defaults for optional ones
+                function_location = function_spec.get('location', '')
+                function_params = function_spec.get('parameters', {})
+                pre_notification = function_spec.get('user_pre_notification', None)
+                post_notification = function_spec.get('user_post_notification', None)
+                store_output = function_spec.get('store_output', None)
+                
                 # Dynamically import and retrieve the callable
                 func_callable = dynamic_import(function_location, function_name, function_params)
 
                 if not func_callable:
                     raise ImportError(f"Failed to retrieve callable for function '{function_name}' from '{function_location}'")
 
+                # Notify the user if a pre-notification is specified
+                if pre_notification:
+                    self.app.notify(pre_notification, severity="info")
+
                 # Execute the callable
                 result = func_callable()  # Executes the function with pre-applied parameters
 
-                # Notify success
-                self.app.notify(f"Result '{result}' successfully executed.", severity="info")
+                current_screen = self.app.get_active_session_screen() 
+                if current_screen and store_output:
+                    # we have a current screen, and a store location to put the result on.
+                    current_screen.session_manager.update_data(store_output, result, screen_name=current_screen.screen_name)
+         
+                # Notify the user if a post-notification is specified
+                if post_notification:
+                    self.app.notify(post_notification, severity="info")
 
             except Exception as e:
                 # Notify failure
-                self.app.notify(f"Error executing action '{action}': {str(e)}", severity="error")
+                self.app.notify(f"Error executing function '{function_name}': {str(e)}", severity="error")
+
         else:
             # Notify no function found
             self.app.notify(f"No action defined for '{action}' in the current state.", severity="warning")
 
 
-        
     def update_buttons(self) -> None:
         """Update the buttons based on allowed actions from the state machine."""
         allowed_actions = self.state_machine.get_available_commands()

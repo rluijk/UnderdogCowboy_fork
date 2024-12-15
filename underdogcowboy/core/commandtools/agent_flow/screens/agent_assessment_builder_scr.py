@@ -49,6 +49,8 @@ class AgentAssessmentBuilderScreen(SessionScreen):
         self.screen_name = "AgentAssessmentBuilderScreen"
         self._pending_session_manager = None
 
+        self.is_current_screen = False
+
         self.update_ui_retry_count = 0
         self.max_update_ui_retries = 5
 
@@ -57,7 +59,7 @@ class AgentAssessmentBuilderScreen(SessionScreen):
 
 
 
-    def compose(self) -> ComposeResult:
+    def __bck__compose(self) -> ComposeResult:
         yield Header()
         with Horizontal(id="agent-centre", classes="dynamic-spacer"):
             yield LeftSideContainer(classes="left-dynamic-spacer agent-assessment-left")
