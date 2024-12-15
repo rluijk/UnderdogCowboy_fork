@@ -12,6 +12,7 @@ license = {text = "MIT"}
 
 dependencies = [
     "vertexai",
+    "flask",
     "prompt_toolkit", 
     "python-dotenv",
     "keyring",
@@ -39,6 +40,7 @@ uc-agent-clarity =  "underdogcowboy.core.commandtools.agent_clarity:main"
 uc-agent-pdf = "underdogcowboy.core.commandtools.agent_pdf:main"
 uc-assessment-builder = "underdogcowboy.core.commandtools.assessment_agent_builder:main"
 uc-agent-flow = "underdogcowboy.core.commandtools.agent_flow.main:main"
+ucb-agents = "underdogcowboy.flask_apps.agent_manager.app:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
@@ -46,3 +48,4 @@ include = ["underdogcowboy*"]
 
 [tool.setuptools.package-data]
 "underdogcowboy.agents" = ["*.json"]
+"underdogcowboy.flask_apps.agent_manager.react_ui" = ["static/*", "index.html"]
