@@ -70,6 +70,7 @@ class ClarityScreen(SessionScreen):
         self.ui_factory = UIFactory(self)
         
         self.current_agent = None
+        self.is_current_screen = False
         self.agent_name_plain = None
         self.title = "Agent Clarity"
         
@@ -109,19 +110,6 @@ class ClarityScreen(SessionScreen):
     def get_current_llm_config(self):
         """Fetch the current LLM config from LLMManager."""
         return self.llm_manager.get_current_llm_config()
-
-    def compose(self) -> ComposeResult:
-        yield Header()
-        with Horizontal(id="agent-centre", classes="dynamic-spacer agent-clarity-base"):
-            yield LeftSideContainer(classes="left-dynamic-spacer agent-clarity-left")
-            yield DynamicContainer(id="center-dynamic-container-clarity", classes="center-dynamic-spacer")
-
-        with Vertical(id="app-layout"):
-            with Collapsible(title="Task Panel", id="state-info-collapsible", collapsed=False):
-                yield StateInfo(id="state-info")
-                yield StateButtonGrid(self.state_machine, id="button-grid")
-        
-        yield Footer(id="footer", name="footer")
 
     def on_mount(self) -> None:
         logging.info("ClarityScreen on_mount called")

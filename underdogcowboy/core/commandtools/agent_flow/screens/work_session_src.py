@@ -52,6 +52,7 @@ class WorkSessionScreen(SessionScreen):
         self.ui_factory = UIFactory(self)
         
         self.current_agent = None
+        self.is_current_screen = False
         self.agent_name_plain = None
         self.title = "Agent WorkSession"
         
@@ -70,19 +71,6 @@ class WorkSessionScreen(SessionScreen):
         self.screen_name = "WorkSessionScreen"
 
         self._pending_session_manager = None
-
-    def compose(self) -> ComposeResult:
-        yield Header()
-        with Horizontal(id="agent-centre", classes="dynamic-spacer"):
-            yield LeftSideContainer(classes="left-dynamic-spacer agent-clarity-left")
-            yield DynamicContainer(id="center-dynamic-container", classes="center-dynamic-spacer")        
-
-        with Vertical(id="app-layout"):
-            with Collapsible(title="Task Panel", id="state-info-collapsible", collapsed=False):                  
-                yield StateInfo(id="state-info")
-                yield StateButtonGrid(self.state_machine, id="button-grid", state_machine_active_on_mount=True)  
-                
-        yield Footer(id="footer", name="footer")
 
     def on_mount(self) -> None:
         state_info = self.query_one("#state-info", StateInfo)
