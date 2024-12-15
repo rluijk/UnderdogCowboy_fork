@@ -37,12 +37,15 @@ from screens.work_session_src import WorkSessionScreen
 
 # Session Initializer
 from session_manager import SessionManager
+from screens.session_screen import SessionScreen 
 
 # Configs
 from llm_manager import LLMManager
 
 # Custom events
 from events.session_events import SessionSyncStopped
+from events.session_events import SessionStateChanged
+
 from events.agent_events import AgentLoaded
 from events.dialog_events import DialogLoaded
 
@@ -393,6 +396,10 @@ class MultiScreenApp(App):
         """Fetch the current LLM config from LLMManager."""
         return self.llm_manager.get_current_llm_config()
 
+    def set_selected_session_screen(self, session_screen: 'SessionScreen') -> None:
+        session_screen.is_current_screen = True
+        self.session_screens.add(session_screen)
+
     @on(SessionSyncStopped)
     def on_session_sync_stopped(self, event: SessionSyncStopped) -> None:
         """Handle session synchronization stop triggered by any screen."""
@@ -443,11 +450,11 @@ class MultiScreenApp(App):
         self.notify("Session synchronization enabled. All screens now share the active session. ", severity="info")
         logging.info("Session synchronization enabled.")
 
-    def get_active_session_screen(self) -> 'SessionScreen':
+    def get_active_session_screen(self) -> SessionScreen:
         """Get the currently active session-related screen."""
         # Iterate over session_screens and find the one with is_current == True
         for screen in self.session_screens:
-            if screen.is_current:
+            if screen.is_current_screen:
                 return screen
         return None
 
