@@ -24,6 +24,10 @@ GROQ_MODELS = [
     {'id': 'mixtral-8x7b-32768', 'name': 'Mixtral 8x7b'},
 ]
 
+GROK_MODELS = [
+    {'id': 'grok-beta', 'name': 'Grok Beta'} 
+]
+
 CLAUDE_MODELS = [
     {'id': 'claude-3-5-sonnet-20241022', 'name': 'Claude 3.5 Sonnet (Upgrade)'},
     {'id': 'claude-3-5-sonnet-20240620', 'name': 'Claude 3.5 Sonnet'},
@@ -31,6 +35,8 @@ CLAUDE_MODELS = [
     {'id': 'claude-3-sonnet-20240229', 'name': 'Claude 3 Sonnet'},
     {'id': 'claude-3-haiku-20240307', 'name': 'Claude 3 Haiku'},
 ]
+
+
 
 def load_config_yml() -> dict:
     config_path = os.path.join(os.path.dirname(__file__), 'commandtools/agent_flow/config.yaml')
@@ -56,7 +62,8 @@ class LLMConfigManager:
         yml_config = load_config_yml()
         self.use_key_ring = yml_config['security']['use_key_ring']
 
-        self.default_model_id = CLAUDE_MODELS[0] # for agent_flow
+        self.default_model_id = yml_config["llm"]["default_model_id"]
+        
         self.config_file: Path = Path.home() / '.underdogcowboy' / 'config.json'
         self.config: Dict[str, Any] = self.load_config()
         self.models: Dict[str, Dict[str, Any]] = {
@@ -77,6 +84,10 @@ class LLMConfigManager:
             'groq': {
                 'api_key': {'question': 'Enter your Groq API key:', 'input_type': 'password'},
                 'models':GROQ_MODELS
+            },
+            'grok': {
+                'api_key': {'question': 'Enter your Grok API key:', 'input_type': 'password'},
+                'models':GROK_MODELS
             }
         }
         self.general_config: Dict[str, Dict[str, Any]] = {
@@ -235,6 +246,7 @@ class LLMConfigManager:
                 credentials[prop] = value
 
         credentials['model_id'] = model_id or self.config[provider]['selected_model']
+        credentials['provider'] = provider
         return credentials        
     
     def __bck__get_credentials(self, provider: str) -> Dict[str, Any]:

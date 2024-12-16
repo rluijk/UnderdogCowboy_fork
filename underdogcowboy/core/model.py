@@ -62,40 +62,6 @@ class ConfigurableModel(ABC):
     def initialize_model(self):
         pass
 
-    """ configure_model does not do anything already done by the 
-     config manager.  """    
-    def __bck__02_configure_model(self):
-        """
-        Configure the model settings by prompting for required information.
-        Uses the existing configuration management functionality from config_manager.
-        """
-        print(f"Configuring {self.provider_type} provider:")
-        
-        # Get current credentials to trigger configuration if needed
-        credentials = self.config_manager.get_credentials(self.provider_type)
-        
-        # The get_credentials method will have updated the configuration
-        # and handled all the necessary prompts and storage
-        
-        print(f"{self.provider_type} provider configuration completed.")
-
-    def __bck__01_configure_model(self):
-        print(f"Configuring {self.provider_type} provider:")
-        for prop, details in self.config_manager.models[self.provider_type].items():
-            if prop not in self.config or not self.config[prop]:
-                if details['input_type'] == 'password':
-                    value = getpass(details['question'])
-                    keyring.set_password("underdogcowboy", f"{self.provider_type}_{prop}", value)
-                    self.config_manager.config[self.provider_type][prop] = "KEYRING_STORED"
-                else:
-                    value = input(f"{details['question']} (default: {details.get('default', 'N/A')}): ")
-                    if not value and 'default' in details:
-                        value = details['default']
-                    self.config_manager.config[self.provider_type][prop] = value
-
-        self.config_manager.config[self.provider_type]['configured'] = True
-        self.config_manager.save_config()
-        print(f"{self.provider_type} provider configuration completed.")
 
 class AnthropicModel(ConfigurableModel):
 
@@ -225,7 +191,6 @@ class AnthropicModel(ConfigurableModel):
 
         return [output]
 
-
     def generate_content(self, conversation):
         system_message = None
         formatted_conversation = []
@@ -327,85 +292,6 @@ class AnthropicModel(ConfigurableModel):
         logging.debug("Entering request to Anthropic API")
         response = requests.post(self.api_url, headers=self.headers, json=data)
         logging.debug("Response received from Anthropic API")
-
-        if response.status_code == 200:
-            response_json = response.json()
-            if 'content' in response_json and len(response_json['content']) > 0:
-                return response_json['content'][0]['text']
-            else:
-                return "Error: Unexpected response structure"
-        else:
-            return f"Error: {response.status_code}, {response.text}"
-
-
-
-    def __candidate__generate_content(self, conversation):
-        system_message = None
-        formatted_conversation = []
-
-        for message in conversation:
-            role = message['role']
-            if role == 'model':
-                role = 'assistant'
-
-            if role == 'system':
-                # Set system_message from the 'system' role, with a default if it's empty
-                system_message = message['parts'][0]['text'] if 'parts' in message else message.get('content', '')
-                # Provide a default system message if none is found
-                if not system_message.strip():
-                    system_message = "You are a helpful assistant."
-                continue
-
-            content = []
-            if 'parts' in message:
-                for part in message['parts']:
-                    if 'text' in part:
-                        content.append({"type": "text", "text": part['text']})
-                    elif 'image_url' in part:
-                        image_path = part['image_url']['url']
-                        mime_type, _ = mimetypes.guess_type(image_path)
-                        image_data = self._encode_image(image_path)
-                        content.append({
-                            "type": "image",
-                            "source": {
-                                "type": "base64",
-                                "media_type": mime_type,
-                                "data": image_data
-                            }
-                        })
-                    elif 'image' in part:
-                        content.append({
-                            "type": "image",
-                            "source": part['image']
-                        })
-            elif 'content' in message:
-                for item in message['content']:
-                    if isinstance(item, dict):
-                        if item['type'] == 'text':
-                            content.append({"type": "text", "text": item['text']})
-                        elif item['type'] == 'image':
-                            content.append(item)
-                    else:
-                        content.append({"type": "text", "text": item})
-
-            formatted_conversation.append({
-                "role": role,
-                "content": content
-            })
-
-        data = {
-            "model": self.model_id,
-            "messages": formatted_conversation,
-            "max_tokens": 4500,  # TODO: Can also be made agent/call specific
-            # TODO: "temperature": 0.0 default to zero, we need to make this agent/call specific.
-        }
-
-        # Add the system message to the data payload
-        data["system"] = system_message
-
-        logging.debug("entering request to Anthropic API")
-        response = requests.post(self.api_url, headers=self.headers, json=data)
-        logging.debug("response generated by Anthropic API")
 
         if response.status_code == 200:
             response_json = response.json()
@@ -524,6 +410,100 @@ class GroqModel(ConfigurableModel):
             })
         return converted_conversation
 
+class XAIModel(ConfigurableModel):
+    def __init__(self, model_id):
+        super().__init__("grok", model_id)
+        self.initialize_model()
+
+    def initialize_model(self):
+        try:
+            self.config = self.config_manager.get_credentials(self.provider_type)
+            
+            # Check for required configuration fields
+            required_fields = ['api_key', 'base_url']
+            missing_or_empty_fields = [field for field in required_fields
+                                       if field not in self.config or not self.config[field]]
+            
+            if missing_or_empty_fields:
+                logging.warning(f"Warning: Missing or empty fields: {', '.join(missing_or_empty_fields)}")
+                logging.warning(f"Starting configuration process for {self.provider_type} provider.")
+                self.config = self.config_manager.get_credentials(self.provider_type)
+            
+            self.api_key = self.config['api_key']
+            self.base_url = "https://api.x.ai/v1/chat/completions"
+
+            self.headers = {
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {self.api_key}" 
+            }
+
+        except Exception as e:
+            logging.error(f"Error initializing {self.provider_type} provider: {str(e)}")
+            raise
+
+    def generate_content(self, conversation):
+        system_message = None
+        formatted_conversation = []
+
+        for message in conversation:
+            role = message['role']
+            if role == 'model':
+                role = 'assistant'
+
+            # Extract system message
+            if role == 'system':
+                system_message = message['parts'][0]['text'] if 'parts' in message else message.get('content', '')
+                continue
+
+            content = []
+
+            if 'parts' in message:
+                for part in message['parts']:
+                    # Check for text content only
+                    if 'text' in part:
+                        text = part['text']
+                        content.append({"type": "text", "text": text})
+
+            elif 'content' in message:
+                for item in message['content']:
+                    if isinstance(item, dict) and item['type'] == 'text':
+                        content.append({"type": "text", "text": item['text']})
+                    elif isinstance(item, str):
+                        content.append({"type": "text", "text": item})
+
+            # Add the formatted message to the conversation
+            formatted_conversation.append({
+                "role": role,
+                "content": content
+            })
+
+        # Prepare data for the API request
+        data = {
+            "model": self.model_id,
+            "messages": formatted_conversation,
+            "temperature": 0
+        }
+
+        if system_message:
+            data["system"] = system_message
+
+        response = requests.post(self.base_url, headers=self.headers, json=data)
+
+        if response.status_code == 200:
+            response_json = response.json()
+            # Access 'choices' list and retrieve 'content' under 'message'
+            if 'choices' in response_json and len(response_json['choices']) > 0:
+                message_content = response_json['choices'][0].get('message', {}).get('content')
+                if message_content:
+                    return message_content
+                else:
+                    return "Error: Unexpected response structure - 'message.content' missing"
+            else:
+                return "Error: Unexpected response structure - 'choices' missing or empty"
+        else:
+            return f"Error: {response.status_code}, {response.text}"
+
+
 class ModelManager:
     @staticmethod
     def initialize_model(model_name):
@@ -545,6 +525,11 @@ class ModelManager:
             config = config_manager.get_credentials(model_type)
             model_id = config['model_id']
             return GroqModel(model_id)
+        elif model_name == 'grok':
+            model_type = "grok"
+            config = config_manager.get_credentials(model_type)
+            model_id = config['model_id']
+            return XAIModel(model_id)
         else:
             raise ValueError(f"Unsupported model: {model_name}")
 
@@ -556,5 +541,7 @@ class ModelManager:
             return VertexAIModel(model_id)
         elif provider == 'groq':
             return GroqModel(model_id)
+        elif provider == 'grok':
+            return XAIModel(model_id)
         else:
             raise ValueError(f"Unsupported provider: {provider}")
