@@ -38,6 +38,8 @@ System Message Handling:
    - If no system message is found, adds a default system message at the beginning.
    - Includes the system message in the main message list sent to the API.
 
+4. Other models are integrated overtime... 
+   
 These differences reflect the varying requirements and structures of the underlying APIs
 for each model provider. Understanding these differences is crucial when implementing
 multi-model support in an application to ensure correct handling of system messages,
@@ -302,7 +304,6 @@ class AnthropicModel(ConfigurableModel):
         else:
             return f"Error: {response.status_code}, {response.text}"
 
-
 class VertexAIModel(ConfigurableModel):
     def __init__(self, model_id):
         super().__init__("google-vertex", model_id)
@@ -505,43 +506,36 @@ class XAIModel(ConfigurableModel):
 
 
 class ModelManager:
+    
+    # Keep hard references, so we do not abstract away to 
+    # much for a sain brain 
+    _MODEL_CLASSES = {
+        'anthropic': AnthropicModel,
+        'google-vertex': VertexAIModel,
+        'groq': GroqModel,
+        'grok': XAIModel
+    }
+
     @staticmethod
     def initialize_model(model_name):
-
         config_manager = LLMConfigManager()
-        
-        if model_name == 'anthropic':
-            model_type = "anthropic"
-            config = config_manager.get_credentials(model_type)
-            model_id = config['model_id']
-            return AnthropicModel(model_id)
-        elif model_name == 'google-vertex':
-            model_type = "google-vertex"
-            config = config_manager.get_credentials(model_type)
-            model_id = config['model_id']
-            return VertexAIModel(model_id)
-        elif model_name == 'groq':
-            model_type = "groq"
-            config = config_manager.get_credentials(model_type)
-            model_id = config['model_id']
-            return GroqModel(model_id)
-        elif model_name == 'grok':
-            model_type = "grok"
-            config = config_manager.get_credentials(model_type)
-            model_id = config['model_id']
-            return XAIModel(model_id)
-        else:
+
+        if model_name not in ModelManager._MODEL_CLASSES:
             raise ValueError(f"Unsupported model: {model_name}")
+
+        model_class = ModelManager._MODEL_CLASSES[model_name]
+        config = config_manager.get_credentials(model_name)
+        model_id = config.get('model_id')
+
+        if not model_id:
+            raise ValueError(f"Missing 'model_id' for model: {model_name}")
+
+        return model_class(model_id)
 
     @staticmethod
     def initialize_model_with_id(provider, model_id):
-        if provider == 'anthropic':
-            return AnthropicModel(model_id)
-        elif provider == 'google-vertex':
-            return VertexAIModel(model_id)
-        elif provider == 'groq':
-            return GroqModel(model_id)
-        elif provider == 'grok':
-            return XAIModel(model_id)
-        else:
+        if provider not in ModelManager._MODEL_CLASSES:
             raise ValueError(f"Unsupported provider: {provider}")
+
+        model_class = ModelManager._MODEL_CLASSES[provider]
+        return model_class(model_id)

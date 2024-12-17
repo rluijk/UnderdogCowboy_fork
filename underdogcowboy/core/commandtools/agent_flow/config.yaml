@@ -1,13 +1,19 @@
 
 # Configuration file for MultiScreenApp
 
+# llm:
+#  default_provider: "grok" 
+#  default_model_id:  "grok-beta"   
+#  default_model_name: "Grok Beta"
+
+
 storage:
   base_dir: "~/.tui_oct_2024" # "~/.tui_agent_clarity_03"  # Base directory for storing session data
 
 llm:
-  default_provider: "grok" # "anthropic"  # Default provider for LLM (e.g., OpenAI, Anthropic, etc.)
-  default_model_id:  "grok-beta" # "claude-3-5-sonnet-20241022" # "claude-3-5-sonnet-20240620"  
-  default_model_name: "Grok Beta"  #"Claude 3.5 Sonnet"  # Default model name for the LLM
+  default_provider:  "anthropic"  # Default provider for LLM (e.g., OpenAI, Anthropic, etc.)
+  default_model_id:   "claude-3-5-sonnet-20241022"   
+  default_model_name: "Claude 3.5 Sonnet" 
 
 logging:
   filename: "_12_dec-2024.log"  # Filename for logging output
