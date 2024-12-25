@@ -3,7 +3,7 @@ import asyncio
 import os
 import json
 import datetime
-from typing import Tuple, Optional, Union
+from typing import Tuple, Optional, Union, List, Dict, Any
 
 import re
 import urllib.parse
@@ -366,6 +366,10 @@ class ChatUI(Static):
                     repositories = await github_api.get_repositories()
                     for repo in repositories:
                         if repo['name'] == repo_name:  # Assuming `repo` is a dictionary
+
+                            # Use the extracted helper function to get the desired model response
+                            response_for_issue = self._get_model_response(0)
+
                             # Add issue creation task to queue
                             self.task_queue_manager.add_task("create_issue", repo['full_name'], {
                                 "title": "Bug Report",
@@ -452,45 +456,86 @@ class ChatUI(Static):
             self.app.notify(f"Error saving folder alias: {str(e)}")
 
 
+    def _get_model_response(self,offset: int = 0) -> Optional[str]:
+        """
+        Retrieves the model response at the specified offset from the messages.
 
-    def save_response_to_markdown(self, offset=0, folder_alias=None):  
-        
-        config_manager = LLMConfigManager()  
-        
+        Args:
+            messages (List[Dict[str, Any]]): The list of message dictionaries.
+            offset (int): The offset index for the model response.
+
+        Returns:
+            Optional[str]: The text of the model response if found; otherwise, None.
+        """
+
+        # Retrieve messages based on the processor type
+        if isinstance(self.processor, CommandProcessor):
+            messages = self.processor.timeline.history
+        elif isinstance(self.processor, AgentDialogManager):
+            agent = self.processor.active_agent
+            command_processor = self.processor.processors.get(agent)
+            if command_processor:
+                messages = command_processor.timeline.history
+            else:
+                self.app.notify(f"Error: No command processor found for agent '{agent}'.")
+                return
+        else:
+            self.app.notify("Error: Unsupported processor type.")
+            return
+
+        # Filter and reverse the messages to get model responses in latest-first order
+        model_responses = [msg for msg in reversed(messages) if msg.role.lower() == 'model']
+        total_responses = len(model_responses)
+
+        if offset < 0 or offset >= total_responses:
+            self.app.notify(f"Invalid offset. There are only {total_responses} model responses.")
+            return None
+
+        response = model_responses[offset].text if model_responses else None
+        if not response:
+            self.app.notify(f"No assistant response found at offset {offset}.")
+        return response
+    
+    def save_response_to_markdown(self, offset: int = 0, folder_alias: Optional[str] = None):
+        """
+        Saves the specified model response to a markdown file.
+
+        Args:
+            offset (int): The offset index of the model response to save.
+            folder_alias (Optional[str]): The alias for the target folder where the file will be saved.
+
+        Returns:
+            None
+        """
+        config_manager = LLMConfigManager()
+
+        # Determine the target directory based on folder_alias
         if folder_alias and folder_alias in self.folder_aliases:
             dialogs_dir = os.path.expanduser(self.folder_aliases[folder_alias])
         else:
             dialogs_dir = config_manager.get_general_config().get('message_export_path', '')
-        
+
+        # Ensure the target directory exists
         os.makedirs(dialogs_dir, exist_ok=True)
-                
-        if isinstance(self.processor, CommandProcessor):  
-            messages = self.processor.timeline.history  
-        elif isinstance(self.processor, AgentDialogManager):  
-            agent = self.processor.active_agent  
-            command_processor = self.processor.processors[agent]  
-            messages = command_processor.timeline.history  
-        else:  
-            self.app.notify("Error: Unsupported processor type")  
-            return
-        
-        model_responses = [msg for msg in reversed(messages) if msg.role.lower() == 'model']
-        
-        if offset < 0 or offset >= len(model_responses):
-            self.app.notify(f"Invalid offset. There are only {len(model_responses)} model responses.")
-            return
-        
-        response_to_save = model_responses[offset].text if model_responses else None
-        
-        if response_to_save:  
-            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")  
-            filename = f"llm_response_{timestamp}_offset_{offset}.md"  
+
+        # Use the extracted helper function to get the desired model response
+        response_to_save = self._get_model_response(offset)
+
+        if response_to_save:
+            # Generate a timestamped filename
+            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"llm_response_{timestamp}_offset_{offset}.md"
             file_path = os.path.join(dialogs_dir, filename)
-            with open(file_path, 'w', encoding='utf-8') as f:  
-                f.write(response_to_save)
-            self.app.notify(f"Response (offset: {offset}) saved to {file_path}")  
-        else:  
-            self.app.notify(f"No assistant response found at offset {offset}")    
+
+            # Write the response to the markdown file
+            try:
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    f.write(response_to_save)
+                self.app.notify(f"Response (offset: {offset}) saved to {file_path}.")
+            except OSError as e:
+                self.app.notify(f"Error writing to file {file_path}: {e}")
+        else:
+            self.app.notify(f"No assistant response found at offset {offset}.")  
             
 
     def append_to_chat(self, text: str, role: str, move_to_bottom: bool = False) -> int:
